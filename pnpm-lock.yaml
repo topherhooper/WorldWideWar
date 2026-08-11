@@ -46,6 +46,12 @@ importers:
         specifier: ^6.0.4
         version: 6.0.4
 
+  tools/mapviz:
+    dependencies:
+      '@www/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':
