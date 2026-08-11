@@ -43,7 +43,7 @@ const K = new Uint32Array([
 function utf8Bytes(text: string): Uint8Array {
   const out: number[] = [];
   for (let i = 0; i < text.length; i++) {
-    let code = text.codePointAt(i)!;
+    const code = text.codePointAt(i)!;
     if (code > 0xffff) i++; // surrogate pair consumed
     if (code < 0x80) {
       out.push(code);
