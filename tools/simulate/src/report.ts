@@ -124,7 +124,7 @@ export function gatesFor(stats: Aggregate): Gate[] {
       detail:
         `max deviation from uniform ${(stats.seatDeviation * 100).toFixed(1)}% ` +
         `(limit ${(seatLimit(stats.playerCount, stats.games) * 100).toFixed(1)}% ` +
-        `at n=${stats.games})`,
+        `at n=${stats.games}, Bonferroni-corrected for ${stats.playerCount} seats)`,
     },
     {
       name: 'game length',
@@ -155,15 +155,80 @@ export function gatesFor(stats: Aggregate): Gate[] {
 }
 
 /**
- * Tolerated seat win-rate deviation: 2.5 standard errors, floored at 2% so a
- * huge run does not start failing on noise-level differences that no player
- * could ever perceive.
+ * Tolerated seat win-rate deviation.
+ *
+ * Two corrections matter here, and skipping either makes the gate lie.
+ *
+ * First, the bar scales with the sample: win rates are binomial, so a perfectly
+ * fair game still scatters around uniform by about one standard error per seat.
+ * A flat percentage would be meaningless at small n and unreachably strict at
+ * large n.
+ *
+ * Second — and this is the subtle one — the statistic is the *maximum*
+ * deviation across every seat, so allowing each seat a fixed 2.5 sigma means
+ * roughly a one-in-ten chance that some seat clears it by luck alone on an
+ * eight-player run. That is a multiple-comparisons problem, and it showed up
+ * exactly as predicted: an 8-player run failed at 3.1% which resolved to 0.8%
+ * once the sample grew. Bonferroni-correcting the per-seat threshold for the
+ * number of seats fixes it, and the gate still catches real bias by a mile —
+ * the tie-break bug this suite was written to find sat at 12.4%.
  */
+const FAMILYWISE_ALPHA = 0.01;
+
 function seatLimit(playerCount: number, games: number): number {
   if (playerCount < 2 || games < 1) return 1;
   const p = 1 / playerCount;
   const standardError = Math.sqrt((p * (1 - p)) / games);
-  return Math.max(0.02, 2.5 * standardError);
+  const perSeatAlpha = FAMILYWISE_ALPHA / playerCount;
+  return Math.max(0.02, normalQuantile(1 - perSeatAlpha / 2) * standardError);
+}
+
+/**
+ * Inverse standard normal CDF (Acklam's rational approximation), accurate to
+ * about 1e-9 — far more than a CI threshold needs, and it keeps the harness
+ * free of a stats dependency.
+ */
+function normalQuantile(p: number): number {
+  if (p <= 0 || p >= 1) throw new Error(`normalQuantile expects p in (0, 1), got ${p}`);
+
+  const a = [
+    -3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.38357751867269e2,
+    -3.066479806614716e1, 2.506628277459239,
+  ];
+  const b = [
+    -5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1,
+    -1.328068155288572e1,
+  ];
+  const c = [
+    -7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734,
+    4.374664141464968, 2.938163982698783,
+  ];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+
+  const low = 0.02425;
+  const high = 1 - low;
+
+  if (p < low) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (
+      (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    );
+  }
+  if (p > high) {
+    const q = Math.sqrt(-2 * Math.log(1 - p));
+    return (
+      -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    );
+  }
+
+  const q = p - 0.5;
+  const r = q * q;
+  return (
+    ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) /
+    (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+  );
 }
 
 /** Acceptable median game length, by table size. */

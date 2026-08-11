@@ -386,7 +386,11 @@ function buildRegions(
   adjacency: readonly number[][],
   rng: Rng,
 ): { regionOf: number[]; regions: Region[] } {
-  const clusterCount = Math.max(1, Math.round(layout.perWedge / 4));
+  // Regions want to be small enough to take in a turn or two. Splitting a wedge
+  // only two ways leaves them too big on small maps — at two players a wedge
+  // holds nine locals, and a 2-way split plus contiguous leftovers produced
+  // eight-territory regions covering 42% of a nineteen-territory world.
+  const clusterCount = Math.max(2, Math.round(layout.perWedge / 3.5));
 
   // Local adjacency carrying the wedge offset each edge crosses.
   const localEdges: { to: number; delta: number }[][] = Array.from(
@@ -503,8 +507,12 @@ function farthestPointSeeds(adjacency: readonly number[][], count: number): numb
  * offset implied by the edge that reached it — so rotating a finished region
  * lands exactly on the next one.
  *
- * Growth is capped at an even share so one seed cannot swallow the map; a
- * second uncapped pass then sweeps up anything left over.
+ * Growth is capped at an even share so one seed cannot swallow the map, and
+ * whatever the capped pass could not reach is then handed to the *smallest*
+ * adjacent cluster rather than to whichever wavefront happens to arrive first.
+ * A plain uncapped second pass looks equivalent but is not: it lets a single
+ * cluster absorb every leftover, which on a nineteen-territory two-player map
+ * produced an eight-territory region — 42% of the world behind one bonus.
  */
 function growClusters(
   localEdges: readonly { to: number; delta: number }[][],
@@ -525,25 +533,53 @@ function growClusters(
     queue.push(seed);
   });
 
-  const visit = (respectCap: boolean): void => {
-    for (let head = 0; head < queue.length; head++) {
-      const node = queue[head];
-      const own = cluster[node];
-      if (respectCap && counts[own] >= cap) continue;
+  for (let head = 0; head < queue.length; head++) {
+    const node = queue[head];
+    const own = cluster[node];
+    if (counts[own] >= cap) continue;
 
-      for (const edge of localEdges[node]) {
-        if (cluster[edge.to] !== -1) continue;
-        if (respectCap && counts[own] >= cap) break;
-        cluster[edge.to] = own;
-        offset[edge.to] = (offset[node] + edge.delta) % layout.playerCount;
-        counts[own]++;
-        queue.push(edge.to);
-      }
+    for (const edge of localEdges[node]) {
+      if (cluster[edge.to] !== -1) continue;
+      if (counts[own] >= cap) break;
+      cluster[edge.to] = own;
+      offset[edge.to] = (offset[node] + edge.delta) % layout.playerCount;
+      counts[own]++;
+      queue.push(edge.to);
     }
-  };
+  }
 
-  visit(true);
-  visit(false);
+  // Sweep up whatever the capped pass left, always into the smallest adjacent
+  // cluster, so leftovers even the regions out instead of piling onto one.
+  for (let guard = 0; guard < size; guard++) {
+    let assignedAny = false;
+
+    for (let local = 0; local < size; local++) {
+      if (cluster[local] !== -1) continue;
+
+      let bestEdge: { to: number; delta: number } | null = null;
+      let bestCount = Infinity;
+      for (const edge of localEdges[local]) {
+        const candidate = cluster[edge.to];
+        if (candidate === -1) continue;
+        if (counts[candidate] < bestCount) {
+          bestCount = counts[candidate];
+          bestEdge = edge;
+        }
+      }
+      if (!bestEdge) continue;
+
+      const target = cluster[bestEdge.to];
+      cluster[local] = target;
+      // Invert the edge: this local sits `delta` wedges before its neighbour.
+      offset[local] =
+        (((offset[bestEdge.to] - bestEdge.delta) % layout.playerCount) + layout.playerCount) %
+        layout.playerCount;
+      counts[target]++;
+      assignedAny = true;
+    }
+
+    if (!assignedAny) break;
+  }
 
   // A local the wavefront never reached (isolated in the local graph) joins the
   // lowest-indexed assigned neighbour, taking that edge's offset.

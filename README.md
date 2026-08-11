@@ -58,14 +58,14 @@ pnpm test
 
 ## Development commands
 
-| Command | What it does |
-| --- | --- |
-| `pnpm test` | Run the full test suite |
-| `pnpm typecheck` | Type-check every package |
-| `pnpm lint` | Lint, including the engine-purity rules |
-| `pnpm format` | Format with Prettier |
-| `pnpm sim` | Play seeded bot games and print balance and social metrics |
-| `pnpm mapviz` | Render generated maps to SVG for inspection |
+| Command          | What it does                                               |
+| ---------------- | ---------------------------------------------------------- |
+| `pnpm test`      | Run the full test suite                                    |
+| `pnpm typecheck` | Type-check every package                                   |
+| `pnpm lint`      | Lint, including the engine-purity rules                    |
+| `pnpm format`    | Format with Prettier                                       |
+| `pnpm sim`       | Play seeded bot games and print balance and social metrics |
+| `pnpm mapviz`    | Render generated maps to SVG for inspection                |
 
 ## License
 

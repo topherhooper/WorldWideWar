@@ -53,8 +53,11 @@ jobs:
       # contiguity, and — the one that matters — that the graph is invariant
       # under a one-wedge rotation. Seat fairness is structural, so this is
       # where a change that quietly breaks it gets caught.
+      # `pnpm test -- <path>` does not filter — pnpm forwards the `--` and vitest
+      # runs the whole suite anyway. Invoke vitest directly so this job actually
+      # sweeps the generator instead of quietly re-running everything.
       - name: Sweep 300 seeds per player count
-        run: MAPGEN_SEEDS=300 pnpm test -- packages/engine/src/mapgen
+        run: pnpm exec vitest run packages/engine/src/mapgen
         env:
           MAPGEN_SEEDS: '300'
 
@@ -77,4 +80,4 @@ jobs:
       # teeth. `pnpm sim` exits non-zero when a gate fails, so a tuning change
       # that quietly guts the pact cannot merge.
       - name: Play 800 games per table size
-        run: pnpm sim -- --games 800 --players 2,4,6,8,12
+        run: pnpm exec tsx tools/simulate/src/main.ts --games 800 --players 2,4,6,8,12

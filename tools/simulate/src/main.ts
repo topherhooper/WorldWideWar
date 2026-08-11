@@ -35,6 +35,9 @@ function parseArgs(argv: string[]): Options {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = argv[i + 1];
+    // `pnpm sim -- --games 800` forwards a bare `--` through to us, which is
+    // the invocation the README and CI both use.
+    if (arg === '--') continue;
     switch (arg) {
       case '--games':
         options.games = Number(value);
