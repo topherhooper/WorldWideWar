@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/engine" },
+    { "path": "./tools/simulate" },
+    { "path": "./tools/mapviz" }
+  ]
+}
