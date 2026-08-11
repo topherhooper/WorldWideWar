@@ -75,6 +75,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The harness imports @www/engine through the workspace link, which
+      # resolves to the package's compiled dist. Only the check job happens to
+      # build as a side effect of typechecking, so this job must build
+      # explicitly or it cannot resolve the engine at all.
+      - run: pnpm build
+
       # Seat fairness and game length say whether it is a fair, fast game;
       # betrayal rate and shared-win rate say whether the social layer has any
       # teeth. `pnpm sim` exits non-zero when a gate fails, so a tuning change
