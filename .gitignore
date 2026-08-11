@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# data
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# generated artifacts
+out/
+tools/mapviz/out/
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/
+*.log
