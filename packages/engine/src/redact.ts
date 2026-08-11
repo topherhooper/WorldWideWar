@@ -60,6 +60,9 @@ function cloneShallow(state: GameState): GameState {
     betrayedBy: state.betrayedBy.map((row) => row.slice()),
     pactPartner: state.pactPartner.slice(),
     pactStreak: state.pactStreak.slice(),
+    concordAt: state.concordAt.map((row) => row.slice()),
+    hegemonyStreak: state.hegemonyStreak.slice(),
+    decapitationStreak: state.decapitationStreak.slice(),
     usedEvents: state.usedEvents.slice(),
     pendingBonusIncome: state.pendingBonusIncome.slice(),
     result: state.result

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_CONDOMINIUM_PLAYERS, rulesFor } from './constants.js';
+import { MIN_CONCORDAT_PLAYERS, MIN_CONDOMINIUM_PLAYERS, rulesFor } from './constants.js';
 import { MAX_PLAYERS, MIN_PLAYERS } from './mapgen/generate.js';
 import { hashValue } from './hash.js';
 import { playBotGame } from './simulate.js';
@@ -34,24 +34,62 @@ describe('a whole game, played by bots', () => {
         expect(summary.result).not.toBeNull();
         expect(summary.result.standings).toHaveLength(playerCount);
         expect(new Set(summary.result.standings).size).toBe(playerCount);
-        // Either somebody won, or the world burned with nobody left standing.
-        expect(summary.winners.length).toBeLessThanOrEqual(2);
+        // Solo, a two-player condominium, or a three-player concordat.
+        expect(summary.winners.length).toBeLessThanOrEqual(3);
+        // A shared win must always leave somebody out, or it is a draw.
+        if (summary.winners.length > 1) {
+          const alive = summary.finalState.status.filter((s) => s === 'active').length;
+          expect(summary.winners.length).toBeLessThan(Math.max(2, alive));
+        }
       }
     });
 
     it('never shares a win outside the rules that permit one', () => {
       for (const summary of played) {
         if (summary.winners.length < 2) continue;
-        expect(playerCount).toBeGreaterThanOrEqual(MIN_CONDOMINIUM_PLAYERS);
-
-        // A shared win requires a standing mutual concord, checked from both
-        // sides — a forged one-sided record must never be enough.
-        const [a, b] = summary.winners;
         const state = summary.finalState;
-        expect(state.pactPartner[a]).toBe(b);
-        expect(state.pactPartner[b]).toBe(a);
-        expect(state.pactStreak[a]).toBeGreaterThanOrEqual(rulesFor(playerCount).condominiumStreak);
+
+        if (summary.winners.length === 2) {
+          expect(playerCount).toBeGreaterThanOrEqual(MIN_CONDOMINIUM_PLAYERS);
+          // A condominium requires a standing mutual concord, read from both
+          // sides — a forged one-sided record must never be enough.
+          const [a, b] = summary.winners;
+          if (summary.kind === 'condominium') {
+            expect(state.pactPartner[a]).toBe(b);
+            expect(state.pactPartner[b]).toBe(a);
+            expect(state.pactStreak[a]).toBeGreaterThanOrEqual(
+              rulesFor(playerCount).condominiumStreak,
+            );
+          }
+          continue;
+        }
+
+        // A concordat needs a clean slate across the whole triangle.
+        expect(playerCount).toBeGreaterThanOrEqual(MIN_CONCORDAT_PLAYERS);
+        const [a, b, c] = summary.winners;
+        for (const [x, y] of [
+          [a, b],
+          [b, c],
+          [a, c],
+        ]) {
+          expect(state.betrayedBy[x][y]).toBe(0);
+          expect(state.betrayedBy[y][x]).toBe(0);
+          expect(state.concordAt[x][y]).toBeGreaterThanOrEqual(0);
+        }
       }
+    });
+
+    it('reaches its ending through a route the rules define', () => {
+      const routes = new Set([
+        'conquest',
+        'domination',
+        'hegemony',
+        'decapitation',
+        'condominium',
+        'concordat',
+        'turn_cap',
+      ]);
+      for (const summary of played) expect(routes.has(summary.kind)).toBe(true);
     });
 
     it('leaves the board in a consistent state', () => {

@@ -2,7 +2,7 @@
 
 export * from './types.js';
 export * from './constants.js';
-export { rulesFor, MIN_CONDOMINIUM_PLAYERS } from './constants.js';
+export { rulesFor, MIN_CONDOMINIUM_PLAYERS, MIN_CONCORDAT_PLAYERS } from './constants.js';
 export { makeRng, substream, type Rng } from './rng.js';
 export { canonicalJson, hashValue, sha256 } from './hash.js';
 export {
@@ -41,7 +41,14 @@ export { redact, isRedacted, HIDDEN_ARMIES } from './redact.js';
 export { recomputeSupply, suppliedCount, territoryCount, relocateCapital } from './supply.js';
 export { computeIncome, recomputeIncome, regionBonusFor } from './income.js';
 export { applyStorm, waveCollapsingOn, warnedTerritories, survivingTerritories } from './storm.js';
-export { checkVictory, rankPlayers, processEliminations, totalArmies } from './victory.js';
+export {
+  checkVictory,
+  rankPlayers,
+  processEliminations,
+  totalArmies,
+  fullyHeldRegions,
+  updateVictoryStreaks,
+} from './victory.js';
 export {
   GLOBAL_EVENTS,
   EVENT_DESCRIPTIONS,

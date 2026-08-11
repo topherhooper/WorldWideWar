@@ -11,6 +11,10 @@
 import type { GameSummary, PactOutcome } from '@www/engine';
 
 export interface Aggregate {
+  /** Share of games taken by the single most common ending route. */
+  dominantRouteShare: number;
+  /** Ending routes that account for at least 5% of games. */
+  liveRoutes: number;
   games: number;
   playerCount: number;
   /** Share of wins per seat; uniform is 1/playerCount. */
@@ -91,9 +95,13 @@ export function aggregate(summaries: readonly GameSummary[]): Aggregate {
 
   const sharedWins = summaries.filter((s) => s.winners.length > 1).length;
 
+  const routeShares = Object.values(endings).map((count) => count / Math.max(1, games));
+
   return {
     games,
     playerCount,
+    dominantRouteShare: routeShares.length > 0 ? Math.max(...routeShares) : 0,
+    liveRoutes: routeShares.filter((share) => share >= 0.05).length,
     winRateBySeat,
     seatDeviation,
     turnsMedian: percentile(turns, 0.5),
@@ -146,10 +154,27 @@ export function gatesFor(stats: Aggregate): Gate[] {
     },
     {
       name: 'shared wins',
-      // The anti-stalemate guard: if a table can reliably coast into a
-      // condominium, the thresholds are wrong.
-      ok: stats.sharedWinRate < 0.25,
-      detail: `${(stats.sharedWinRate * 100).toFixed(1)}% of games ended shared (limit 25%)`,
+      // Two-sided. The ceiling is the anti-stalemate guard: if a table can
+      // reliably coast into a shared win, the thresholds are wrong. The floor
+      // matters just as much — a shared victory nobody ever reaches is not a
+      // feature, and every tuning pass so far has pushed it toward extinction.
+      // Duels are exempt: there, a shared win would be a draw.
+      ok: stats.sharedWinRate < 0.25 && (stats.playerCount < 3 || stats.sharedWinRate >= 0.01),
+      detail:
+        `${(stats.sharedWinRate * 100).toFixed(1)}% of games ended shared ` +
+        `(target ${stats.playerCount < 3 ? '0%' : '1-25%'})`,
+    },
+    {
+      name: 'route diversity',
+      // Several victory routes only make the game more dynamic if games
+      // actually reach them. Without this, a change that quietly makes one
+      // route strictly easiest reverts the design to a single ending and every
+      // other gate still passes.
+      ok: stats.dominantRouteShare <= routeLimit(stats.playerCount) && stats.liveRoutes >= 2,
+      detail:
+        `${stats.liveRoutes} routes at 5%+ of games, most common takes ` +
+        `${(stats.dominantRouteShare * 100).toFixed(0)}% ` +
+        `(limit ${(routeLimit(stats.playerCount) * 100).toFixed(0)}%)`,
     },
   ];
 }
@@ -229,6 +254,16 @@ function normalQuantile(p: number): number {
     ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) /
     (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
   );
+}
+
+/**
+ * How much of the endings one route may take.
+ *
+ * Duels get more slack because fewer routes are open to them at all: no shared
+ * victory, and decapitation needs at least three founding capitals to exist.
+ */
+function routeLimit(playerCount: number): number {
+  return playerCount <= 3 ? 0.9 : 0.8;
 }
 
 /** Acceptable median game length, by table size. */

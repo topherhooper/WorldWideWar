@@ -82,6 +82,46 @@ export const DEFAULT_RULES: RuleConfig = {
   // to be worth playing for.
   condominiumShare: 0.65,
   condominiumStreak: 3,
+  // Hold half the surviving regions *outright* for two turns running, and never
+  // fewer than three regions whatever the share works out to.
+  //
+  // The floor is the important half. Measured at a third with no floor, this
+  // ended 70-90% of games and swallowed every other route: the bar is a share
+  // of *surviving* regions, so as the storm burns the world it collapses on its
+  // own — late on, three live regions meant holding one region won the game.
+  hegemonyShare: 0.5,
+  hegemonyMinimum: 3,
+  // Hegemony is a mid-game condition and switches off once the storm has eaten
+  // the map. Without this it becomes the default ending on larger tables — 51%
+  // of eight-player games — because three whole regions out of the five that
+  // survive to the endgame is far easier than holding half the territory.
+  // Building an empire should win; mopping up a burnt world should not.
+  hegemonyMinRegionsAlive: 6,
+  // The region *count* alone is too coarse a dial to balance: region totals are
+  // fixed per map, so ceil(regions x share) jumps between whole numbers and
+  // there is no value between "hegemony never fires" and "hegemony ends 64% of
+  // games". Requiring the held regions to cover a share of the surviving
+  // territory gives a continuous knob, and it is the more honest requirement
+  // anyway — a hegemon should visibly control the map, not just collect three
+  // small regions in a quiet corner.
+  hegemonyTerritoryShare: 0.45,
+  hegemonyStreak: 2,
+  // Your own founding capital plus more than half of everyone else's. Solo and
+  // aggressive, but surgical rather than a land grab — it gives raiders a
+  // target list and makes capitals landmarks worth garrisoning.
+  decapitationShare: 0.5,
+  // Capitals must be *held*, not merely touched. Without this the condition
+  // fires on a snapshot: at four players it ended a third of all games and
+  // dragged the median down to 12 turns with a tenth finishing by turn 7.
+  // Requiring a turn of holding gives the table a round to take one back.
+  decapitationStreak: 2,
+  // A three-way concordat: every pair must have cooperated within this many
+  // turns. You may only pledge one player per turn, so closing a triangle means
+  // rotating pledges — which costs you the unbroken streak a condominium needs.
+  // That tension is the point: the two shared victories pull in opposite
+  // directions and you must commit to one.
+  concordatWindow: 5,
+  concordatShare: 0.75,
   stormFirstWave: 10,
   stormInterval: 2,
   eventInterval: 3,
@@ -95,6 +135,14 @@ export const DEFAULT_RULES: RuleConfig = {
  * and the turn cap.
  */
 export const MIN_CONDOMINIUM_PLAYERS = 3;
+
+/**
+ * Players required before a three-way concordat is possible.
+ *
+ * Same principle as the duel rule: a shared victory must exclude somebody, or
+ * it is just a draw wearing a different name.
+ */
+export const MIN_CONCORDAT_PLAYERS = 4;
 
 /**
  * Rules scaled to table size.
@@ -112,8 +160,17 @@ export const MIN_CONDOMINIUM_PLAYERS = 3;
 export function rulesFor(playerCount: number): RuleConfig {
   return {
     ...DEFAULT_RULES,
+    // Raised across the board now that hegemony, decapitation and the concordat
+    // exist. At the old values domination ended ~70% of games and the other
+    // routes were decorative; a higher bar makes each of them a real plan
+    // rather than a consolation prize.
     dominationShare:
-      playerCount <= 3 ? 0.7 : playerCount <= 6 ? 0.55 : playerCount <= 9 ? 0.48 : 0.45,
+      playerCount <= 4 ? 0.65 : playerCount <= 6 ? 0.6 : playerCount <= 9 ? 0.55 : 0.5,
+    // Scales down with the table for the same reason domination does. Region
+    // count grows with player count (roughly 2P+1), so a fixed share becomes
+    // unreachable: half of twenty-five regions is not a strategy, and hegemony
+    // simply stopped existing above six players.
+    hegemonyShare: playerCount <= 4 ? 0.5 : playerCount <= 6 ? 0.45 : playerCount <= 9 ? 0.4 : 0.45,
     stormFirstWave: playerCount <= 6 ? 10 : playerCount <= 9 ? 9 : 6,
     stormInterval: playerCount <= 6 ? 2 : 1,
   };

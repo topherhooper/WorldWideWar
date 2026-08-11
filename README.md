@@ -24,6 +24,30 @@ dominates) becomes an iterated one across a 25-turn game. A known serial backsta
 will pledge to them, and spends the rest of the match at a multiplier penalty while everyone else
 runs cooperative pairs. That punishment is emergent, not coded.
 
+## Winning
+
+There are several ways to end a game, and they pull in different directions — the point is that
+two tables playing the same map should be able to arrive somewhere different.
+
+| Route            | How                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Conquest**     | Be the last power standing.                                                                                                                       |
+| **Domination**   | Hold a decisive share of the surviving world.                                                                                                     |
+| **Hegemony**     | Hold whole regions — every territory in them — covering much of the map, for two turns running. Rewards a compact, defensible empire over sprawl. |
+| **Decapitation** | Hold your own founding capital and most of everyone else's, for two turns. Surgical rather than a land grab.                                      |
+| **Condominium**  | Two players, one unbroken mutual concord, jointly dominant.                                                                                       |
+| **Concordat**    | Three players bound pairwise by recent cooperation, none of whom has ever betrayed another.                                                       |
+| **Turn cap**     | Nobody closed it out; standings decide, and there are no draws.                                                                                   |
+
+Two rules keep the shared routes honest. **A solo win always beats a shared one**, so nobody ever
+settles for splitting a victory they could have taken outright. And **a shared win must exclude
+somebody** — if the winners are everyone still alive, that is a draw wearing a different name.
+
+The two shared routes also compete. A condominium wants one unbroken partnership; a concordat wants
+three pairs that have each cooperated recently. Since you may only pledge one player per turn,
+closing a triangle means rotating pledges and forfeiting the streak a condominium needs. You have to
+commit to one.
+
 ## Status
 
 Early development. The engine and procedural map generator come first and are playable from a

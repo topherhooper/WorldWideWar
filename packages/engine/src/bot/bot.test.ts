@@ -130,6 +130,11 @@ describe('tableMatching', () => {
     // A tie-break on slot or territory id silently means "prefer the
     // lowest-numbered player", which compounded into a 12%-to-22% seat win
     // spread on a provably symmetric map.
+    //
+    // Sampled across three consecutive turns rather than one: a trio pursuing a
+    // concordat rotates which of its three pairs cooperates, so exactly one
+    // member sits out each turn by design. A single-turn snapshot measures that
+    // rotation rather than any bias.
     const counts = new Array<number>(6).fill(0);
 
     for (let i = 0; i < 200; i++) {
@@ -147,18 +152,23 @@ describe('tableMatching', () => {
       });
       // Distinct seeds so the seeded jitter differs between tables.
       map.seed = `table-${i}`;
-      const state = scenario(map, {
-        owner: [0, 1, 2, 3, 4, 5],
-        armies: [5, 5, 5, 5, 5, 5],
-      });
-      const partner = tableMatching(state, map);
-      for (let slot = 0; slot < 6; slot++) if (partner[slot] !== null) counts[slot]++;
+
+      for (let turn = 1; turn <= 3; turn++) {
+        const state = scenario(map, {
+          owner: [0, 1, 2, 3, 4, 5],
+          armies: [5, 5, 5, 5, 5, 5],
+          turn,
+        });
+        const partner = tableMatching(state, map);
+        for (let slot = 0; slot < 6; slot++) if (partner[slot] !== null) counts[slot]++;
+      }
     }
 
-    // Every seat should find a partner about equally often.
+    // Every seat should find a partner about equally often. 600 samples per
+    // seat, so a spread this wide could not be sampling noise.
     const min = Math.min(...counts);
     const max = Math.max(...counts);
-    expect(max - min).toBeLessThan(60);
+    expect(max - min).toBeLessThan(120);
   });
 
   it('varies with the game seed rather than repeating every table', () => {

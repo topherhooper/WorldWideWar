@@ -31,6 +31,9 @@ export function createInitialState(
     betrayedBy: Array.from({ length: playerCount }, () => new Array<number>(playerCount).fill(0)),
     pactPartner: new Array<number | null>(playerCount).fill(null),
     pactStreak: new Array<number>(playerCount).fill(0),
+    concordAt: Array.from({ length: playerCount }, () => new Array<number>(playerCount).fill(-1)),
+    hegemonyStreak: new Array<number>(playerCount).fill(0),
+    decapitationStreak: new Array<number>(playerCount).fill(0),
 
     activeEvent: null,
     pendingEvent: null,
@@ -88,6 +91,9 @@ export function cloneState(state: GameState): GameState {
     betrayedBy: state.betrayedBy.map((row) => row.slice()),
     pactPartner: state.pactPartner.slice(),
     pactStreak: state.pactStreak.slice(),
+    concordAt: state.concordAt.map((row) => row.slice()),
+    hegemonyStreak: state.hegemonyStreak.slice(),
+    decapitationStreak: state.decapitationStreak.slice(),
     usedEvents: state.usedEvents.slice(),
     pendingBonusIncome: state.pendingBonusIncome.slice(),
     result: state.result

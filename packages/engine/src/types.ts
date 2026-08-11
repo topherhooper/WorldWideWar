@@ -110,12 +110,30 @@ export interface PactResult {
 
 export type PlayerStatus = 'active' | 'eliminated' | 'resigned';
 
+export type VictoryKind =
+  /** Last player standing. */
+  | 'conquest'
+  /** Holds a decisive share of the surviving map. */
+  | 'domination'
+  /** Holds a third of surviving regions outright, two turns running. */
+  | 'hegemony'
+  /** Holds their own founding capital and most of everyone else's. */
+  | 'decapitation'
+  /** Two players, unbroken mutual concord, jointly dominant. */
+  | 'condominium'
+  /** Three players bound pairwise by recent concord, none having betrayed. */
+  | 'concordat'
+  /** Nobody closed it out; standings decide. */
+  | 'turn_cap';
+
 export interface GameResult {
-  kind: 'conquest' | 'domination' | 'condominium' | 'turn_cap';
-  /** One slot, or two for a shared condominium victory. */
+  kind: VictoryKind;
+  /** One slot, or two or three for a shared victory. */
   winners: Slot[];
   /** Final ranking, best first. */
   standings: Slot[];
+  /** Human-readable reason, for the report headline. */
+  detail?: string;
 }
 
 /**
@@ -150,6 +168,17 @@ export interface GameState {
   pactPartner: (Slot | null)[];
   /** Length of the current unbroken concord streak with `pactPartner`. */
   pactStreak: number[];
+  /**
+   * `concordAt[a][b]` — the last turn on which a and b were in mutual concord,
+   * or -1. A pact streak only tracks your *current* partner, but a three-way
+   * concordat needs to know that all three pairs cooperated recently, which
+   * cannot be expressed by one partner slot each.
+   */
+  concordAt: number[][];
+  /** Consecutive turns holding enough whole regions to claim hegemony. */
+  hegemonyStreak: number[];
+  /** Consecutive turns holding enough rival capitals to claim decapitation. */
+  decapitationStreak: number[];
 
   // World
   /** Event applying this turn, announced at the end of the previous one. */
@@ -238,6 +267,24 @@ export interface RuleConfig {
   condominiumShare: number;
   /** Consecutive concord turns required to qualify for a condominium. */
   condominiumStreak: number;
+  /** Share of surviving *regions* held outright for a hegemony win. */
+  hegemonyShare: number;
+  /** Whole regions required regardless of share, so the bar cannot collapse. */
+  hegemonyMinimum: number;
+  /** Regions that must still exist for a hegemony claim to be available. */
+  hegemonyMinRegionsAlive: number;
+  /** Share of surviving territory those whole regions must actually cover. */
+  hegemonyTerritoryShare: number;
+  /** Consecutive turns that share must be held. */
+  hegemonyStreak: number;
+  /** Share of rivals' founding capitals needed for a decapitation win. */
+  decapitationShare: number;
+  /** Consecutive turns those capitals must be held. */
+  decapitationStreak: number;
+  /** How recently all three pairs must have cooperated for a concordat. */
+  concordatWindow: number;
+  /** Share of surviving territory a concordat trio must jointly hold. */
+  concordatShare: number;
   /** Turn the first storm wave collapses. */
   stormFirstWave: number;
   /** Turns between storm waves. */

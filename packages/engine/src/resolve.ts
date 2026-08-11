@@ -52,7 +52,7 @@ import type {
   WorldEvent,
 } from './types.js';
 import { NEUTRAL_GROWTH_INTERVAL } from './constants.js';
-import { checkVictory, processEliminations } from './victory.js';
+import { checkVictory, processEliminations, updateVictoryStreaks } from './victory.js';
 
 export interface ResolveResult {
   next: GameState;
@@ -450,6 +450,9 @@ export function resolveTurn(
     });
   }
 
+  // Streaks must reflect the board as it now stands, before victory is judged.
+  updateVictoryStreaks(next, map, rules);
+
   const result = checkVictory(next, map, rules);
   if (result) {
     next.result = result;
@@ -584,10 +587,16 @@ function buildHeadline(
 ): string {
   const over = world.find((event) => event.kind === 'game_over');
   if (over && over.kind === 'game_over') {
-    const winners = over.result.winners;
+    const { winners, detail } = over.result;
+    const because = detail ? ` — ${detail}` : '';
     if (winners.length === 0) return `Turn ${turn} — the world burns with nobody left to hold it`;
-    if (winners.length === 1) return `Turn ${turn} — player ${winners[0]} takes the world`;
-    return `Turn ${turn} — players ${winners.join(' and ')} divide the world between them`;
+    if (winners.length === 1)
+      return `Turn ${turn} — player ${winners[0]} takes the world${because}`;
+    const names =
+      winners.length === 2
+        ? `players ${winners[0]} and ${winners[1]}`
+        : `players ${winners.slice(0, -1).join(', ')} and ${winners[winners.length - 1]}`;
+    return `Turn ${turn} — ${names} divide the world${because}`;
   }
 
   // Betrayals always lead: they are the emotional peak of the turn and they

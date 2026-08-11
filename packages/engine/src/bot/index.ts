@@ -12,7 +12,7 @@
  */
 
 import { battleOdds } from '../combat.js';
-import { MIN_CONDOMINIUM_PLAYERS, PACT_MULTIPLIER } from '../constants.js';
+import { MIN_CONCORDAT_PLAYERS, MIN_CONDOMINIUM_PLAYERS, PACT_MULTIPLIER } from '../constants.js';
 import { articulationPoints } from '../graph.js';
 import type { Rng } from '../rng.js';
 import { territoryCount } from '../supply.js';
@@ -51,6 +51,10 @@ const PLEDGE_TRUST_FLOOR = -1;
 const BETRAYAL_APPETITE = 6.5;
 /** How much of the odds bar a bot waives once it has committed to a stab. */
 const BETRAYAL_THRESHOLD_RELIEF = 0.2;
+/** Average pair score a triangle must beat before bots pursue a concordat. */
+const TRIO_SCORE_FLOOR = 1.5;
+/** A trio holding less of the map than this is not close enough to bother. */
+const TRIO_MIN_SHARE = 0.45;
 
 export function decideOrders(
   state: GameState,
@@ -285,24 +289,54 @@ export function tableMatching(state: GameState, map: GeneratedMap): (Slot | null
   const neighbours = new Map<Slot, Set<Slot>>();
   for (const slot of alive) neighbours.set(slot, borderingPlayers(state, map, slot));
 
+  const score = (a: Slot, b: Slot): number =>
+    (pairScore(state, seedHash, a, b, neighbours.get(a)!) +
+      pairScore(state, seedHash, b, a, neighbours.get(b)!)) /
+    2;
+
   const pairs: { a: Slot; b: Slot; score: number }[] = [];
   for (let i = 0; i < alive.length; i++) {
     for (let j = i + 1; j < alive.length; j++) {
-      const a = alive[i];
-      const b = alive[j];
       // Symmetric by construction: both orderings must produce one number.
-      const score =
-        (pairScore(state, seedHash, a, b, neighbours.get(a)!) +
-          pairScore(state, seedHash, b, a, neighbours.get(b)!)) /
-        2;
-      pairs.push({ a, b, score });
+      pairs.push({ a: alive[i], b: alive[j], score: score(alive[i], alive[j]) });
     }
   }
-
   pairs.sort((x, y) => y.score - x.score || x.a - y.a || x.b - y.b);
 
   const partner = new Array<Slot | null>(state.playerCount).fill(null);
   const taken = new Set<Slot>();
+
+  // A trio pursuing a concordat, if one is worth forming. Deliberately checked
+  // before pairing: a triangle is strictly more demanding to keep alive, so it
+  // has to get first refusal or it would never form at all.
+  const trio = bestTrio(state, alive, score);
+  if (trio) {
+    // Only one pair of the three can be mutual on any given turn, because you
+    // may pledge just one player. The trio therefore rotates which pair
+    // cooperates, closing the triangle over three turns; the odd member out
+    // abstains rather than pledging outside and risking a spurned result.
+    //
+    // That is the whole cost of a concordat: two turns of cooperation in every
+    // three, against a pair's unbroken run — and no streak, so a condominium is
+    // off the table for as long as they pursue this.
+    // Rotate by the trio's own identity as well as the turn. Keying on the turn
+    // alone means the same *position* in the sorted trio sits out on any given
+    // turn, and since the trio is sorted ascending that is a fixed seat
+    // preference — the exact class of bug that produced the original 12%-to-22%
+    // seat spread.
+    const rotation = (state.turn + trio[0] + trio[1] * 2 + trio[2] * 3) % 3;
+    const duo: [Slot, Slot] =
+      rotation === 0
+        ? [trio[0], trio[1]]
+        : rotation === 1
+          ? [trio[1], trio[2]]
+          : [trio[0], trio[2]];
+
+    partner[duo[0]] = duo[1];
+    partner[duo[1]] = duo[0];
+    for (const slot of trio) taken.add(slot);
+  }
+
   for (const pair of pairs) {
     if (taken.has(pair.a) || taken.has(pair.b)) continue;
     if (pair.score <= PLEDGE_TRUST_FLOOR) continue;
@@ -313,6 +347,60 @@ export function tableMatching(state: GameState, map: GeneratedMap): (Slot | null
   }
 
   return partner;
+}
+
+/**
+ * The best three-way alliance worth pursuing, or null.
+ *
+ * Requires a completely clean slate between all three — a concordat is voided
+ * permanently by any betrayal within the triangle, so a trio containing a grudge
+ * is chasing a prize it can no longer win. Also requires a genuine
+ * territorial case: three players who jointly hold very little are not close to
+ * a shared victory and are better off pairing.
+ */
+function bestTrio(
+  state: GameState,
+  alive: readonly Slot[],
+  score: (a: Slot, b: Slot) => number,
+): [Slot, Slot, Slot] | null {
+  if (state.playerCount < MIN_CONCORDAT_PLAYERS) return null;
+  // The trio must leave somebody out, or the win would be a draw.
+  if (alive.length < 4) return null;
+
+  const live = state.collapsed.filter((c) => !c).length;
+  if (live <= 0) return null;
+
+  let best: [Slot, Slot, Slot] | null = null;
+  let bestScore = TRIO_SCORE_FLOOR;
+
+  for (let i = 0; i < alive.length; i++) {
+    for (let j = i + 1; j < alive.length; j++) {
+      for (let k = j + 1; k < alive.length; k++) {
+        const trio: [Slot, Slot, Slot] = [alive[i], alive[j], alive[k]];
+        const pairsOf: [Slot, Slot][] = [
+          [trio[0], trio[1]],
+          [trio[1], trio[2]],
+          [trio[0], trio[2]],
+        ];
+
+        const clean = pairsOf.every(
+          ([a, b]) => state.betrayedBy[a][b] === 0 && state.betrayedBy[b][a] === 0,
+        );
+        if (!clean) continue;
+
+        const share = trio.reduce((sum, slot) => sum + territoryCount(state, slot), 0) / live;
+        if (share < TRIO_MIN_SHARE) continue;
+
+        const total = pairsOf.reduce((sum, [a, b]) => sum + score(a, b), 0) / 3;
+        if (total > bestScore) {
+          bestScore = total;
+          best = trio;
+        }
+      }
+    }
+  }
+
+  return best;
 }
 
 function decidePledge(

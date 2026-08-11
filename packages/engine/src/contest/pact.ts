@@ -143,6 +143,13 @@ export function applyPactRecord(state: GameState, results: readonly PactResult[]
         state.pactsHonored[result.slot]++;
         state.pactPartner[result.slot] = result.partner;
         state.pactStreak[result.slot] = result.streak;
+        if (result.partner !== null) {
+          // Remembered per pair, not just for the current partner: a three-way
+          // concordat needs to know every pair cooperated recently, and a
+          // single partner slot cannot express that.
+          state.concordAt[result.slot][result.partner] = state.turn;
+          state.concordAt[result.partner][result.slot] = state.turn;
+        }
         break;
 
       case 'betrayal':
