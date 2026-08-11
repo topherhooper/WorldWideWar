@@ -56,11 +56,7 @@ export function territoryCount(state: GameState, slot: Slot): number {
  * not end you outright. Returns the new capital, or null if the player has
  * nothing left.
  */
-export function relocateCapital(
-  state: GameState,
-  map: GeneratedMap,
-  slot: Slot,
-): number | null {
+export function relocateCapital(state: GameState, map: GeneratedMap, slot: Slot): number | null {
   const owned: number[] = [];
   for (let id = 0; id < state.owner.length; id++) {
     if (state.owner[id] === slot && !state.collapsed[id]) owned.push(id);

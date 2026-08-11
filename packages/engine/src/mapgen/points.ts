@@ -128,7 +128,10 @@ function evenSpiral(layout: SymmetryLayout, wedgeAngle: number, innerRadius: num
  * Expands wedge-local polar coordinates into world positions for every
  * territory, indexed by territory id, with the centre last.
  */
-export function expandPositions(layout: SymmetryLayout, wedge: readonly Polar[]): [number, number][] {
+export function expandPositions(
+  layout: SymmetryLayout,
+  wedge: readonly Polar[],
+): [number, number][] {
   const wedgeAngle = (2 * Math.PI) / layout.playerCount;
   const positions: [number, number][] = new Array(layout.count);
 

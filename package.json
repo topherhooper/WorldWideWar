@@ -8,7 +8,9 @@
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "scripts": {
     "build": "tsc --build",

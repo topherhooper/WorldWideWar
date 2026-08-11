@@ -90,7 +90,8 @@ describe('generateMap', () => {
       const failures: string[] = [];
       for (const map of maps) {
         const issues = validateFairness(map);
-        if (issues.length > 0) failures.push(`${map.seed}: ${issues.map((i) => i.detail).join(', ')}`);
+        if (issues.length > 0)
+          failures.push(`${map.seed}: ${issues.map((i) => i.detail).join(', ')}`);
       }
       expect(failures).toEqual([]);
     });

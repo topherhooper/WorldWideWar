@@ -86,7 +86,10 @@ export function applyEventEffects(
       for (let id = 0; id < state.owner.length; id++) {
         if (state.owner[id] === null && !state.collapsed[id]) neutrals.push(id);
       }
-      for (const id of rng.shuffle(neutrals).slice(0, WARLORD_TERRITORIES).sort((a, b) => a - b)) {
+      for (const id of rng
+        .shuffle(neutrals)
+        .slice(0, WARLORD_TERRITORIES)
+        .sort((a, b) => a - b)) {
         state.armies[id] += WARLORD_ARMIES;
       }
       break;

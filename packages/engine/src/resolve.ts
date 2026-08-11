@@ -23,12 +23,7 @@
 
 import { CAPITAL_DEFENCE_BONUS } from './constants.js';
 import { applyPactRecord, resolvePacts } from './contest/pact.js';
-import {
-  computePower,
-  retreatSurvivors,
-  splitProportionally,
-  winnerCasualties,
-} from './combat.js';
+import { computePower, retreatSurvivors, splitProportionally, winnerCasualties } from './combat.js';
 import {
   applyEventEffects,
   attackerPenalty,
@@ -557,11 +552,7 @@ function salienceOf(
   return score;
 }
 
-function relocateFallenCapitals(
-  state: GameState,
-  map: GeneratedMap,
-  world: WorldEvent[],
-): void {
+function relocateFallenCapitals(state: GameState, map: GeneratedMap, world: WorldEvent[]): void {
   for (let slot = 0; slot < state.playerCount; slot++) {
     if (state.status[slot] !== 'active') continue;
     const capital = state.capital[slot];

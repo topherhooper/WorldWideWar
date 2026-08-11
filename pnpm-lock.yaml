@@ -52,6 +52,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/engine
 
+  tools/simulate:
+    dependencies:
+      '@www/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':

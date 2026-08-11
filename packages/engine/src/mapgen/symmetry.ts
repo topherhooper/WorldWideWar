@@ -58,8 +58,10 @@ export function wedgeOf(layout: SymmetryLayout, id: number): number {
 }
 
 export function territoryId(layout: SymmetryLayout, local: number, wedge: number): number {
-  return local * layout.playerCount + (((wedge % layout.playerCount) + layout.playerCount) %
-    layout.playerCount);
+  return (
+    local * layout.playerCount +
+    (((wedge % layout.playerCount) + layout.playerCount) % layout.playerCount)
+  );
 }
 
 /** Rotates a territory by `steps` wedges. The centre maps to itself. */

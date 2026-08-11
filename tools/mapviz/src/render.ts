@@ -4,8 +4,18 @@ import type { GeneratedMap } from '@www/engine';
 
 /** Twelve hues separated for deuteranopia/protanopia as well as normal vision. */
 export const PLAYER_COLOURS = [
-  '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4',
-  '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9a6324',
+  '#e6194b',
+  '#3cb44b',
+  '#4363d8',
+  '#f58231',
+  '#911eb4',
+  '#42d4f4',
+  '#f032e6',
+  '#bfef45',
+  '#fabed4',
+  '#469990',
+  '#dcbeff',
+  '#9a6324',
 ];
 
 export interface RenderOptions {
@@ -37,7 +47,9 @@ export function renderMapSvg(map: GeneratedMap, options: RenderOptions = {}): st
   parts.push(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${view}" width="${size}" height="${size}" role="img">`,
   );
-  parts.push(`<rect x="${-extent}" y="${-extent}" width="${extent * 2}" height="${extent * 2}" fill="#0f1420"/>`);
+  parts.push(
+    `<rect x="${-extent}" y="${-extent}" width="${extent * 2}" height="${extent * 2}" fill="#0f1420"/>`,
+  );
 
   // Territories, filled by region, tinted toward the rim by storm wave.
   parts.push('<g stroke="#0f1420" stroke-width="28" stroke-linejoin="round">');
@@ -58,13 +70,17 @@ export function renderMapSvg(map: GeneratedMap, options: RenderOptions = {}): st
         : PLAYER_COLOURS[owner % PLAYER_COLOURS.length];
 
     const points = territory.polygon.map(([x, y]) => `${x},${y}`).join(' ');
-    parts.push(`<polygon points="${points}" fill="${fill}" fill-opacity="${owner === undefined ? 0.85 : 0.9}"/>`);
+    parts.push(
+      `<polygon points="${points}" fill="${fill}" fill-opacity="${owner === undefined ? 0.85 : 0.9}"/>`,
+    );
   }
   parts.push('</g>');
 
   // Sea lanes: the long-range surprise vector.
   const centroid = new Map(map.territories.map((t) => [t.id, t.centroid]));
-  parts.push('<g stroke="#7fd4ff" stroke-width="45" stroke-dasharray="120 90" fill="none" opacity="0.85">');
+  parts.push(
+    '<g stroke="#7fd4ff" stroke-width="45" stroke-dasharray="120 90" fill="none" opacity="0.85">',
+  );
   for (const edge of map.edges) {
     if (edge.kind !== 'sea') continue;
     const a = centroid.get(edge.a)!;

@@ -28,7 +28,11 @@ export interface ContestOutcome<Result> {
 
 export interface Contest<Input, Result> {
   readonly id: string;
-  resolve(state: GameState, inputs: (Input | null)[], context: ContestContext): ContestOutcome<Result>;
+  resolve(
+    state: GameState,
+    inputs: (Input | null)[],
+    context: ContestContext,
+  ): ContestOutcome<Result>;
 }
 
 export interface ContestContext {

@@ -107,9 +107,7 @@ export function diameter(adjacency: readonly (readonly number[])[]): number {
  * seals off a large region, since owning one tile should never make a player
  * unassailable.
  */
-export function articulationPoints(
-  adjacency: readonly (readonly number[])[],
-): Map<number, number> {
+export function articulationPoints(adjacency: readonly (readonly number[])[]): Map<number, number> {
   const n = adjacency.length;
   const discovery = new Array<number>(n).fill(-1);
   const low = new Array<number>(n).fill(0);

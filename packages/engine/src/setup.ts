@@ -5,7 +5,10 @@ import { recomputeIncome } from './income.js';
 import { recomputeSupply } from './supply.js';
 import type { GameState, GeneratedMap, RuleConfig } from './types.js';
 
-export function createInitialState(map: GeneratedMap, _rules: RuleConfig = DEFAULT_RULES): GameState {
+export function createInitialState(
+  map: GeneratedMap,
+  _rules: RuleConfig = DEFAULT_RULES,
+): GameState {
   const territoryCount = map.territories.length;
   const playerCount = map.playerCount;
 
@@ -87,6 +90,12 @@ export function cloneState(state: GameState): GameState {
     pactStreak: state.pactStreak.slice(),
     usedEvents: state.usedEvents.slice(),
     pendingBonusIncome: state.pendingBonusIncome.slice(),
-    result: state.result ? { ...state.result, winners: [...state.result.winners], standings: [...state.result.standings] } : null,
+    result: state.result
+      ? {
+          ...state.result,
+          winners: [...state.result.winners],
+          standings: [...state.result.standings],
+        }
+      : null,
   };
 }

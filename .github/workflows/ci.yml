@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  check:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  mapgen:
+    name: Map generator sweep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The exhaustive sweep the default test run only samples: every player
+      # count against many seeds, asserting connectivity, degree bounds, region
+      # contiguity, and — the one that matters — that the graph is invariant
+      # under a one-wedge rotation. Seat fairness is structural, so this is
+      # where a change that quietly breaks it gets caught.
+      - name: Sweep 300 seeds per player count
+        run: MAPGEN_SEEDS=300 pnpm test -- packages/engine/src/mapgen
+        env:
+          MAPGEN_SEEDS: '300'
+
+  balance:
+    name: Balance and social gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Seat fairness and game length say whether it is a fair, fast game;
+      # betrayal rate and shared-win rate say whether the social layer has any
+      # teeth. `pnpm sim` exits non-zero when a gate fails, so a tuning change
+      # that quietly guts the pact cannot merge.
+      - name: Play 800 games per table size
+        run: pnpm sim -- --games 800 --players 2,4,6,8,12

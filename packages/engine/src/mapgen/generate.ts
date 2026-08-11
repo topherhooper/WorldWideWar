@@ -66,11 +66,7 @@ const CAPITAL_RADIUS_FRACTION = 0.72;
 const MIN_SEA_LANE_DISTANCE = 4;
 
 export function generateMap(seed: string, playerCount: number): GeneratedMap {
-  if (
-    !Number.isInteger(playerCount) ||
-    playerCount < MIN_PLAYERS ||
-    playerCount > MAX_PLAYERS
-  ) {
+  if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
     throw new Error(`playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`);
   }
 
@@ -220,7 +216,10 @@ function carveChokepoints(
     if (lengthOf.has(key)) continue;
     lengthOf.set(
       key,
-      Math.hypot(positions[edge.a][0] - positions[edge.b][0], positions[edge.a][1] - positions[edge.b][1]),
+      Math.hypot(
+        positions[edge.a][0] - positions[edge.b][0],
+        positions[edge.a][1] - positions[edge.b][1],
+      ),
     );
   }
 
@@ -262,9 +261,7 @@ function carveChokepoints(
 
     const ranked = [...scores.entries()].sort(
       (x, y) =>
-        y[1].pressure - x[1].pressure ||
-        y[1].length - x[1].length ||
-        (x[0] < y[0] ? -1 : 1),
+        y[1].pressure - x[1].pressure || y[1].length - x[1].length || (x[0] < y[0] ? -1 : 1),
     );
 
     let cut = false;
@@ -408,7 +405,9 @@ function buildRegions(
     localEdges[local].sort((a, b) => a.to - b.to || a.delta - b.delta);
   }
 
-  const plainAdjacency = localEdges.map((list) => [...new Set(list.map((e) => e.to))].sort((a, b) => a - b));
+  const plainAdjacency = localEdges.map((list) =>
+    [...new Set(list.map((e) => e.to))].sort((a, b) => a - b),
+  );
   const seeds = farthestPointSeeds(plainAdjacency, clusterCount);
   const { cluster, offset } = growClusters(localEdges, seeds, layout);
 
@@ -422,7 +421,7 @@ function buildRegions(
       const id = territoryId(layout, local, w);
       // territory(local, w) belongs to the region indexed w - offset(local).
       const index =
-        ((w - offset[local]) % layout.playerCount + layout.playerCount) % layout.playerCount;
+        (((w - offset[local]) % layout.playerCount) + layout.playerCount) % layout.playerCount;
       const regionId = cluster[local] * layout.playerCount + index;
       regionOf[id] = regionId;
       members[regionId].push(id);
@@ -559,7 +558,7 @@ function growClusters(
     cluster[local] = cluster[edge.to];
     // Invert the edge: offset(local) = offset(neighbour) - delta.
     offset[local] =
-      ((offset[edge.to] - edge.delta) % layout.playerCount + layout.playerCount) %
+      (((offset[edge.to] - edge.delta) % layout.playerCount) + layout.playerCount) %
       layout.playerCount;
   }
 

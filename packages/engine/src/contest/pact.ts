@@ -87,8 +87,7 @@ export function resolvePacts(
       outcome === 'abstain' && courtedBy[slot] > 0 ? 'courted' : outcome;
 
     multiplier[slot] = PACT_MULTIPLIER[outcome];
-    bonusIncome[slot] =
-      COURTED_INCOME_BONUS * Math.min(courtedBy[slot], MAX_COURTED_BONUS);
+    bonusIncome[slot] = COURTED_INCOME_BONUS * Math.min(courtedBy[slot], MAX_COURTED_BONUS);
 
     results.push({
       slot,

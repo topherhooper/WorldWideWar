@@ -13,6 +13,7 @@
  * shrinking board, a general peace cannot win.
  */
 
+import { MIN_CONDOMINIUM_PLAYERS } from './constants.js';
 import { concordPair } from './contest/pact.js';
 import { suppliedCount, territoryCount } from './supply.js';
 import { survivingTerritories } from './storm.js';
@@ -47,16 +48,19 @@ export function checkVictory(
     }
 
     // Shared condominium: strictly two players, jointly over a higher bar, on a
-    // concord neither has broken for `condominiumStreak` turns.
-    for (let i = 0; i < alive.length; i++) {
-      for (let j = i + 1; j < alive.length; j++) {
-        const a = alive[i];
-        const b = alive[j];
-        if (!concordPair(state, a, b, rules.condominiumStreak)) continue;
+    // concord neither has broken for `condominiumStreak` turns. Never in a
+    // duel, where "we both win" is simply a draw.
+    if (state.playerCount >= MIN_CONDOMINIUM_PLAYERS) {
+      for (let i = 0; i < alive.length; i++) {
+        for (let j = i + 1; j < alive.length; j++) {
+          const a = alive[i];
+          const b = alive[j];
+          if (!concordPair(state, a, b, rules.condominiumStreak)) continue;
 
-        const share = (territoryCount(state, a) + territoryCount(state, b)) / surviving;
-        if (share >= rules.condominiumShare) {
-          return { kind: 'condominium', winners: [a, b], standings: rankPlayers(state, map) };
+          const share = (territoryCount(state, a) + territoryCount(state, b)) / surviving;
+          if (share >= rules.condominiumShare) {
+            return { kind: 'condominium', winners: [a, b], standings: rankPlayers(state, map) };
+          }
         }
       }
     }
@@ -72,6 +76,7 @@ export function checkVictory(
     if (
       first !== undefined &&
       second !== undefined &&
+      state.playerCount >= MIN_CONDOMINIUM_PLAYERS &&
       concordPair(state, first, second, rules.condominiumStreak) &&
       surviving > 0 &&
       (territoryCount(state, first) + territoryCount(state, second)) / surviving >= 0.6
@@ -94,6 +99,10 @@ export function checkVictory(
  */
 export function rankPlayers(state: GameState, map: GeneratedMap): Slot[] {
   const slots = Array.from({ length: state.playerCount }, (_, slot) => slot);
+
+  // Final tie-break is seeded rather than by slot index: at the turn cap a
+  // genuine dead heat would otherwise always be awarded to the lowest seat.
+  const tiebreak = slots.map((slot) => seatTiebreak(map.seed, slot));
 
   return slots.sort((a, b) => {
     const aliveA = state.status[a] === 'active';
@@ -120,8 +129,17 @@ export function rankPlayers(state: GameState, map: GeneratedMap): Slot[] {
     const holdsB = holdsOwnCapital(state, map, b) ? 1 : 0;
     if (holdsA !== holdsB) return holdsB - holdsA;
 
-    return a - b;
+    return tiebreak[a] - tiebreak[b];
   });
+}
+
+function seatTiebreak(seed: string, slot: Slot): number {
+  let h = 2166136261 ^ slot;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
 }
 
 export function totalArmies(state: GameState, slot: Slot): number {

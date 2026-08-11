@@ -60,10 +60,14 @@ describe('the pact payoff matrix', () => {
   });
 
   it('leaves both parties looking foolish after mutual treachery', () => {
-    const result = run(state, [1, 0, null, null], [
-      [0, 1],
-      [1, 0],
-    ]);
+    const result = run(
+      state,
+      [1, 0, null, null],
+      [
+        [0, 1],
+        [1, 0],
+      ],
+    );
     expect(outcomeOf(result, 0)).toBe('mutual_treachery');
     expect(outcomeOf(result, 1)).toBe('mutual_treachery');
     expect(result.multiplier[0]).toBe(PACT_MULTIPLIER.mutual_treachery);
@@ -109,7 +113,15 @@ describe('the pact payoff matrix', () => {
       'mutual_treachery/mutual_treachery',
     ]);
 
-    for (const attacks of [[], [[0, 1]], [[1, 0]], [[0, 1], [1, 0]]] as [Slot, Slot][][]) {
+    for (const attacks of [
+      [],
+      [[0, 1]],
+      [[1, 0]],
+      [
+        [0, 1],
+        [1, 0],
+      ],
+    ] as [Slot, Slot][][]) {
       const result = run(state, [1, 0, null, null], attacks);
       const pairing = `${outcomeOf(result, 0)}/${outcomeOf(result, 1)}`;
       expect(legalPairs.has(pairing)).toBe(true);
@@ -124,7 +136,10 @@ describe('the pact payoff matrix', () => {
       [null, 0, null, 2],
       [2, 2, 2, null],
     ] as (Slot | null)[][]) {
-      const result = run(state, pledges, [[0, 1], [2, 3]]);
+      const result = run(state, pledges, [
+        [0, 1],
+        [2, 3],
+      ]);
       for (const multiplier of result.multiplier) expect(bands.has(multiplier)).toBe(true);
     }
   });

@@ -351,7 +351,12 @@ describe('resolution invariants', () => {
 
   const submissions: (OrderSet | null)[] = [
     { slot: 0, pledge: 1, deploys: [{ to: 0, count: 3 }], units: [move(0, 1, 2), move(1, 2, 3)] },
-    { slot: 1, pledge: 0, deploys: [{ to: 2, count: 3 }], units: [move(2, 1, 4), support(3, 2, 1)] },
+    {
+      slot: 1,
+      pledge: 0,
+      deploys: [{ to: 2, count: 3 }],
+      units: [move(2, 1, 4), support(3, 2, 1)],
+    },
     { slot: 2, pledge: 3, deploys: [{ to: 4, count: 3 }], units: [move(4, 3, 5), move(5, 6, 1)] },
     { slot: 3, pledge: null, deploys: [{ to: 7, count: 3 }], units: [move(7, 0, 4), hold(6)] },
   ];
