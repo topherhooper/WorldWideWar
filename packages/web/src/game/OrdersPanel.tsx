@@ -114,28 +114,30 @@ export function OrdersPanel(props: Props) {
         </ul>
       )}
 
-      <div className="pledge">
-        <h3>Pact pledge</h3>
-        <div className="pledge-row">
-          {others.map((s) => (
-            <button
-              key={s.slot}
-              className={draft.pledge === s.slot ? 'pledge-btn pledge-on' : 'pledge-btn'}
-              disabled={locked}
-              onClick={() => setPledge(s.slot)}
-              title={`${s.name} — honored ${state.pactsHonored[s.slot]}, broken ${state.pactsBroken[s.slot]}`}
-            >
-              <span className="seat-dot" style={{ background: playerColor(s.slot) }} />
-              {s.name}
-              <span className="muted rep">
-                {' '}
-                {state.pactsHonored[s.slot]}✓ {state.pactsBroken[s.slot]}✗
-              </span>
-            </button>
-          ))}
-          {others.length === 0 && <span className="muted">nobody left to court</span>}
+      {view.contest === 'pact' && (
+        <div className="pledge">
+          <h3>Pact pledge</h3>
+          <div className="pledge-row">
+            {others.map((s) => (
+              <button
+                key={s.slot}
+                className={draft.pledge === s.slot ? 'pledge-btn pledge-on' : 'pledge-btn'}
+                disabled={locked}
+                onClick={() => setPledge(s.slot)}
+                title={`${s.name} — honored ${state.pactsHonored[s.slot]}, broken ${state.pactsBroken[s.slot]}`}
+              >
+                <span className="seat-dot" style={{ background: playerColor(s.slot) }} />
+                {s.name}
+                <span className="muted rep">
+                  {' '}
+                  {state.pactsHonored[s.slot]}✓ {state.pactsBroken[s.slot]}✗
+                </span>
+              </button>
+            ))}
+            {others.length === 0 && <span className="muted">nobody left to court</span>}
+          </div>
         </div>
-      </div>
+      )}
 
       {warnings.length > 0 && (
         <ul className="warnings">

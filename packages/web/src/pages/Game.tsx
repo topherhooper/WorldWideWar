@@ -5,6 +5,7 @@ import type { OrderSet, TerritoryId } from '@www/engine';
 
 import { MapView } from '../game/MapView.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
+import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
 import { useGame } from '../useGame.js';
 import { Lobby } from './Lobby.js';
@@ -35,7 +36,9 @@ function GameInner({ id }: { id: string }) {
     if (draftTurn.current === view.turn) return;
     draftTurn.current = view.turn;
     dirty.current = false;
-    setDraft(view.myOrders ?? emptyOrders(view.mySlot));
+    const base = view.myOrders ?? emptyOrders(view.mySlot);
+    if (view.contest === 'tiers' && base.tiers === undefined) base.tiers = emptyTiers();
+    setDraft(base);
     setSelected(null);
     setWarnings([]);
     setShowReport(false);
@@ -133,21 +136,26 @@ function GameInner({ id }: { id: string }) {
                 spectating.
               </p>
             ) : mySlot !== null && draft !== null ? (
-              <OrdersPanel
-                view={view}
-                state={state}
-                map={view.map}
-                draft={draft}
-                mode={mode}
-                moveCount={moveCount}
-                warnings={warnings}
-                onModeChange={setMode}
-                onMoveCountChange={setMoveCount}
-                onDraftChange={changeDraft}
-                onLock={() => {
-                  if (draft !== null) void saveOrders(draft, true).then(setWarnings);
-                }}
-              />
+              <>
+                <OrdersPanel
+                  view={view}
+                  state={state}
+                  map={view.map}
+                  draft={draft}
+                  mode={mode}
+                  moveCount={moveCount}
+                  warnings={warnings}
+                  onModeChange={setMode}
+                  onMoveCountChange={setMoveCount}
+                  onDraftChange={changeDraft}
+                  onLock={() => {
+                    if (draft !== null) void saveOrders(draft, true).then(setWarnings);
+                  }}
+                />
+                {view.contest === 'tiers' && (
+                  <TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />
+                )}
+              </>
             ) : (
               <p className="panel muted">Spectating.</p>
             )}
