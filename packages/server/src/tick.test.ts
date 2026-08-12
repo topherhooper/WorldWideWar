@@ -1,0 +1,61 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { Timestamp } from 'firebase-admin/firestore';
+
+import { emulatorDb, clearFirestore } from './testing.js';
+import { games } from './store.js';
+import { LogMailer } from './mailer.js';
+import { createGame, getView, joinGame, submitOrders, type AuthedUser } from './games.js';
+import { runTick } from './tick.js';
+
+const alice: AuthedUser = { uid: 'u-alice', name: 'Alice', email: 'alice@test.dev' };
+const bob: AuthedUser = { uid: 'u-bob', name: 'Bob', email: 'bob@test.dev' };
+
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tick', () => {
+  const db = emulatorDb();
+  let mailer: LogMailer;
+  beforeEach(async () => {
+    await clearFirestore();
+    mailer = new LogMailer();
+  });
+
+  async function twoPlayerGame(): Promise<string> {
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob);
+    return id;
+  }
+
+  it('resolves games past their deadline', async () => {
+    const id = await twoPlayerGame();
+    await games(db).doc(id).update({ deadlineAt: Timestamp.fromMillis(Date.now() - 60_000) });
+    const result = await runTick(db, mailer, 'http://x', new Date());
+    expect(result.resolvedGames).toEqual([id]);
+    expect(result.errors).toEqual([]);
+    expect((await getView(db, id, alice)).turn).toBe(2);
+  });
+
+  it('reminds only unlocked humans, and only once per turn', async () => {
+    const id = await twoPlayerGame();
+    await games(db).doc(id).update({ deadlineAt: Timestamp.fromMillis(Date.now() + 10 * 60_000) });
+    await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: true,
+    });
+    const first = await runTick(db, mailer, 'http://x', new Date());
+    expect(first.remindedGames).toEqual([id]);
+    const reminders = mailer.sent.filter((m) => m.subject.includes('Orders due'));
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0].to).toBe('bob@test.dev');
+
+    const second = await runTick(db, mailer, 'http://x', new Date());
+    expect(second.remindedGames).toEqual([]);
+    expect(mailer.sent.filter((m) => m.subject.includes('Orders due'))).toHaveLength(1);
+  });
+
+  it('leaves games far from their deadline alone', async () => {
+    const id = await twoPlayerGame();
+    const result = await runTick(db, mailer, 'http://x', new Date());
+    expect(result.resolvedGames).toEqual([]);
+    expect(result.remindedGames).toEqual([]);
+    expect((await getView(db, id, alice)).turn).toBe(1);
+  });
+});
