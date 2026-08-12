@@ -4,6 +4,7 @@ import { emptyOrders } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
 
 import { GameHud } from '../game/GameHud.js';
+import { HowCombatWorks } from '../game/HowCombatWorks.js';
 import { HowToWin } from '../game/HowToWin.js';
 import { MapView } from '../game/MapView.js';
 import { DeleteGame } from '../game/DeleteGame.js';
@@ -40,7 +41,8 @@ function GameInner({ id }: { id: string }) {
     if (draftTurn.current === view.turn) return;
     draftTurn.current = view.turn;
     dirty.current = false;
-    const base = view.myOrders ?? emptyOrders(view.mySlot);
+    // Copy — myOrders is owned by useGame state and must not be mutated.
+    const base = { ...(view.myOrders ?? emptyOrders(view.mySlot)) };
     if (view.contest === 'tiers' && base.tiers === undefined) base.tiers = emptyTiers();
     setDraft(base);
     setSelected(null);
@@ -132,6 +134,7 @@ function GameInner({ id }: { id: string }) {
           it connects) · heavy seams divide regions.
         </p>
         <HowToWin view={view} state={state} map={view.map} />
+        <HowCombatWorks contest={view.contest} />
         {error !== null && <p className="error">{error}</p>}
       </div>
 

@@ -145,7 +145,7 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
             x2={bx}
             y2={by}
             stroke="#0b0b12"
-            strokeWidth={8}
+            strokeWidth={14}
             strokeLinecap="round"
           />
           <line
@@ -155,7 +155,7 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
             y2={by}
             stroke="#e8e6df"
             strokeOpacity={0.4}
-            strokeWidth={2}
+            strokeWidth={4}
             strokeLinecap="round"
           />
         </g>
