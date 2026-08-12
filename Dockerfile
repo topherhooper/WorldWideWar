@@ -11,7 +11,7 @@ COPY tools/mapviz/package.json tools/mapviz/
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm exec tsc --build
-RUN pnpm --filter @www/server --prod deploy /out
+RUN pnpm --filter @www/server --prod deploy --legacy /out
 
 FROM node:22-slim
 WORKDIR /app
