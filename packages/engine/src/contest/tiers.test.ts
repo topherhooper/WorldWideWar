@@ -313,6 +313,42 @@ describe('resolveTurn under the tiers contest', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
+  it('structurally hostile tiers payloads never throw in resolution', () => {
+    // The server stores order docs as the client sent them, so every field can
+    // be any JSON shape. A throw here would abort the resolution transaction
+    // and brick the game — the regression this test pins down.
+    const hostile: unknown[] = [
+      { list: ['1', '2', '3', '4', '5', '6'], guesses: 42 },
+      { list: ['1', '2', '3', '4', '5', '6'], guesses: {} },
+      { list: ['1', '2', '3', '4', '5', '6'], guesses: true },
+      { list: 42, guesses: [{ target: 1, order: 42 }] },
+      { list: { a: 1 }, guesses: [null, 42, 'x'] },
+      42,
+      true,
+    ];
+    for (const tiers of hostile) {
+      const { map, state } = setup();
+      expect(() =>
+        resolveTurn(state, [{ ...orders(0), tiers: tiers as TiersOrders }, orders(1)], {
+          seed: 'seed-t',
+          map,
+          rules,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('tiersWarnings tolerates non-array guesses', () => {
+    const map = lineMap(4, 2);
+    const state = scenario(map, { owner: [0, 0, 1, 1], armies: [3, 3, 3, 3] });
+    expect(() =>
+      tiersWarnings(state, 0, {
+        list: ['a', 'b', 'c', 'd', 'e', 'f'],
+        guesses: 42 as unknown as TiersOrders['guesses'],
+      }),
+    ).not.toThrow();
+  });
+
   it('pact games report an empty tiers array and a null topic', () => {
     const { map, state } = setup();
     const { report } = resolveTurn(state, [orders(0), orders(1)], {

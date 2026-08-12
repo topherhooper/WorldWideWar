@@ -1,4 +1,4 @@
-import { fullyHeldRegions, rulesFor, territoryCount } from '@www/engine';
+import { fullyHeldRegions, territoryCount } from '@www/engine';
 import type { GameState, GeneratedMap } from '@www/engine';
 import type { GameView } from '@www/server/api-types';
 
@@ -12,7 +12,9 @@ export function HowToWin({
   state: GameState;
   map: GeneratedMap;
 }) {
-  const rules = rulesFor(view.playerCount, view.turnCap, view.contest);
+  // The rules frozen into the game at creation — never recomputed, so the
+  // panel cannot drift from what resolution actually uses as tuning changes.
+  const rules = view.rules;
   const surviving = state.collapsed.filter((c) => !c).length;
   const regionsAlive = map.regions.filter((region) =>
     region.territoryIds.some((id) => !state.collapsed[id]),

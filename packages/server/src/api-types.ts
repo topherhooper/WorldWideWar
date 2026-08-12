@@ -5,6 +5,7 @@ import type {
   GameState,
   GeneratedMap,
   OrderSet,
+  RuleConfig,
   TurnReport,
   GameResult,
 } from '@www/engine';
@@ -39,6 +40,12 @@ export interface GameView {
   turnMinutes: number;
   contest: ContestKind;
   turnCap: number;
+  /**
+   * The rules this game actually resolves with — frozen into the doc at
+   * creation. Clients must display these, never recompute via rulesFor(),
+   * which drifts as balance tuning changes.
+   */
+  rules: RuleConfig;
   /** Topic for the list being written now (lobby list in lobby); null in pact games. */
   tiersTopic: string | null;
   /** Seats that have submitted their lobby list; [] outside a tiers lobby. */

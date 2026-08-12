@@ -56,12 +56,26 @@ export const TIERS_TOPICS: readonly TiersTopic[] = [
   { title: 'Birds', canned: ['Eagle', 'Owl', 'Penguin', 'Hummingbird', 'Parrot', 'Flamingo', 'Crow', 'Pigeon'] },
   { title: 'Sports to watch', canned: ['Football', 'Basketball', 'Baseball', 'Soccer', 'Hockey', 'Tennis', 'Golf', 'Bowling'] },
   { title: 'Things on toast', canned: ['Butter', 'Avocado', 'Jam', 'Peanut butter', 'Nutella', 'Honey', 'Cream cheese', 'Marmite'] },
+  { title: 'Breakfast foods', canned: ['Pancakes', 'Bacon', 'Waffles', 'French toast', 'Omelet', 'Hash browns', 'Oatmeal', 'Grapefruit half'] },
+  { title: 'Soups', canned: ['Chicken noodle', 'Tomato', 'Clam chowder', 'Broccoli cheddar', 'French onion', 'Minestrone', 'Split pea', 'Gazpacho'] },
+  { title: 'Salad dressings', canned: ['Ranch', 'Caesar', 'Italian', 'Balsamic vinaigrette', 'Honey mustard', 'Thousand Island', 'Blue cheese', 'Plain oil'] },
+  { title: 'Fast food sides', canned: ['French fries', 'Onion rings', 'Mozzarella sticks', 'Tater tots', 'Curly fries', 'Coleslaw', 'Side salad', 'Steamed broccoli'] },
+  { title: 'Juices', canned: ['Orange', 'Lemonade', 'Apple', 'Cranberry', 'Grape', 'Pineapple', 'Tomato', 'Prune'] },
+  { title: 'Musical instruments', canned: ['Guitar', 'Piano', 'Drums', 'Violin', 'Saxophone', 'Trumpet', 'Ukulele', 'Bagpipes'] },
+  { title: 'Theme park rides', canned: ['Roller coaster', 'Log flume', 'Haunted house', 'Ferris wheel', 'Bumper cars', 'Carousel', 'Teacups', "It's a Small World"] },
+  { title: 'Winter activities', canned: ['Sledding', 'Ice skating', 'Skiing', 'Snowball fight', 'Building a snowman', 'Snowshoeing', 'Winter hiking', 'Shoveling the driveway'] },
+  { title: 'Halloween costumes', canned: ['Vampire', 'Witch', 'Superhero', 'Ghost', 'Pirate', 'Zombie', 'Black cat', 'Cardboard robot'] },
+  { title: 'Dinosaurs', canned: ['T. rex', 'Velociraptor', 'Triceratops', 'Stegosaurus', 'Brachiosaurus', 'Pterodactyl', 'Ankylosaurus', 'Compsognathus'] },
+  { title: 'Planets', canned: ['Saturn', 'Earth', 'Mars', 'Jupiter', 'Neptune', 'Venus', 'Mercury', 'Pluto'] },
+  { title: 'Colors', canned: ['Blue', 'Green', 'Purple', 'Red', 'Teal', 'Orange', 'Yellow', 'Beige'] },
 ];
 
 /**
  * The topic for the list written alongside turn `writeTurn`'s orders
  * (`writeTurn` 0 is the lobby list). One seeded shuffle of the whole bank per
  * game, walked in order: deterministic, and repeat-free until the bank cycles.
+ * The bank must stay larger than MAX_TURN_CAP so no game ever repeats a topic
+ * (writeTurns 0..cap need cap+1 distinct topics) — pinned by topics.test.ts.
  */
 export function topicForTurn(seed: string, writeTurn: number): TiersTopic {
   const shuffled = substream(seed, 'tiers-topics').shuffle(TIERS_TOPICS);

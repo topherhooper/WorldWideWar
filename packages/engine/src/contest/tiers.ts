@@ -127,7 +127,10 @@ export function resolveTiers(
   for (let slot = 0; slot < playerCount; slot++) {
     if (state.status[slot] !== 'active') continue;
     const seen = new Set<Slot>();
-    for (const guess of inputs[slot]?.guesses ?? []) {
+    // The order doc is stored as the client sent it, so `guesses` can be any
+    // JSON shape at all — and resolution must never throw.
+    const rawGuesses = inputs[slot]?.guesses;
+    for (const guess of Array.isArray(rawGuesses) ? rawGuesses : []) {
       if (validGuesses[slot].length >= TIERS_MAX_GUESSES) break;
       const target = guess?.target;
       if (!Number.isInteger(target) || target < 0 || target >= playerCount) continue;
@@ -221,12 +224,13 @@ export function tiersWarnings(
       'tier list incomplete — six distinct entries needed, or rivals cannot read you next turn',
     );
   }
-  const guesses = tiers?.guesses ?? [];
+  const rawGuesses = tiers?.guesses;
+  const guesses = Array.isArray(rawGuesses) ? rawGuesses : [];
   if (guesses.length > TIERS_MAX_GUESSES) {
     warnings.push(`only your first ${TIERS_MAX_GUESSES} guesses count`);
   }
   const seen = new Set<Slot>();
-  for (const guess of guesses.slice(0, TIERS_MAX_GUESSES)) {
+  for (const [index, guess] of guesses.slice(0, TIERS_MAX_GUESSES).entries()) {
     const target = guess?.target;
     const badTarget =
       !Number.isInteger(target) ||
@@ -237,7 +241,7 @@ export function tiersWarnings(
       state.status[target] !== 'active' ||
       state.tiersLists[target] === null;
     if (badTarget) {
-      warnings.push(`guess ${seen.size + 1} dropped: no guessable list for that target`);
+      warnings.push(`guess ${index + 1} dropped: no guessable list for that target`);
       continue;
     }
     seen.add(target);

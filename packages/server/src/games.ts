@@ -187,6 +187,9 @@ export async function getView(
   const result: GameResult | null = latestReport?.result ?? null;
 
   const contest = game.rules.contest ?? 'pact';
+  // Stored rules win; rulesFor only fills fields that games predating them
+  // never stored. New games get exactly the rules resolution uses.
+  const rules = { ...rulesFor(game.playerCount, game.rules.turnCap, contest), ...game.rules };
   let tiersTopic: string | null = null;
   let lobbyListSlots: number[] = [];
   if (contest === 'tiers') {
@@ -210,7 +213,8 @@ export async function getView(
     deadlineAt: game.deadlineAt?.toDate().toISOString() ?? null,
     turnMinutes: game.turnMinutes,
     contest,
-    turnCap: game.rules.turnCap,
+    turnCap: rules.turnCap,
+    rules,
     tiersTopic,
     lobbyListSlots,
     map: parseMap(game),
