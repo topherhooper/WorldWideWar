@@ -6,17 +6,22 @@ import {
   MIN_PLAYERS,
   createInitialState,
   generateMap,
+  normalizeOrders,
   redact,
   rulesFor,
 } from '@www/engine';
-import type { GameResult, OrderSet, TurnReport } from '@www/engine';
+import type { GameResult, OrderSet, TurnReport, WorldEvent } from '@www/engine';
 
 import type {
   CreateGameRequest,
   GameSummaryView,
   GameView,
   SeatView,
+  SubmitOrdersRequest,
+  SubmitOrdersResponse,
 } from './api-types.js';
+import type { Mailer } from './mailer.js';
+import { resolveGameTurn } from './resolve.js';
 import {
   games,
   ordersCol,
@@ -252,6 +257,60 @@ export async function startGame(
     return game;
   });
   return getView(db, gameId, user, doc);
+}
+
+export async function submitOrders(
+  db: Firestore,
+  mailer: Mailer,
+  baseUrl: string,
+  gameId: string,
+  user: AuthedUser,
+  req: SubmitOrdersRequest,
+): Promise<SubmitOrdersResponse> {
+  const { turn, allLocked, warnings } = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(games(db).doc(gameId));
+    if (!snap.exists) throw new HttpError(404, 'game not found');
+    const game = snap.data() as GameDoc;
+    if (game.status !== 'active') throw new HttpError(409, 'game is not active');
+    const mySlot = slotOf(game, user.uid);
+    if (mySlot === null) throw new HttpError(403, 'not seated in this game');
+    const state = parseState(game);
+    if (state === null || state.status[mySlot] !== 'active') {
+      throw new HttpError(403, 'player is not active in this game');
+    }
+
+    const orders: OrderSet = { ...req.orders, slot: mySlot };
+    const events: WorldEvent[] = [];
+    normalizeOrders(state, parseMap(game), mySlot, orders, events);
+    const rejections = events.flatMap((e) => (e.kind === 'order_rejected' ? [e.reason] : []));
+
+    const otherHumans = game.seats.flatMap((s, slot) =>
+      s !== null && !s.isBot && slot !== mySlot && state.status[slot] === 'active' ? [slot] : [],
+    );
+    const lockSnaps =
+      otherHumans.length > 0
+        ? await tx.getAll(
+            ...otherHumans.map((slot) => ordersCol(db, gameId).doc(orderDocId(game.turn, slot))),
+          )
+        : [];
+    const othersLocked = lockSnaps.every(
+      (s) => s.exists && (s.data() as OrderDoc).locked,
+    );
+
+    tx.set(ordersCol(db, gameId).doc(orderDocId(game.turn, mySlot)), {
+      ordersJson: JSON.stringify(orders),
+      locked: req.locked,
+      updatedAt: Timestamp.now(),
+    } satisfies OrderDoc);
+
+    return { turn: game.turn, allLocked: req.locked && othersLocked, warnings: rejections };
+  });
+
+  let resolved = false;
+  if (allLocked) {
+    resolved = (await resolveGameTurn(db, mailer, baseUrl, gameId, turn)).resolved;
+  }
+  return { warnings, resolved, view: await getView(db, gameId, user) };
 }
 
 export async function listGames(db: Firestore, user: AuthedUser): Promise<GameSummaryView[]> {
