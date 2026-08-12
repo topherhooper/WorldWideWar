@@ -70,10 +70,26 @@ export interface Deployment {
   count: number;
 }
 
+/** One reordering of a rival's published items, submitted blind with orders. */
+export interface TiersGuess {
+  target: Slot;
+  /** order[t] = public position (0–5) of the item placed at tier t (0=A … 5=F). */
+  order: number[];
+}
+
+export interface TiersOrders {
+  /** Six free-text entries in the author's chosen A→F order. */
+  list: string[];
+  /** Up to two rivals' lists, reordered as the guesser believes they wrote them. */
+  guesses: TiersGuess[];
+}
+
 export interface OrderSet {
   slot: Slot;
   /** The pact pledge: another living slot, or null to abstain. */
   pledge: Slot | null;
+  /** Tiers contest input; absent in pact games. */
+  tiers?: TiersOrders;
   deploys: Deployment[];
   units: UnitOrder[];
 }
@@ -118,6 +134,25 @@ export interface PactResult {
 export interface TiersList {
   items: string[];
   shuffle: number[];
+}
+
+export interface TiersGuessResult {
+  guesser: Slot;
+  target: Slot;
+  /** 0–12: exact tier = 2 per item, one tier off = 1. */
+  score: number;
+}
+
+export interface TiersResult {
+  slot: Slot;
+  /** The list this player wrote last turn, revealed in true A→F order. */
+  revealed: string[] | null;
+  /** Guesses this player made this turn, scored. */
+  guesses: TiersGuessResult[];
+  /** The best guess made against this player's list. */
+  bestRead: TiersGuessResult | null;
+  /** Combat multiplier, ×100. */
+  multiplier: number;
 }
 
 // ─── Game state ──────────────────────────────────────────────────────────────
