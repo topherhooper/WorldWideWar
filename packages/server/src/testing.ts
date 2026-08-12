@@ -6,7 +6,7 @@ import type { Verifiers } from './auth.js';
 import { HttpError, type AuthedUser } from './games.js';
 import { initFirestore } from './store.js';
 
-export const EMULATOR_PROJECT = 'demo-www';
+const EMULATOR_PROJECT = 'demo-www';
 
 export function emulatorDb(): Firestore {
   return initFirestore(EMULATOR_PROJECT);

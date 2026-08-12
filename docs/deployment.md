@@ -2,15 +2,15 @@
 
 Everything runs in GCP project **`fluted-citizen-269819`**, region **`us-central1`**.
 
-| Thing              | Where                                                                     |
-| ------------------ | ------------------------------------------------------------------------- |
-| Site               | https://fluted-citizen-269819.web.app (Firebase Hosting, CDN)             |
-| API                | Cloud Run service `www-api` — reached via the Hosting `/api/**` rewrite   |
-| State              | Firestore `(default)`, native mode                                        |
-| Images             | Artifact Registry `us-central1-docker.pkg.dev/fluted-citizen-269819/www`  |
-| Turn deadlines     | Cloud Scheduler job `www-tick`, every minute → `POST /internal/tick`      |
-| Email              | Resend, key in Secret Manager `resend-api-key`                            |
-| Auth               | Firebase Auth, Google sign-in; web app `www-web`                          |
+| Thing          | Where                                                                    |
+| -------------- | ------------------------------------------------------------------------ |
+| Site           | https://fluted-citizen-269819.web.app (Firebase Hosting, CDN)            |
+| API            | Cloud Run service `www-api` — reached via the Hosting `/api/**` rewrite  |
+| State          | Firestore `(default)`, native mode                                       |
+| Images         | Artifact Registry `us-central1-docker.pkg.dev/fluted-citizen-269819/www` |
+| Turn deadlines | Cloud Scheduler job `www-tick`, every minute → `POST /internal/tick`     |
+| Email          | Resend, key in Secret Manager `resend-api-key`                           |
+| Auth           | Firebase Auth, Google sign-in; web app `www-web`                         |
 
 ## Pipeline
 

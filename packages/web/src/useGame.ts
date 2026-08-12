@@ -11,27 +11,36 @@ export interface UseGame {
   view: GameView | null;
   error: string | null;
   refresh: () => Promise<GameView | null>;
-  /** Optimistic: myOrders update locally at once; returns server warnings. */
+  /** Persists a draft; returns server warnings. Optimistic UI lives in the caller's draft state. */
   saveOrders: (orders: OrderSet, locked: boolean) => Promise<string[]>;
 }
 
 export function useGame(id: string): UseGame {
   const [view, setView] = useState<GameView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const viewRef = useRef(view);
-  viewRef.current = view;
+  const viewRef = useRef<GameView | null>(null);
+  const viewJsonRef = useRef<string | null>(null);
+
+  // Skips the state update (and the full map re-render) when a poll returns
+  // an identical view — the common case for an async game.
+  const install = useCallback((fresh: GameView) => {
+    const json = JSON.stringify(fresh);
+    if (json !== viewJsonRef.current) {
+      viewJsonRef.current = json;
+      viewRef.current = fresh;
+      setView(fresh);
+    }
+    setError(null);
+  }, []);
 
   const refresh = useCallback(async (): Promise<GameView | null> => {
     try {
-      const fresh = await api.getGame(id);
-      setView(fresh);
-      setError(null);
-      return fresh;
+      install(await api.getGame(id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'network error');
-      return viewRef.current;
     }
-  }, [id]);
+    return viewRef.current;
+  }, [id, install]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -61,11 +70,9 @@ export function useGame(id: string): UseGame {
 
   const saveOrders = useCallback(
     async (orders: OrderSet, locked: boolean): Promise<string[]> => {
-      setView((v) => (v === null ? v : { ...v, myOrders: orders, myLocked: locked }));
       try {
         const res = await api.submitOrders(id, { orders, locked });
-        setView(res.view);
-        setError(null);
+        install(res.view);
         return res.warnings;
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'network error');
@@ -73,7 +80,7 @@ export function useGame(id: string): UseGame {
         return [];
       }
     },
-    [id, refresh],
+    [id, install, refresh],
   );
 
   return { view, error, refresh, saveOrders };

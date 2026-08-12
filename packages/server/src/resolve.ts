@@ -12,6 +12,7 @@ import type { OrderSet, TurnReport } from '@www/engine';
 import type { Mailer } from './mailer.js';
 import {
   games,
+  humanSlots,
   ordersCol,
   orderDocId,
   parseMap,
@@ -54,18 +55,16 @@ export async function resolveGameTurn(
 
     const submissions: (OrderSet | null)[] = Array.from({ length: game.playerCount }, () => null);
 
-    const humanSlots = game.seats.flatMap((s, slot) => (s !== null && !s.isBot ? [slot] : []));
+    const humans = humanSlots(game.seats);
     const orderSnaps =
-      humanSlots.length > 0
+      humans.length > 0
         ? await tx.getAll(
-            ...humanSlots.map((slot) => ordersCol(db, gameId).doc(orderDocId(expectedTurn, slot))),
+            ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(expectedTurn, slot))),
           )
         : [];
     orderSnaps.forEach((orderSnap, i) => {
       if (!orderSnap.exists) return;
-      submissions[humanSlots[i]] = JSON.parse(
-        (orderSnap.data() as OrderDoc).ordersJson,
-      ) as OrderSet;
+      submissions[humans[i]] = JSON.parse((orderSnap.data() as OrderDoc).ordersJson) as OrderSet;
     });
 
     // Bot seats plan from redacted state, exactly as the balance harness does

@@ -2,7 +2,15 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import type { Mailer } from './mailer.js';
 import { resolveGameTurn } from './resolve.js';
-import { games, ordersCol, orderDocId, parseState, type GameDoc, type OrderDoc } from './store.js';
+import {
+  games,
+  liveHumanSlots,
+  ordersCol,
+  orderDocId,
+  parseState,
+  type GameDoc,
+  type OrderDoc,
+} from './store.js';
 
 export interface TickResult {
   resolvedGames: string[];
@@ -64,13 +72,11 @@ async function remind(
   const state = parseState(game);
   if (state === null) return false;
 
-  const liveHumans = game.seats.flatMap((seat, slot) =>
-    seat !== null && !seat.isBot && state.status[slot] === 'active' ? [{ seat, slot }] : [],
-  );
+  const liveHumans = liveHumanSlots(game.seats, state);
   if (liveHumans.length === 0) return false;
 
   const orderSnaps = await db.getAll(
-    ...liveHumans.map(({ slot }) => ordersCol(db, gameId).doc(orderDocId(game.turn, slot))),
+    ...liveHumans.map((slot) => ordersCol(db, gameId).doc(orderDocId(game.turn, slot))),
   );
   const unlocked = liveHumans.filter((_, i) => {
     const snap = orderSnaps[i];
@@ -78,8 +84,9 @@ async function remind(
   });
   if (unlocked.length === 0) return false;
 
-  for (const { seat } of unlocked) {
-    if (seat.email !== null) {
+  for (const slot of unlocked) {
+    const seat = game.seats[slot];
+    if (seat !== null && seat.email !== null) {
       await mailer.send({
         to: seat.email,
         subject: `[WWW] Orders due soon — turn ${game.turn}`,

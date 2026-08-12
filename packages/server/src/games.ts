@@ -24,6 +24,8 @@ import type { Mailer } from './mailer.js';
 import { resolveGameTurn } from './resolve.js';
 import {
   games,
+  humanSlots,
+  liveHumanSlots,
   ordersCol,
   orderDocId,
   parseMap,
@@ -108,13 +110,13 @@ export async function createGame(
   return ref.id;
 }
 
-export async function loadGame(db: Firestore, gameId: string): Promise<GameDoc> {
+async function loadGame(db: Firestore, gameId: string): Promise<GameDoc> {
   const snap = await games(db).doc(gameId).get();
   if (!snap.exists) throw new HttpError(404, 'game not found');
   return snap.data() as GameDoc;
 }
 
-export function slotOf(doc: GameDoc, uid: string): number | null {
+function slotOf(doc: GameDoc, uid: string): number | null {
   const slot = doc.seats.findIndex((s) => s !== null && s.uid === uid);
   return slot === -1 ? null : slot;
 }
@@ -148,10 +150,8 @@ export async function getView(
   const mySlot = slotOf(game, user.uid);
   const state = parseState(game);
 
-  const humanSlots = game.seats.flatMap((s, slot) => (s !== null && !s.isBot ? [slot] : []));
-  const orderRefs = humanSlots.map((slot) =>
-    ordersCol(db, gameId).doc(orderDocId(game.turn, slot)),
-  );
+  const humans = humanSlots(game.seats);
+  const orderRefs = humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(game.turn, slot)));
   const orderSnaps = orderRefs.length > 0 ? await db.getAll(...orderRefs) : [];
   const lockedSlots: number[] = [];
   let myOrders: OrderSet | null = null;
@@ -159,7 +159,7 @@ export async function getView(
   orderSnaps.forEach((snap, i) => {
     if (!snap.exists) return;
     const order = snap.data() as OrderDoc;
-    const slot = humanSlots[i];
+    const slot = humans[i];
     if (order.locked) lockedSlots.push(slot);
     if (slot === mySlot) {
       myOrders = JSON.parse(order.ordersJson) as OrderSet;
@@ -280,9 +280,7 @@ export async function submitOrders(
     normalizeOrders(state, parseMap(game), mySlot, orders, events);
     const rejections = events.flatMap((e) => (e.kind === 'order_rejected' ? [e.reason] : []));
 
-    const otherHumans = game.seats.flatMap((s, slot) =>
-      s !== null && !s.isBot && slot !== mySlot && state.status[slot] === 'active' ? [slot] : [],
-    );
+    const otherHumans = liveHumanSlots(game.seats, state).filter((slot) => slot !== mySlot);
     const lockSnaps =
       otherHumans.length > 0
         ? await tx.getAll(
@@ -313,26 +311,31 @@ export async function listGames(db: Firestore, user: AuthedUser): Promise<GameSu
   if (gameIds.length === 0) return [];
 
   const snaps = await db.getAll(...gameIds.map((id) => games(db).doc(id)));
-  const summaries: GameSummaryView[] = [];
-  for (const snap of snaps) {
-    if (!snap.exists) continue;
+  const rows = snaps.flatMap((snap) => {
+    if (!snap.exists) return [];
     const doc = snap.data() as GameDoc;
-    const mySlot = slotOf(doc, user.uid);
-    let myLocked = false;
-    if (mySlot !== null) {
-      const orderSnap = await ordersCol(db, snap.id).doc(orderDocId(doc.turn, mySlot)).get();
-      myLocked = orderSnap.exists && (orderSnap.data() as OrderDoc).locked;
-    }
-    summaries.push({
-      id: snap.id,
-      status: doc.status,
-      playerCount: doc.playerCount,
-      seatsFilled: doc.seats.filter((s) => s !== null).length,
-      turn: doc.turn,
-      deadlineAt: doc.deadlineAt?.toDate().toISOString() ?? null,
-      mySlot,
-      myLocked,
-    });
-  }
-  return summaries;
+    return [{ id: snap.id, doc, mySlot: slotOf(doc, user.uid) }];
+  });
+
+  const seated = rows.filter((r) => r.mySlot !== null);
+  const orderSnaps =
+    seated.length > 0
+      ? await db.getAll(
+          ...seated.map((r) => ordersCol(db, r.id).doc(orderDocId(r.doc.turn, r.mySlot ?? 0))),
+        )
+      : [];
+  const lockedByGame = new Map(
+    seated.map((r, i) => [r.id, orderSnaps[i].exists && (orderSnaps[i].data() as OrderDoc).locked]),
+  );
+
+  return rows.map(({ id, doc, mySlot }) => ({
+    id,
+    status: doc.status,
+    playerCount: doc.playerCount,
+    seatsFilled: doc.seats.filter((s) => s !== null).length,
+    turn: doc.turn,
+    deadlineAt: doc.deadlineAt?.toDate().toISOString() ?? null,
+    mySlot,
+    myLocked: lockedByGame.get(id) ?? false,
+  }));
 }

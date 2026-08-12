@@ -78,7 +78,7 @@ describe('useGame', () => {
     expect(getGame).toHaveBeenCalledTimes(2);
   });
 
-  it('saveOrders is optimistic and returns warnings', async () => {
+  it('saveOrders installs the response view and returns warnings', async () => {
     const { result } = renderHook(() => useGame('g1'));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);

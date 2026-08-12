@@ -37,11 +37,13 @@ export interface OrderDoc {
   updatedAt: Timestamp;
 }
 
-export interface UserDoc {
-  name: string;
-  email: string | null;
-  gameIds: string[];
-}
+/** Slots seated by humans (taken and not a bot). */
+export const humanSlots = (seats: (Seat | null)[]): number[] =>
+  seats.flatMap((s, slot) => (s !== null && !s.isBot ? [slot] : []));
+
+/** Human slots still alive in the game. */
+export const liveHumanSlots = (seats: (Seat | null)[], state: GameState): number[] =>
+  humanSlots(seats).filter((slot) => state.status[slot] === 'active');
 
 export function initFirestore(projectId: string): Firestore {
   if (getApps().length === 0) initializeApp({ projectId });

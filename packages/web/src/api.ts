@@ -5,7 +5,6 @@ import type {
   SubmitOrdersRequest,
   SubmitOrdersResponse,
 } from '@www/server/api-types';
-import type { TurnReport } from '@www/engine';
 
 import { auth } from './auth.js';
 
@@ -52,6 +51,4 @@ export const api = {
   start: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/start`),
   submitOrders: (id: string, req: SubmitOrdersRequest) =>
     apiFetch<SubmitOrdersResponse>('PUT', `/api/games/${id}/orders`, req),
-  getReport: (id: string, turn: number) =>
-    apiFetch<TurnReport>('GET', `/api/games/${id}/reports/${turn}`),
 };

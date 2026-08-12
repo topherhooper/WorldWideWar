@@ -17,7 +17,7 @@ export function formatRemaining(deadlineIso: string, now: number = Date.now()): 
   return h > 0 ? `${d}d ${h}h` : `${d}d`;
 }
 
-export const PLAYER_COLORS = [
+const PLAYER_COLORS = [
   '#e6553a',
   '#4da6ff',
   '#66cc66',

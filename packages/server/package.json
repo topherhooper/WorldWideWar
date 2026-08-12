@@ -13,8 +13,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --build --force",
-    "dev": "tsx watch src/main.ts"
+    "typecheck": "tsc --build --force"
   },
   "dependencies": {
     "@www/engine": "workspace:*",
