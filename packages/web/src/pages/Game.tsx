@@ -132,7 +132,8 @@ function GameInner({ id }: { id: string }) {
         <p className="muted hint map-key">
           Number = armies stationed there · ★ = capital · gold outline = yours · grey = neutral
           garrisons that defend and grow over time · ⚓ = sea-lane port (select it to see the route
-          it connects) · heavy seams divide regions.
+          it connects) · heavy seams divide regions · beaded ridges are impassable — bordering lands
+          you cannot march across.
         </p>
         <HowToWin view={view} state={state} map={view.map} />
         <HowCombatWorks contest={view.contest} />

@@ -156,7 +156,7 @@ export function OrdersPanel(props: Props) {
           ? `Click your territories to place your ${state.income[mySlot]} reinforcements.`
           : selected === null
             ? 'Click one of your territories (gold outline) to move from. Moving into a neutral or enemy land attacks it.'
-            : `Moving from ${name(map, selected)} (${state.armies[selected]} armies) — click a dashed neighbour. Click it again to cancel.`}
+            : `Moving from ${name(map, selected)} (${state.armies[selected]} armies) — click a dashed neighbour. Beaded ridges cannot be crossed. Click it again to cancel.`}
       </p>
       {mode === 'deploy' && (
         <p className="muted hint">

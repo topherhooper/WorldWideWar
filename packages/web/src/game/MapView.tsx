@@ -16,14 +16,16 @@ interface Props {
 const NEUTRAL = '#8a8578';
 const COLLAPSED = '#2b2b33';
 
+type Segment = [number, number, number, number];
+
 /**
- * Polygon segments where two different regions meet. Voronoi neighbours share
- * their vertices exactly (both rounded from the same points), so matching
- * segment endpoints is reliable.
+ * Polygon segments shared by two territories, with both owners. Voronoi
+ * neighbours share their vertices exactly (both rounded from the same points),
+ * so matching segment endpoints is reliable.
  */
-function regionBorders(map: GeneratedMap): [number, number, number, number][] {
+function sharedSegments(map: GeneratedMap): { seg: Segment; a: number; b: number }[] {
   const firstOwner = new Map<string, number>();
-  const out: [number, number, number, number][] = [];
+  const out: { seg: Segment; a: number; b: number }[] = [];
   for (const t of map.territories) {
     for (let i = 0; i < t.polygon.length; i++) {
       const [ax, ay] = t.polygon[i];
@@ -34,12 +36,30 @@ function regionBorders(map: GeneratedMap): [number, number, number, number][] {
       const other = firstOwner.get(key);
       if (other === undefined) {
         firstOwner.set(key, t.id);
-      } else if (map.territories[other].regionId !== t.regionId) {
-        out.push([ax, ay, bx, by]);
+      } else {
+        out.push({ seg: [ax, ay, bx, by], a: other, b: t.id });
       }
     }
   }
   return out;
+}
+
+/** Segments where two different regions meet. */
+function regionBorders(map: GeneratedMap): Segment[] {
+  return sharedSegments(map)
+    .filter(({ a, b }) => map.territories[a].regionId !== map.territories[b].regionId)
+    .map(({ seg }) => seg);
+}
+
+/**
+ * Segments where two territories touch on the drawing but are not connected in
+ * the game graph — the generator thins Voronoi adjacency to carve chokepoints.
+ * Without marking these, a refused move along a shared border looks like a bug.
+ */
+function impassableBorders(map: GeneratedMap): Segment[] {
+  return sharedSegments(map)
+    .filter(({ a, b }) => !map.adjacency[a]?.includes(b))
+    .map(({ seg }) => seg);
 }
 
 function polygonArea(polygon: readonly [number, number][]): number {
@@ -90,6 +110,7 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
   const targets = selected === null ? new Set<number>() : new Set(map.adjacency[selected]);
   const capitals = new Set(state.capital.filter((c): c is TerritoryId => c !== null));
   const borders = useMemo(() => regionBorders(map), [map]);
+  const walls = useMemo(() => impassableBorders(map), [map]);
   const anchors = useMemo(() => regionAnchors(map), [map]);
   const seaLanes = useMemo(() => map.edges.filter((e) => e.kind === 'sea'), [map]);
   const ports = useMemo(() => new Set(seaLanes.flatMap((e) => [e.a, e.b])), [seaLanes]);
@@ -157,6 +178,35 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
             strokeOpacity={0.4}
             strokeWidth={4}
             strokeLinecap="round"
+          />
+        </g>
+      ))}
+
+      {/* Impassable ridges: shared borders the game graph does not cross. A
+          beaded umber core over a dark base — clearly not the smooth light
+          seam — says "terrain", not "boundary". Drawn after the seams so a
+          border that is both reads as impassable first. */}
+      {walls.map(([ax, ay, bx, by], i) => (
+        <g key={`w${i}`} pointerEvents="none">
+          <line
+            x1={ax}
+            y1={ay}
+            x2={bx}
+            y2={by}
+            stroke="#0b0b12"
+            strokeWidth={10}
+            strokeLinecap="round"
+          />
+          <line
+            x1={ax}
+            y1={ay}
+            x2={bx}
+            y2={by}
+            stroke="#a07a4a"
+            strokeOpacity={0.85}
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            strokeDasharray="3 7"
           />
         </g>
       ))}
