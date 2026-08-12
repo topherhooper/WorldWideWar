@@ -4,13 +4,21 @@ import type { Timestamp } from 'firebase-admin/firestore';
 import { canonicalJson } from '@www/engine';
 import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
 
-import type { GameStatus } from './api-types.js';
+import type { GameStatus, NotifyKind } from './api-types.js';
 
 export interface Seat {
   uid: string | null;
   name: string;
   email: string | null;
   isBot: boolean;
+}
+
+export interface UserDoc {
+  name: string;
+  email: string | null;
+  gameIds: string[];
+  /** Absent, or partial, means the missing kinds are on. See notify.ts. */
+  notify?: Partial<Record<NotifyKind, boolean>>;
 }
 
 export interface GameDoc {

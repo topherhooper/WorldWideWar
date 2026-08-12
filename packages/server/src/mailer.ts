@@ -4,6 +4,8 @@ export interface Mail {
   to: string;
   subject: string;
   text: string;
+  /** Extra SMTP headers, e.g. the RFC 8058 one-click unsubscribe pair. */
+  headers?: Record<string, string>;
 }
 
 export interface Mailer {
@@ -30,6 +32,7 @@ export function resendMailer(apiKey: string, from: string): Mailer {
           to: mail.to,
           subject: mail.subject,
           text: mail.text,
+          ...(mail.headers !== undefined ? { headers: mail.headers } : {}),
         });
         if (error) console.error(`[mail] resend error: ${error.message}`);
       } catch (err) {

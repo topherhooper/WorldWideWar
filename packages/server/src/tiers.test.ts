@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { TurnReport } from '@www/engine';
 
-import { emulatorDb, clearFirestore } from './testing.js';
+import { emulatorDb, clearFirestore, testDeps } from './testing.js';
 import { games, reportsCol } from './store.js';
 import { LogMailer } from './mailer.js';
 import {
@@ -125,7 +125,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', (
     const botList = view.state?.tiersLists[1];
     expect(botList).not.toBeNull();
 
-    const res = await submitOrders(db, mailer, 'http://x', id, alice, {
+    const res = await submitOrders(testDeps(db, mailer), id, alice, {
       orders: {
         slot: 0,
         pledge: null,
@@ -150,7 +150,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', (
     const id = await createGame(db, alice, { playerCount: 3, turnMinutes: 60, contest: 'tiers' });
     await submitLobbyList(db, id, alice, LIST);
     await startGame(db, id, alice);
-    const res = await submitOrders(db, mailer, 'http://x', id, alice, {
+    const res = await submitOrders(testDeps(db, mailer), id, alice, {
       orders: { slot: 0, pledge: null, deploys: [], units: [] },
       locked: true,
     });

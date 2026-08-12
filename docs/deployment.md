@@ -10,6 +10,7 @@ Everything runs in GCP project **`fluted-citizen-269819`**, region **`us-central
 | Images         | Artifact Registry `us-central1-docker.pkg.dev/fluted-citizen-269819/www` |
 | Turn deadlines | Cloud Scheduler job `www-tick`, every minute → `POST /internal/tick`     |
 | Email          | Resend, key in Secret Manager `resend-api-key`                           |
+| Unsubscribe    | `/unsubscribe` rewrite → Cloud Run, HMAC key `unsubscribe-secret`        |
 | Auth           | Firebase Auth, Google sign-in; web app `www-web`                         |
 
 ## Pipeline
@@ -28,16 +29,24 @@ gcloud builds submit --config cloudbuild.yaml --project fluted-citizen-269819 --
 
 ## Secrets
 
-The only secret is the Resend API key. To set the real one:
+Two secrets: the Resend API key, and the key that signs unsubscribe links.
 
 ```bash
 # bash, not PowerShell — PS 5.1 piping prepends a UTF-16 BOM, which once shipped
 # a poisoned Authorization header and crashed the service at boot.
 printf 'the-real-key' | gcloud secrets versions add resend-api-key --data-file=- --project fluted-citizen-269819
+
+# UNSUBSCRIBE_SECRET — any high-entropy string; only this service ever verifies it.
+gcloud secrets create unsubscribe-secret --project fluted-citizen-269819
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add unsubscribe-secret --data-file=- --project fluted-citizen-269819
 ```
 
 Until a real key is set (current version is `placeholder`), the server falls back to
 logging mail instead of sending it — `main.ts` treats an unusable key as absent.
+`UNSUBSCRIBE_SECRET` degrades the same way, to a per-process random key: links stay
+valid for the life of one instance, which is fine locally and wrong in production.
+**Rotating it invalidates every unsubscribe link already sitting in players' inboxes**,
+so rotate only if the key leaks.
 The `VITE_FIREBASE_*` values in `packages/web/.env.production` are public identifiers,
 not secrets — the browser key ships in the bundle to every visitor by design. It is
 additionally restricted (API key `29962844-…`) to `identitytoolkit.googleapis.com` +
@@ -50,7 +59,7 @@ referrers, so it is useless for any other API or origin. Nothing else needs conf
 `GCP_PROJECT`, `BASE_URL=https://fluted-citizen-269819.web.app`, `MAIL_FROM`,
 `TICK_SERVICE_ACCOUNT=www-tick@…`, `TICK_AUDIENCE=<run URL>` (set once out-of-band —
 the URL only exists after the first deploy; `--update-env-vars` in the pipeline merges
-and will not clobber it), `RESEND_API_KEY` from Secret Manager.
+and will not clobber it), `RESEND_API_KEY` and `UNSUBSCRIBE_SECRET` from Secret Manager.
 Min 0 / max 1 instance — one instance is deliberate; Firestore transactions guard
 correctness anyway.
 

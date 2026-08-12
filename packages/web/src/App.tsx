@@ -11,7 +11,7 @@ export function App() {
           World Wide War
         </Link>
         <span className="topbar-user">
-          {user?.displayName ?? user?.email}{' '}
+          {user?.displayName ?? user?.email} <Link to="/settings">Settings</Link>{' '}
           <button onClick={() => void signOut()}>Sign out</button>
         </span>
       </header>

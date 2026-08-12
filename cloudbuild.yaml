@@ -27,7 +27,7 @@ steps:
       - --allow-unauthenticated
       - --min-instances=0
       - --max-instances=1
-      - --set-secrets=RESEND_API_KEY=resend-api-key:latest
+      - --set-secrets=RESEND_API_KEY=resend-api-key:latest,UNSUBSCRIBE_SECRET=unsubscribe-secret:latest
       # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
       # first deploy); --update-env-vars merges and will not clobber it.
       - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=https://$PROJECT_ID.web.app,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@$PROJECT_ID.web.app>

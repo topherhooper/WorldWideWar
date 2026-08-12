@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { emulatorDb, clearFirestore } from './testing.js';
+import { emulatorDb, clearFirestore, testDeps } from './testing.js';
 import { LogMailer } from './mailer.js';
 import { createGame, getView, startGame, type AuthedUser } from './games.js';
 import { resolveGameTurn } from './resolve.js';
@@ -23,7 +23,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('turn resolution', () => {
 
   it('resolves a turn and advances state', async () => {
     const id = await activeGame(4);
-    const out = await resolveGameTurn(db, mailer, 'http://x', id, 1);
+    const out = await resolveGameTurn(testDeps(db, mailer), id, 1);
     expect(out.resolved).toBe(true);
     expect(out.report?.turn).toBe(1);
     const view = await getView(db, id, alice);
@@ -37,8 +37,8 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('turn resolution', () => {
   it('is idempotent under the resolution race', async () => {
     const id = await activeGame(4);
     const results = await Promise.all([
-      resolveGameTurn(db, mailer, 'http://x', id, 1),
-      resolveGameTurn(db, mailer, 'http://x', id, 1),
+      resolveGameTurn(testDeps(db, mailer), id, 1),
+      resolveGameTurn(testDeps(db, mailer), id, 1),
     ]);
     expect(results.filter((r) => r.resolved)).toHaveLength(1);
     expect((await getView(db, id, alice)).turn).toBe(2);
@@ -47,7 +47,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('turn resolution', () => {
   it('plays a bot game to completion', async () => {
     const id = await activeGame(2);
     for (let turn = 1; turn <= 40; turn++) {
-      const out = await resolveGameTurn(db, mailer, 'http://x', id, turn);
+      const out = await resolveGameTurn(testDeps(db, mailer), id, turn);
       if (!out.resolved || out.finished) break;
     }
     const view = await getView(db, id, alice);
