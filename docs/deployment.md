@@ -39,7 +39,10 @@ printf 'the-real-key' | gcloud secrets versions add resend-api-key --data-file=-
 Until a real key is set (current version is `placeholder`), the server falls back to
 logging mail instead of sending it — `main.ts` treats an unusable key as absent.
 The `VITE_FIREBASE_*` values in `packages/web/.env.production` are public identifiers,
-not secrets. Nothing else needs configuring: Cloud Run gets the secret via
+not secrets — the browser key ships in the bundle to every visitor by design. It is
+additionally restricted (API key `29962844-…`) to `identitytoolkit.googleapis.com` +
+`securetoken.googleapis.com`, callable only from the `web.app`/`firebaseapp.com`
+referrers, so it is useless for any other API or origin. Nothing else needs configuring: Cloud Run gets the secret via
 `--set-secrets`, CI uses only emulators, and GitHub holds no repository secrets.
 
 ## Cloud Run env
