@@ -163,7 +163,8 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
         );
       })}
 
-      {/* Region seams: a dark base with a light core, so they stay visible over
+      {/* Region seams: a wide dark base under a bright cream core — bold
+          enough to read as the map's first-order structure at a glance, over
           both bright ownership fills and the muted neutral tone. */}
       {borders.map(([ax, ay, bx, by], i) => (
         <g key={`b${i}`} pointerEvents="none">
@@ -173,7 +174,7 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
             x2={bx}
             y2={by}
             stroke="#0b0b12"
-            strokeWidth={14}
+            strokeWidth={20}
             strokeLinecap="round"
           />
           <line
@@ -182,8 +183,8 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
             x2={bx}
             y2={by}
             stroke="#e8e6df"
-            strokeOpacity={0.4}
-            strokeWidth={4}
+            strokeOpacity={0.8}
+            strokeWidth={6}
             strokeLinecap="round"
           />
         </g>
