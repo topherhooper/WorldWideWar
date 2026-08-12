@@ -259,7 +259,12 @@ export interface TurnReport {
 
 // ─── Resolution context ──────────────────────────────────────────────────────
 
+/** Which social contest drives combat multipliers. */
+export type ContestKind = 'pact' | 'tiers';
+
 export interface RuleConfig {
+  /** Which social contest drives combat multipliers. */
+  contest: ContestKind;
   turnCap: number;
   /** Fraction of surviving territories needed for a solo domination win. */
   dominationShare: number;
