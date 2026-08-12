@@ -1,5 +1,19 @@
 import type { GameView } from '@www/server/api-types';
-import type { Deployment, GameState, GeneratedMap, OrderSet, UnitOrder } from '@www/engine';
+import type {
+  Deployment,
+  GameState,
+  GeneratedMap,
+  OrderSet,
+  TerritoryId,
+  UnitOrder,
+} from '@www/engine';
+import {
+  BASE_INCOME,
+  TERRITORIES_PER_INCOME,
+  WAR_ECONOMY_INTERVAL,
+  regionBonusFor,
+  suppliedCount,
+} from '@www/engine';
 
 import { formatRemaining, playerColor } from '../format.js';
 import { useNow } from '../useNow.js';
@@ -13,6 +27,7 @@ interface Props {
   draft: OrderSet;
   mode: EntryMode;
   moveCount: number;
+  selected: TerritoryId | null;
   warnings: string[];
   onModeChange: (mode: EntryMode) => void;
   onMoveCountChange: (count: number) => void;
@@ -22,8 +37,45 @@ interface Props {
 
 const name = (map: GeneratedMap, id: number): string => map.territories[id]?.name ?? `#${id}`;
 
+/** Where this turn's reinforcements came from, mirroring the engine's formula. */
+function incomeParts(state: GameState, map: GeneratedMap, slot: number): string[] {
+  const parts: string[] = [];
+  let accounted = 0;
+  const push = (amount: number, label: string) => {
+    if (amount <= 0) return;
+    accounted += amount;
+    parts.push(`${amount} ${label}`);
+  };
+
+  if (state.activeEvent === 'cold_snap') {
+    parts.push('cold snap — regions only');
+  } else {
+    push(BASE_INCOME, 'base');
+    const supplied = suppliedCount(state, slot);
+    push(
+      Math.floor(supplied / TERRITORIES_PER_INCOME),
+      `from ${supplied} supplied ${supplied === 1 ? 'land' : 'lands'}`,
+    );
+    push(Math.floor(state.turn / WAR_ECONOMY_INTERVAL), 'war economy');
+  }
+  push(regionBonusFor(state, map, slot), 'whole regions');
+
+  let capitals = 0;
+  for (let other = 0; other < state.playerCount; other++) {
+    const capital = state.capital[other];
+    if (other === slot || capital === null) continue;
+    if (state.owner[capital] === slot && !state.collapsed[capital]) capitals++;
+  }
+  push(capitals, `captured ${capitals === 1 ? 'capital' : 'capitals'}`);
+
+  // Whatever the engine granted beyond the recomputable parts (being courted,
+  // mobilization) arrived as bonus income.
+  push(state.income[slot] - accounted, 'bonuses');
+  return parts;
+}
+
 export function OrdersPanel(props: Props) {
-  const { view, state, map, draft, mode, moveCount, warnings } = props;
+  const { view, state, map, draft, mode, moveCount, selected, warnings } = props;
   const now = useNow();
   const mySlot = view.mySlot;
   if (mySlot === null) return null;
@@ -49,7 +101,9 @@ export function OrdersPanel(props: Props) {
   return (
     <aside className="orders">
       <div className="orders-head">
-        <strong>Turn {view.turn}</strong>
+        <strong>
+          <span className="seat-dot" style={{ background: playerColor(mySlot) }} /> Turn {view.turn}
+        </strong>
         {view.deadlineAt !== null && (
           <span className="muted">{formatRemaining(view.deadlineAt, now)}</span>
         )}
@@ -76,6 +130,7 @@ export function OrdersPanel(props: Props) {
             <input
               type="number"
               min={1}
+              max={selected !== null ? Math.max(1, state.armies[selected]) : undefined}
               value={moveCount}
               disabled={locked}
               onChange={(e) => props.onMoveCountChange(Math.max(1, Number(e.target.value)))}
@@ -86,9 +141,16 @@ export function OrdersPanel(props: Props) {
       </div>
       <p className="muted hint">
         {mode === 'deploy'
-          ? 'Click your territories to place reinforcements.'
-          : 'Click a territory of yours, then an adjacent one to move.'}
+          ? `Click your territories to place your ${state.income[mySlot]} reinforcements.`
+          : selected === null
+            ? 'Click one of your territories (gold outline) to move from. Moving into a neutral or enemy land attacks it.'
+            : `Moving from ${name(map, selected)} (${state.armies[selected]} armies) — click a dashed neighbour. Click it again to cancel.`}
       </p>
+      {mode === 'deploy' && (
+        <p className="muted hint">
+          Income {state.income[mySlot]}: {incomeParts(state, map, mySlot).join(' + ')}.
+        </p>
+      )}
 
       {draft.deploys.length + draft.units.length > 0 && (
         <ul className="chips">

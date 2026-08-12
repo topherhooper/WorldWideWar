@@ -198,13 +198,90 @@ select {
   display: block;
 }
 
+/* Sized via the SVG font-size attribute (map units), so counts stay readable
+   at any zoom — a px size here would override it. */
 .map-label {
-  font-size: 11px;
   fill: #ffffff;
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.65);
-  stroke-width: 2.5px;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 6px;
   font-weight: 700;
+}
+
+.map-region-label {
+  fill: #ffffff;
+  opacity: 0.55;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud {
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.legend-me {
+  border-color: var(--accent);
+  background: #2a2718;
+  font-weight: 700;
+}
+
+.legend-dead {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.legend-stats {
+  font-size: 0.8rem;
+}
+
+.event-banner {
+  margin: 0.35rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.event-coming {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.how-to-win {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.9rem;
+}
+
+.how-to-win summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.how-to-win ul {
+  margin-top: 0.5rem;
 }
 
 .side {

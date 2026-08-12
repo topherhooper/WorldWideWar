@@ -3,6 +3,8 @@ import { useParams } from 'react-router';
 import { emptyOrders } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
 
+import { GameHud } from '../game/GameHud.js';
+import { HowToWin } from '../game/HowToWin.js';
 import { MapView } from '../game/MapView.js';
 import { DeleteGame } from '../game/DeleteGame.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
@@ -114,13 +116,16 @@ function GameInner({ id }: { id: string }) {
   return (
     <main className="game-layout">
       <div className="map-wrap">
+        <GameHud view={view} state={state} />
         <MapView
           map={view.map}
           state={state}
           mySlot={mySlot}
           selected={selected}
+          mode={mode}
           onTerritoryClick={onTerritoryClick}
         />
+        <HowToWin view={view} state={state} map={view.map} />
         {error !== null && <p className="error">{error}</p>}
       </div>
 
@@ -145,6 +150,7 @@ function GameInner({ id }: { id: string }) {
                   draft={draft}
                   mode={mode}
                   moveCount={moveCount}
+                  selected={selected}
                   warnings={warnings}
                   onModeChange={setMode}
                   onMoveCountChange={setMoveCount}

@@ -1,3 +1,4 @@
+import { describeEvent } from '@www/engine';
 import type { GeneratedMap, PactResult, TiersResult, TurnReport } from '@www/engine';
 import type { GameView } from '@www/server/api-types';
 
@@ -160,7 +161,8 @@ export function ReportView({ view, map, report }: Props) {
               case 'event_announced':
                 return (
                   <li key={i} className="event">
-                    {w.kind === 'global_event' ? 'In effect' : 'Announced'}: {w.id}
+                    {w.kind === 'global_event' ? 'In effect' : 'Announced for next turn'}:{' '}
+                    {describeEvent(w.id)}
                   </li>
                 );
               default:
