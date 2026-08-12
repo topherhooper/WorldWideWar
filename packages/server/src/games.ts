@@ -15,6 +15,7 @@ import {
   redact,
   rulesFor,
   substream,
+  tiersWarnings,
   topicForTurn,
 } from '@www/engine';
 import type { GameResult, OrderSet, TurnReport, WorldEvent } from '@www/engine';
@@ -402,6 +403,10 @@ export async function submitOrders(
     const events: WorldEvent[] = [];
     normalizeOrders(state, parseMap(game), mySlot, orders, events);
     const rejections = events.flatMap((e) => (e.kind === 'order_rejected' ? [e.reason] : []));
+    if ((game.rules.contest ?? 'pact') === 'tiers' && req.locked) {
+      // Only on lock-in: warning about a half-typed list on every autosave is noise.
+      rejections.push(...tiersWarnings(state, mySlot, orders.tiers ?? null));
+    }
 
     const otherHumans = liveHumanSlots(game.seats, state).filter((slot) => slot !== mySlot);
     const lockSnaps =

@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { TurnReport } from '@www/engine';
+
 import { emulatorDb, clearFirestore } from './testing.js';
-import { games } from './store.js';
+import { games, reportsCol } from './store.js';
+import { LogMailer } from './mailer.js';
 import {
   createGame,
   getView,
   joinGame,
   startGame,
   submitLobbyList,
+  submitOrders,
   HttpError,
   type AuthedUser,
 } from './games.js';
@@ -104,5 +108,52 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () =>
       statusCode: 409,
     });
     await expect(submitLobbyList(db, id, bob, LIST)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', () => {
+  const db = emulatorDb();
+  const mailer = new LogMailer();
+  beforeEach(clearFirestore);
+
+  it('resolves a human-vs-bot tiers turn with scored guesses in the report', async () => {
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60, contest: 'tiers' });
+    await submitLobbyList(db, id, alice, LIST);
+    const view = await startGame(db, id, alice);
+    expect(view.status).toBe('active');
+    // The bot's lobby list is guessable: reorder its public items as shown.
+    const botList = view.state?.tiersLists[1];
+    expect(botList).not.toBeNull();
+
+    const res = await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: {
+        slot: 0,
+        pledge: null,
+        deploys: [],
+        units: [],
+        tiers: { list: LIST2, guesses: [{ target: 1, order: [0, 1, 2, 3, 4, 5] }] },
+      },
+      locked: true,
+    });
+    expect(res.resolved).toBe(true);
+    const report = JSON.parse(
+      (await reportsCol(db, id).doc('1').get()).get('reportJson') as string,
+    ) as TurnReport;
+    expect(report.tiers.length).toBeGreaterThan(0);
+    expect(report.tiers[0].guesses[0]?.target).toBe(1);
+    expect(report.revealedTopic).not.toBeNull();
+    // The human's new list is installed for turn 2.
+    expect(res.view.state?.tiersLists[0]?.items).toEqual(LIST2);
+  });
+
+  it('warns on a locked submission with a broken tier list', async () => {
+    const id = await createGame(db, alice, { playerCount: 3, turnMinutes: 60, contest: 'tiers' });
+    await submitLobbyList(db, id, alice, LIST);
+    await startGame(db, id, alice);
+    const res = await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: true,
+    });
+    expect(res.warnings.some((w) => w.includes('tier list'))).toBe(true);
   });
 });
