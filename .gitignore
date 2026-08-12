@@ -24,3 +24,5 @@ tools/mapviz/out/
 .idea/
 .vscode/
 *.log
+
+.claude/settings.local.json
