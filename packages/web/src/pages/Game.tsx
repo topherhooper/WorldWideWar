@@ -29,7 +29,8 @@ function GameInner({ id }: { id: string }) {
   const [draft, setDraft] = useState<OrderSet | null>(null);
   const [selected, setSelected] = useState<TerritoryId | null>(null);
   const [mode, setMode] = useState<EntryMode>('deploy');
-  const [moveCount, setMoveCount] = useState(1);
+  // '' while the player has the field cleared mid-edit; treated as 1 on use.
+  const [moveCount, setMoveCount] = useState<number | ''>(1);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [showReport, setShowReport] = useState(false);
   const draftTurn = useRef<number | null>(null);
@@ -103,7 +104,7 @@ function GameInner({ id }: { id: string }) {
     }
     if (view.map.adjacency[selected]?.includes(tid)) {
       const max = Math.max(1, state.armies[selected]);
-      const count = Math.min(Math.max(1, moveCount), max);
+      const count = Math.min(Math.max(1, moveCount === '' ? 1 : moveCount), max);
       changeDraft({
         ...draft,
         units: [...draft.units, { kind: 'MOVE', from: selected, to: tid, count }],

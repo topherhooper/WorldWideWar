@@ -20,17 +20,28 @@ import { useNow } from '../useNow.js';
 
 export type EntryMode = 'move' | 'deploy';
 
+/**
+ * Raw army-count input → count. Empty stays empty so the field can actually be
+ * cleared mid-edit — clamping '' to 1 made the "1" undeletable and every typed
+ * digit appended to it. Callers treat '' as 1 at the point of use.
+ */
+export function parseMoveCount(raw: string): number | '' {
+  if (raw.trim() === '') return '';
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) ? Math.max(1, n) : '';
+}
+
 interface Props {
   view: GameView;
   state: GameState;
   map: GeneratedMap;
   draft: OrderSet;
   mode: EntryMode;
-  moveCount: number;
+  moveCount: number | '';
   selected: TerritoryId | null;
   warnings: string[];
   onModeChange: (mode: EntryMode) => void;
-  onMoveCountChange: (count: number) => void;
+  onMoveCountChange: (count: number | '') => void;
   onDraftChange: (draft: OrderSet) => void;
   onLock: () => void;
   onUnlock: () => void;
@@ -134,7 +145,7 @@ export function OrdersPanel(props: Props) {
               max={selected !== null ? Math.max(1, state.armies[selected]) : undefined}
               value={moveCount}
               disabled={locked}
-              onChange={(e) => props.onMoveCountChange(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => props.onMoveCountChange(parseMoveCount(e.target.value))}
               style={{ width: '4.5rem' }}
             />
           </label>
