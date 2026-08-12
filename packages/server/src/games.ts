@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
-import { MAX_PLAYERS, MIN_PLAYERS, generateMap, redact, rulesFor } from '@www/engine';
+import {
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  createInitialState,
+  generateMap,
+  redact,
+  rulesFor,
+} from '@www/engine';
 import type { GameResult, OrderSet, TurnReport } from '@www/engine';
 
 import type {
@@ -18,6 +25,7 @@ import {
   parseState,
   reportsCol,
   serializeMap,
+  serializeState,
   usersCol,
   type GameDoc,
   type OrderDoc,
@@ -174,6 +182,76 @@ export async function getView(
     latestReport,
     result,
   };
+}
+
+const BOT_NAMES = [
+  'General Ash',
+  'Marshal Brook',
+  'Warlord Cole',
+  'Admiral Dune',
+  'Commander Elm',
+  'Strategos Fen',
+  'Khan Gale',
+  'Consul Hale',
+  'Regent Iris',
+  'Praetor Jet',
+  'Overlord Kite',
+  'Chancellor Lark',
+];
+
+/** Mutates `doc` in place: the game begins now. */
+function activate(doc: GameDoc, now: Timestamp): void {
+  doc.status = 'active';
+  doc.stateJson = serializeState(createInitialState(parseMap(doc), doc.rules));
+  doc.deadlineAt = Timestamp.fromMillis(now.toMillis() + doc.turnMinutes * 60_000);
+}
+
+export async function joinGame(
+  db: Firestore,
+  gameId: string,
+  user: AuthedUser,
+): Promise<GameView> {
+  const doc = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(games(db).doc(gameId));
+    if (!snap.exists) throw new HttpError(404, 'game not found');
+    const game = snap.data() as GameDoc;
+    if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
+    if (slotOf(game, user.uid) !== null) throw new HttpError(409, 'already seated');
+    const slot = game.seats.findIndex((s) => s === null);
+    if (slot === -1) throw new HttpError(409, 'game is full');
+    game.seats[slot] = { uid: user.uid, name: user.name, email: user.email, isBot: false };
+    if (game.seats.every((s) => s !== null)) activate(game, Timestamp.now());
+    tx.set(games(db).doc(gameId), game);
+    tx.set(
+      usersCol(db).doc(user.uid),
+      { name: user.name, email: user.email, gameIds: FieldValue.arrayUnion(gameId) },
+      { merge: true },
+    );
+    return game;
+  });
+  return getView(db, gameId, user, doc);
+}
+
+export async function startGame(
+  db: Firestore,
+  gameId: string,
+  user: AuthedUser,
+): Promise<GameView> {
+  const doc = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(games(db).doc(gameId));
+    if (!snap.exists) throw new HttpError(404, 'game not found');
+    const game = snap.data() as GameDoc;
+    if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can start');
+    if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
+    game.seats = game.seats.map(
+      (seat, slot) =>
+        seat ?? { uid: null, name: BOT_NAMES[slot % BOT_NAMES.length], email: null, isBot: true },
+    );
+    activate(game, Timestamp.now());
+    tx.set(games(db).doc(gameId), game);
+    return game;
+  });
+  return getView(db, gameId, user, doc);
 }
 
 export async function listGames(db: Firestore, user: AuthedUser): Promise<GameSummaryView[]> {
