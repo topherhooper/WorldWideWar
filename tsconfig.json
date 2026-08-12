@@ -3,6 +3,8 @@
   "references": [
     { "path": "./packages/engine" },
     { "path": "./tools/simulate" },
+    { "path": "./packages/server" },
+    { "path": "./packages/web" },
     { "path": "./tools/mapviz" }
   ]
 }

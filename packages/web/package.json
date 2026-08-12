@@ -1,0 +1,14 @@
+{
+  "name": "@www/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --force"
+  },
+  "dependencies": {
+    "@www/engine": "workspace:*",
+    "@www/server": "workspace:*"
+  }
+}

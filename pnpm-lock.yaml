@@ -46,6 +46,21 @@ importers:
         specifier: ^6.0.4
         version: 6.0.4
 
+  packages/server:
+    dependencies:
+      '@www/engine':
+        specifier: workspace:*
+        version: link:../engine
+
+  packages/web:
+    dependencies:
+      '@www/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@www/server':
+        specifier: workspace:*
+        version: link:../server
+
   tools/mapviz:
     dependencies:
       '@www/engine':

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // This package ships to a browser, not to Node. Excluding the ambient Node
+    // types means an accidental `process` or `Buffer` is a compile error here
+    // rather than a blank page at runtime.
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../engine" }, { "path": "../server" }]
+}

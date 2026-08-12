@@ -66,6 +66,37 @@ export default tseslint.config(
     },
   },
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // BROWSER PURITY.
+  //
+  // The client is served straight from `tsc` output with no bundler, so a bare
+  // specifier like `@www/engine` is a module the browser cannot resolve — the
+  // page dies on load. Type-only imports erase at compile time and are fine;
+  // value imports are not, and are caught here rather than by a blank screen.
+  // ────────────────────────────────────────────────────────────────────────────
+  {
+    files: ['packages/web/src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@www/engine',
+              message: 'The unbundled client can only import types from @www/engine.',
+              allowTypeImports: true,
+            },
+            {
+              name: '@www/server',
+              message: 'The unbundled client can only import types from @www/server.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Tests and fixtures may use wall-clock and unseeded randomness freely.
   {
     files: ['**/*.test.ts', '**/*.spec.ts', '**/test/**/*.ts'],

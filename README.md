@@ -50,14 +50,16 @@ commit to one.
 
 ## Status
 
-Early development. The engine and procedural map generator come first and are playable from a
-terminal before any server or UI exists — the point is to tune game feel against simulation data
-rather than intuition.
+Playable in a browser. `pnpm dev` serves a game you can create, share a code for, and play
+through to a result — against bots, against other people, or both at once. Games live in memory,
+so a restart clears the table; everything needed to change that is already in one file.
 
 ## Repository layout
 
 ```
 packages/engine/   Pure rules: map generation, orders, pact contest, resolution, bots
+packages/server/   Game lifecycle, deadlines, per-player redaction, JSON API and event stream
+packages/web/      The browser client: interactive map, order sheet, turn report
 tools/simulate/    Balance harness — runs seeded bot games and reports fairness/social metrics
 tools/mapviz/      Renders generated maps to SVG so the generator can be eyeballed
 ```
@@ -66,6 +68,22 @@ The engine is a pure function of `(state, orders, ctx)` with no clock, no I/O, a
 randomness — a constraint enforced by ESLint, not convention. That purity is what makes replays
 exact, makes crash recovery a matter of simply re-running the turn, and lets the browser run the
 identical code to preview orders.
+
+The server owns exactly the two things the engine refuses to know about: **who may submit what**,
+and **when the turn is due**. A turn resolves the moment every live human has locked in, or when
+the deadline fires — whichever comes first. A player who misses their deadline does not pass:
+their half-built draft is completed by the same bot brain that plays the empty seats, because a
+passive seat in a free-for-all is free food and warps the game around whoever borders it.
+
+Every read of game state leaves the server through one function, `redact`, so there is a single
+place to audit what a player is entitled to see. Orders and pledges are never redacted for the
+stronger reason that they are never sent: the resolver reads them straight from storage and no
+read path from the outside world can reach them.
+
+The client is compiled by `tsc` and served as plain ES modules — no bundler anywhere in the
+project. It may import _types_ from the engine and server, never values; that too is an ESLint
+rule rather than a convention, since a stray value import is a bare specifier the browser cannot
+resolve.
 
 ## Requirements
 
@@ -76,20 +94,45 @@ identical code to preview orders.
 
 ```bash
 pnpm install
-pnpm typecheck
-pnpm test
+pnpm dev
 ```
+
+Then open <http://localhost:8787>, name yourself and create a table. Leave **human seats** at 1 and
+you are playing bots straight away; raise it and you get a table code to share — everyone who opens
+the link takes a seat, and the game starts once they are all in. Set `PORT` to serve elsewhere.
+
+A turn is three decisions: place your reinforcements, order each province (hold, march, or support a
+neighbour's fight), and pledge to one rival. Lock in, and the turn resolves as soon as everyone else
+has — or when the clock runs out, whichever comes first.
 
 ## Development commands
 
 | Command          | What it does                                               |
 | ---------------- | ---------------------------------------------------------- |
+| `pnpm dev`       | Build everything and serve the game on port 8787           |
 | `pnpm test`      | Run the full test suite                                    |
 | `pnpm typecheck` | Type-check every package                                   |
-| `pnpm lint`      | Lint, including the engine-purity rules                    |
+| `pnpm lint`      | Lint, including the engine- and browser-purity rules       |
 | `pnpm format`    | Format with Prettier                                       |
 | `pnpm sim`       | Play seeded bot games and print balance and social metrics |
 | `pnpm mapviz`    | Render generated maps to SVG for inspection                |
+
+## HTTP API
+
+The browser client is one consumer of a small JSON API, not a privileged one.
+
+| Endpoint                     | What it does                                                         |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `POST /api/games`            | Create a table; the response seats you and returns your token        |
+| `GET /api/games`             | Lobbies still open to join                                           |
+| `POST /api/games/:id/join`   | Take a seat, by game id or table code                                |
+| `POST /api/games/:id/start`  | Host only: begin now, filling empty seats with bots                  |
+| `GET /api/games/:id`         | The game as one viewer may see it, redacted for `?token=`            |
+| `GET /api/games/:id/map`     | The generated map — public, and constant for the whole game          |
+| `POST /api/games/:id/orders` | Save a draft, or lock it in with `{"locked": true}`                  |
+| `POST /api/games/:id/resign` | Leave the war                                                        |
+| `GET /api/games/:id/history` | Every turn report so far                                             |
+| `GET /api/games/:id/stream`  | Server-sent events; each carries only a version number to refetch on |
 
 ## License
 
