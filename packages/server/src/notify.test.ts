@@ -99,6 +99,20 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('prefs', () => {
     });
   });
 
+  it('does not lose one of two concurrent updates', async () => {
+    // The settings page and an unsubscribe click can land together; a
+    // read-then-write pair lets the later write clobber the earlier one.
+    await Promise.all([
+      writePrefs(db, 'u-alice', { reminder: false }),
+      writePrefs(db, 'u-alice', { gameOver: false }),
+    ]);
+    expect(await readPrefs(db, 'u-alice')).toEqual({
+      turnResolved: true,
+      gameOver: false,
+      reminder: false,
+    });
+  });
+
   it('preserves fields the user doc already had', async () => {
     await usersCol(db)
       .doc('u-alice')

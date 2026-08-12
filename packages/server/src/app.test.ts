@@ -176,6 +176,27 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
       });
     });
 
+    it('explains a broken link in HTML, not JSON', async () => {
+      // Mail clients wrap and truncate long URLs, so real people land here.
+      const res = await app.inject({ method: 'GET', url: '/unsubscribe?u=u-alice&s=truncated' });
+      expect(res.statusCode).toBe(400);
+      expect(res.headers['content-type']).toContain('text/html');
+      expect(res.body).not.toContain('{"error"');
+      expect(res.body).toContain('/settings');
+    });
+
+    it('explains a broken POST in HTML too', async () => {
+      const res = await app.inject({ method: 'POST', url: '/unsubscribe?u=u-alice&s=truncated' });
+      expect(res.statusCode).toBe(400);
+      expect(res.headers['content-type']).toContain('text/html');
+    });
+
+    it('still answers api routes with json', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/games' });
+      expect(res.headers['content-type']).toContain('application/json');
+      expect(res.json()).toHaveProperty('error');
+    });
+
     it('rejects a signature that does not match the uid', async () => {
       const res = await app.inject({
         method: 'POST',

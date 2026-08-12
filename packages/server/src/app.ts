@@ -25,7 +25,7 @@ import {
 import type { Mailer } from './mailer.js';
 import { NOTIFY_KINDS, readPrefs, writePrefs, type NotifyDeps } from './notify.js';
 import { runTick } from './tick.js';
-import { unsubscribePage, type UnsubSigner } from './unsub.js';
+import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -51,7 +51,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   };
   const app = Fastify();
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
+    // /unsubscribe is read by a person in a browser, not by the client app, so
+    // it gets a page. Everything else is an API and gets JSON.
+    if (req.url.startsWith('/unsubscribe')) {
+      const status = err instanceof HttpError ? err.statusCode : 500;
+      if (status >= 500) console.error('[http] unhandled error:', err);
+      void reply
+        .status(status)
+        .type('text/html; charset=utf-8')
+        .send(unsubscribeErrorPage(`${deps.baseUrl}/settings`));
+      return;
+    }
     if (err instanceof HttpError) {
       void reply.status(err.statusCode).send({ error: err.message });
       return;

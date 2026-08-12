@@ -34,14 +34,26 @@ export async function readPrefs(db: Firestore, uid: string): Promise<NotifyPrefs
   return { ...DEFAULT_PREFS, ...((snap.data() as UserDoc | undefined)?.notify ?? {}) };
 }
 
+/**
+ * Transactional because the settings page and an unsubscribe click can land at
+ * the same moment, and a read-then-write pair silently drops the earlier one.
+ */
 export async function writePrefs(
   db: Firestore,
   uid: string,
   patch: Partial<NotifyPrefs>,
 ): Promise<NotifyPrefs> {
-  const merged = { ...(await readPrefs(db, uid)), ...patch };
-  await usersCol(db).doc(uid).set({ notify: merged }, { merge: true });
-  return merged;
+  const ref = usersCol(db).doc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const merged = {
+      ...DEFAULT_PREFS,
+      ...((snap.data() as UserDoc | undefined)?.notify ?? {}),
+      ...patch,
+    };
+    tx.set(ref, { notify: merged }, { merge: true });
+    return merged;
+  });
 }
 
 const unsubUrl = (deps: NotifyDeps, uid: string): string =>

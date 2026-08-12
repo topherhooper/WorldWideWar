@@ -29,9 +29,29 @@ export function unsubSigner(secret: string): UnsubSigner {
 const escape = (s: string): string => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /**
- * A standalone page, not a client route: the web app lives behind RequireAuth,
+ * Standalone pages, not client routes: the web app lives behind RequireAuth,
  * and an unsubscribe link that demands a login is not an unsubscribe link.
  */
+const shell = (body: string): string => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Unsubscribe — World Wide War</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 4rem auto; max-width: 32rem; padding: 0 1rem; }
+  button { font: inherit; padding: .5rem 1rem; cursor: pointer; }
+</style></head>
+<body><h1>World Wide War</h1>${body}</body></html>`;
+
+/** Shown when a link is truncated or mangled in transit, which mail clients do. */
+export function unsubscribeErrorPage(settingsUrl: string): string {
+  return shell(
+    `<p>This unsubscribe link is not valid. Email programs sometimes cut long
+        links in half, so copying the whole address from the message may fix it.</p>
+     <p>You can also <a href="${escape(settingsUrl)}">change your email settings</a>
+        after signing in.</p>`,
+  );
+}
+
 export function unsubscribePage(opts: {
   uid: string;
   signature: string;
@@ -49,15 +69,7 @@ export function unsubscribePage(opts: {
        </form>
        <p>Prefer to keep some? <a href="${escape(opts.settingsUrl)}">Choose which emails you get</a>.</p>`;
 
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Unsubscribe — World Wide War</title>
-<style>
-  body { font: 16px/1.5 system-ui, sans-serif; margin: 4rem auto; max-width: 32rem; padding: 0 1rem; }
-  button { font: inherit; padding: .5rem 1rem; cursor: pointer; }
-</style></head>
-<body><h1>World Wide War</h1>${body}</body></html>`;
+  return shell(body);
 }
 
 /**
