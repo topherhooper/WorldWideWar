@@ -75,7 +75,11 @@ packages/server/
   "private": true,
   "type": "module",
   "main": "./dist/main.js",
-  "scripts": { "build": "tsc --build", "typecheck": "tsc --build --force", "dev": "tsx watch src/main.ts" },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --force",
+    "dev": "tsx watch src/main.ts"
+  },
   "dependencies": {
     "@www/engine": "workspace:*",
     "fastify": "^5.6.2",
@@ -101,8 +105,8 @@ packages/server/
 ```
 
 - [ ] **Step 4: root package.json** — add script
-  `"test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run packages/server\""`
-  and devDependency `firebase-tools` is NOT added (global install exists; CI installs it in plan 3's CI task — for now Task 11 handles CI).
+      `"test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run packages/server\""`
+      and devDependency `firebase-tools` is NOT added (global install exists; CI installs it in plan 3's CI task — for now Task 11 handles CI).
 
 - [ ] **Step 5: api-types.ts** — complete file:
 
@@ -111,25 +115,55 @@ import type { GameState, GeneratedMap, OrderSet, TurnReport, GameResult } from '
 
 export type GameStatus = 'lobby' | 'active' | 'finished';
 
-export interface SeatView { slot: number; name: string; isBot: boolean; taken: boolean; }
+export interface SeatView {
+  slot: number;
+  name: string;
+  isBot: boolean;
+  taken: boolean;
+}
 
 export interface GameSummaryView {
-  id: string; status: GameStatus; playerCount: number; seatsFilled: number;
-  turn: number; deadlineAt: string | null; mySlot: number | null; myLocked: boolean;
+  id: string;
+  status: GameStatus;
+  playerCount: number;
+  seatsFilled: number;
+  turn: number;
+  deadlineAt: string | null;
+  mySlot: number | null;
+  myLocked: boolean;
 }
 
 export interface GameView {
-  id: string; status: GameStatus; playerCount: number;
-  seats: SeatView[]; turn: number; deadlineAt: string | null; turnMinutes: number;
+  id: string;
+  status: GameStatus;
+  playerCount: number;
+  seats: SeatView[];
+  turn: number;
+  deadlineAt: string | null;
+  turnMinutes: number;
   map: GeneratedMap;
-  state: GameState | null;              // redacted for the viewer; null while in lobby
-  mySlot: number | null; myOrders: OrderSet | null; myLocked: boolean;
-  lockedSlots: number[]; latestReport: TurnReport | null; result: GameResult | null;
+  state: GameState | null; // redacted for the viewer; null while in lobby
+  mySlot: number | null;
+  myOrders: OrderSet | null;
+  myLocked: boolean;
+  lockedSlots: number[];
+  latestReport: TurnReport | null;
+  result: GameResult | null;
 }
 
-export interface CreateGameRequest { playerCount: number; turnMinutes: number; }
-export interface SubmitOrdersRequest { orders: OrderSet; locked: boolean; }
-export interface SubmitOrdersResponse { warnings: string[]; resolved: boolean; view: GameView; }
+export interface CreateGameRequest {
+  playerCount: number;
+  turnMinutes: number;
+}
+export interface SubmitOrdersRequest {
+  orders: OrderSet;
+  locked: boolean;
+}
+export interface SubmitOrdersResponse {
+  warnings: string[];
+  resolved: boolean;
+  view: GameView;
+}
 ```
 
 - [ ] **Step 6:** `pnpm install`, then `pnpm build` — expect clean. `pnpm test` still green.
@@ -144,10 +178,18 @@ export interface SubmitOrdersResponse { warnings: string[]; resolved: boolean; v
 **Interfaces produced:**
 
 ```ts
-export interface Mail { to: string; subject: string; text: string; }
-export interface Mailer { send(mail: Mail): Promise<void>; }
-export class LogMailer implements Mailer { sent: Mail[]; /* records + console.log one line */ }
-export function resendMailer(apiKey: string, from: string): Mailer  // wraps resend SDK; errors logged, never thrown
+export interface Mail {
+  to: string;
+  subject: string;
+  text: string;
+}
+export interface Mailer {
+  send(mail: Mail): Promise<void>;
+}
+export class LogMailer implements Mailer {
+  sent: Mail[]; /* records + console.log one line */
+}
+export function resendMailer(apiKey: string, from: string): Mailer; // wraps resend SDK; errors logged, never thrown
 ```
 
 - [ ] **Step 1: failing test** — `LogMailer` records mail; `send` resolves.
@@ -167,7 +209,7 @@ describe('LogMailer', () => {
 
 - [ ] **Step 2:** `pnpm exec vitest run packages/server/src/mailer.test.ts` → FAIL (module not found).
 - [ ] **Step 3:** implement both mailers. `resendMailer` calls `new Resend(apiKey).emails.send({ from, to, subject, text })` inside try/catch — email failure must never fail a request.
-- [ ] **Step 4:** test → PASS.  **Step 5: Commit** `feat(server): mailer interface with log and resend implementations`
+- [ ] **Step 4:** test → PASS. **Step 5: Commit** `feat(server): mailer interface with log and resend implementations`
 
 ---
 
@@ -215,10 +257,19 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
     const map = generateMap('round-trip', 4);
     const state = createInitialState(map, rulesFor(4));
     const doc: GameDoc = {
-      status: 'active', createdBy: 'u1', createdAt: Timestamp.now(),
-      playerCount: 4, seats: [{ uid: 'u1', name: 'A', email: null, isBot: false }, null, null, null],
-      turn: 1, deadlineAt: Timestamp.now(), turnMinutes: 1440, remindedTurn: 0,
-      seed: 'round-trip', rules: rulesFor(4), stateJson: serializeState(state), mapJson: serializeState(map as never),
+      status: 'active',
+      createdBy: 'u1',
+      createdAt: Timestamp.now(),
+      playerCount: 4,
+      seats: [{ uid: 'u1', name: 'A', email: null, isBot: false }, null, null, null],
+      turn: 1,
+      deadlineAt: Timestamp.now(),
+      turnMinutes: 1440,
+      remindedTurn: 0,
+      seed: 'round-trip',
+      rules: rulesFor(4),
+      stateJson: serializeState(state),
+      mapJson: serializeState(map as never),
     };
     await games(db).doc('g1').set(doc);
     const got = (await games(db).doc('g1').get()).data() as GameDoc;
@@ -231,7 +282,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
 
 - [ ] **Step 2:** `pnpm test:server` → FAIL (store.js missing). Plain `pnpm test` → suite skipped, green.
 - [ ] **Step 3:** implement `store.ts` + `testing.ts`. `initFirestore` must be idempotent (`getApps().length` guard) and must NOT pass credentials when `FIRESTORE_EMULATOR_HOST` is set.
-- [ ] **Step 4:** `pnpm test:server` → PASS.  **Step 5: Commit** `feat(server): firestore store layer with canonical-JSON state fields`
+- [ ] **Step 4:** `pnpm test:server` → PASS. **Step 5: Commit** `feat(server): firestore store layer with canonical-JSON state fields`
 
 ---
 
@@ -265,7 +316,9 @@ it('creates a lobby game with creator in seat 0', async () => {
   expect(JSON.stringify(view)).not.toContain((await games(db).doc(id).get()).get('seed'));
 });
 it('rejects bad player counts', async () => {
-  await expect(createGame(db, alice, { playerCount: 1, turnMinutes: 60 })).rejects.toThrow(HttpError);
+  await expect(createGame(db, alice, { playerCount: 1, turnMinutes: 60 })).rejects.toThrow(
+    HttpError,
+  );
 });
 it('lists my games', async () => {
   const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
@@ -287,8 +340,8 @@ it('lists my games', async () => {
 **Interfaces produced:**
 
 ```ts
-export async function joinGame(db, gameId: string, user: AuthedUser): Promise<GameView>
-export async function startGame(db, gameId: string, user: AuthedUser): Promise<GameView>  // creator only
+export async function joinGame(db, gameId: string, user: AuthedUser): Promise<GameView>;
+export async function startGame(db, gameId: string, user: AuthedUser): Promise<GameView>; // creator only
 ```
 
 Both run in `db.runTransaction`. Join: 409 if already seated/full/not lobby; fills lowest empty seat; adds gameId to user doc. Activation (shared helper `activate(doc, now)`): `status: 'active'`, `stateJson: serializeState(createInitialState(parseMap(doc), doc.rules))`, `deadlineAt = now + turnMinutes`. Join auto-activates when the last seat fills. Start: 403 unless creator, 409 unless lobby; empty seats become `{ uid: null, name: BOT_NAMES[slot], email: null, isBot: true }` (`BOT_NAMES`: 'General Ash', 'Marshal Brook', 'Warlord Cole', … 12 names, index by slot).
@@ -332,9 +385,19 @@ it('only the creator starts', async () => {
 **Interfaces produced:**
 
 ```ts
-export interface ResolutionOutcome { resolved: boolean; report: TurnReport | null; finished: boolean; }
+export interface ResolutionOutcome {
+  resolved: boolean;
+  report: TurnReport | null;
+  finished: boolean;
+}
 /** Resolve `expectedTurn` if the game is still on it; no-op { resolved: false } otherwise. */
-export async function resolveGameTurn(db, mailer: Mailer, baseUrl: string, gameId: string, expectedTurn: number): Promise<ResolutionOutcome>
+export async function resolveGameTurn(
+  db,
+  mailer: Mailer,
+  baseUrl: string,
+  gameId: string,
+  expectedTurn: number,
+): Promise<ResolutionOutcome>;
 ```
 
 Inside one transaction: read game doc (abort no-op if `status !== 'active'` or `turn !== expectedTurn`); `getAll` the turn's order docs for human seats; build `submissions[slot]`: human → `JSON.parse(ordersJson)` or `null`; bot → `decideOrders(redact(state, slot), map, slot, substream(seed, 'bot', turn, slot), personality(slot))` with personalities built exactly as `packages/engine/src/simulate.ts:83-85`; eliminated/empty seat → `null`. Call `resolveTurn(state, submissions, { seed, map, rules })`. Write: `stateJson = serializeState(next)`, `turn = next.turn`, `deadlineAt = now + turnMinutes` (or `null` + `status:'finished'` when `report.result`), report doc at `reports/{expectedTurn}` storing `canonicalJson(report)`. After commit: email every human seat `[WWW] Turn ${expectedTurn} resolved — ${report.headline}` with link `${baseUrl}/g/${gameId}` (finished games get `[WWW] Game over — ${report.result.detail ?? kind}`).
@@ -344,7 +407,7 @@ Inside one transaction: read game doc (abort no-op if `status !== 'active'` or `
 ```ts
 async function activeGame(playerCount: number): Promise<string> {
   const id = await createGame(db, alice, { playerCount, turnMinutes: 60 });
-  return (await startGame(db, id, alice)), id;   // alice + bots
+  return (await startGame(db, id, alice), id); // alice + bots
 }
 it('resolves a turn and advances state', async () => {
   const id = await activeGame(4);
@@ -386,7 +449,14 @@ it('plays a bot game to completion', async () => {
 **Interfaces produced:**
 
 ```ts
-export async function submitOrders(db, mailer, baseUrl, gameId: string, user: AuthedUser, req: SubmitOrdersRequest): Promise<SubmitOrdersResponse>
+export async function submitOrders(
+  db,
+  mailer,
+  baseUrl,
+  gameId: string,
+  user: AuthedUser,
+  req: SubmitOrdersRequest,
+): Promise<SubmitOrdersResponse>;
 ```
 
 Transaction: 409 unless active; 403 unless seated and slot active in state; force `req.orders.slot = mySlot`; collect warnings via `normalizeOrders(state, map, mySlot, req.orders, events)` then `events.filter(e => e.kind === 'order_rejected').map(e => e.reason)` — warnings never block; write order doc `{ ordersJson: JSON.stringify(req.orders), locked, updatedAt }`. After commit, if `locked`: read all live human slots' order docs; if every one is locked, call `resolveGameTurn(db, mailer, baseUrl, gameId, turn)`. Return `{ warnings, resolved, view: await getView(...) }`.
@@ -406,9 +476,15 @@ it('stores draft orders and reports warnings without blocking', async () => {
 it('resolves early when the last human locks', async () => {
   const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
   await joinGame(db, id, bob);
-  const a = await submitOrders(db, mailer, 'http://x', id, alice, { orders: { slot: 0, pledge: null, deploys: [], units: [] }, locked: true });
+  const a = await submitOrders(db, mailer, 'http://x', id, alice, {
+    orders: { slot: 0, pledge: null, deploys: [], units: [] },
+    locked: true,
+  });
   expect(a.resolved).toBe(false);
-  const b = await submitOrders(db, mailer, 'http://x', id, bob, { orders: { slot: 1, pledge: null, deploys: [], units: [] }, locked: true });
+  const b = await submitOrders(db, mailer, 'http://x', id, bob, {
+    orders: { slot: 1, pledge: null, deploys: [], units: [] },
+    locked: true,
+  });
   expect(b.resolved).toBe(true);
   expect(b.view.turn).toBe(2);
   expect(b.view.latestReport!.turn).toBe(1);
@@ -417,8 +493,12 @@ it('rejects orders from non-players', async () => {
   const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
   await joinGame(db, id, bob);
   const carol = { uid: 'u3', name: 'Carol', email: null };
-  await expect(submitOrders(db, mailer, 'http://x', id, carol, { orders: { slot: 0, pledge: null, deploys: [], units: [] }, locked: false }))
-    .rejects.toMatchObject({ statusCode: 403 });
+  await expect(
+    submitOrders(db, mailer, 'http://x', id, carol, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: false,
+    }),
+  ).rejects.toMatchObject({ statusCode: 403 });
 });
 ```
 
@@ -433,8 +513,12 @@ it('rejects orders from non-players', async () => {
 **Interfaces produced:**
 
 ```ts
-export interface TickResult { resolvedGames: string[]; remindedGames: string[]; errors: string[]; }
-export async function runTick(db, mailer, baseUrl, now: Date): Promise<TickResult>
+export interface TickResult {
+  resolvedGames: string[];
+  remindedGames: string[];
+  errors: string[];
+}
+export async function runTick(db, mailer, baseUrl, now: Date): Promise<TickResult>;
 ```
 
 Fetch ALL `status == 'active'` games (playtest scale; no composite indexes). Per game, in try/catch (one bad game never blocks the sweep): past `deadlineAt` → `resolveGameTurn(db, mailer, baseUrl, id, doc.turn)`; else if remaining ≤ 25% of `turnMinutes` AND `remindedTurn < turn` AND some live human slot lacks a locked order doc → email exactly those unlocked humans `[WWW] Orders due soon` + link, then set `remindedTurn = turn`.
@@ -452,10 +536,13 @@ Fetch ALL `status == 'active'` games (playtest scale; no composite indexes). Per
 
 ```ts
 export interface Verifiers {
-  verifyUser(authorizationHeader: string | undefined): Promise<AuthedUser>;  // throws HttpError(401)
-  verifyTick(authorizationHeader: string | undefined): Promise<void>;        // throws HttpError(401/403)
+  verifyUser(authorizationHeader: string | undefined): Promise<AuthedUser>; // throws HttpError(401)
+  verifyTick(authorizationHeader: string | undefined): Promise<void>; // throws HttpError(401/403)
 }
-export function realVerifiers(opts: { tickAudience: string; tickServiceAccount: string }): Verifiers
+export function realVerifiers(opts: {
+  tickAudience: string;
+  tickServiceAccount: string;
+}): Verifiers;
 ```
 
 `verifyUser`: strip `Bearer `, `getAuth().verifyIdToken(token)` → `{ uid, name: decoded.name ?? decoded.email ?? 'Player', email: decoded.email ?? null }`. Works against the Auth emulator automatically when `FIREBASE_AUTH_EMULATOR_HOST` is set. `verifyTick`: `new OAuth2Client().verifyIdToken({ idToken, audience: tickAudience })`, require `payload.email === tickServiceAccount && payload.email_verified`.
@@ -485,8 +572,13 @@ export const stubVerifiers = (users: Record<string, AuthedUser>): Verifiers  // 
 **Interfaces produced:**
 
 ```ts
-export interface AppDeps { db: Firestore; mailer: Mailer; verifiers: Verifiers; baseUrl: string; }
-export function buildApp(deps: AppDeps): FastifyInstance
+export interface AppDeps {
+  db: Firestore;
+  mailer: Mailer;
+  verifiers: Verifiers;
+  baseUrl: string;
+}
+export function buildApp(deps: AppDeps): FastifyInstance;
 ```
 
 Routes exactly as specced: `POST /api/games`, `GET /api/games`, `POST /api/games/:id/join`, `POST /api/games/:id/start`, `GET /api/games/:id`, `PUT /api/games/:id/orders`, `GET /api/games/:id/reports/:turn`, `POST /internal/tick`, `GET /healthz`. A preHandler on `/api/*` sets `req.user = await verifiers.verifyUser(req.headers.authorization)`; `/internal/tick` uses `verifyTick`. Error handler maps `HttpError` → its status + `{ error: message }`, everything else → 500 (logged). Reports route reads `reports/{turn}` (404 when absent).
@@ -494,19 +586,43 @@ Routes exactly as specced: `POST /api/games`, `GET /api/games`, `POST /api/games
 - [ ] **Step 1: failing test** — full-lifecycle inject test with `stubVerifiers` + emulator Firestore:
 
 ```ts
-const app = buildApp({ db, mailer, verifiers: stubVerifiers({ 'tok-a': alice, 'tok-b': bob }), baseUrl: 'http://x' });
+const app = buildApp({
+  db,
+  mailer,
+  verifiers: stubVerifiers({ 'tok-a': alice, 'tok-b': bob }),
+  baseUrl: 'http://x',
+});
 const H = (t: string) => ({ authorization: `Bearer ${t}` });
 it('plays a full lifecycle over HTTP', async () => {
-  const create = await app.inject({ method: 'POST', url: '/api/games', headers: H('tok-a'), payload: { playerCount: 2, turnMinutes: 60 } });
+  const create = await app.inject({
+    method: 'POST',
+    url: '/api/games',
+    headers: H('tok-a'),
+    payload: { playerCount: 2, turnMinutes: 60 },
+  });
   expect(create.statusCode).toBe(200);
   const { id } = create.json();
   await app.inject({ method: 'POST', url: `/api/games/${id}/join`, headers: H('tok-b') });
-  const lockA = await app.inject({ method: 'PUT', url: `/api/games/${id}/orders`, headers: H('tok-a'), payload: { orders: { slot: 0, pledge: 1, deploys: [], units: [] }, locked: true } });
+  const lockA = await app.inject({
+    method: 'PUT',
+    url: `/api/games/${id}/orders`,
+    headers: H('tok-a'),
+    payload: { orders: { slot: 0, pledge: 1, deploys: [], units: [] }, locked: true },
+  });
   expect(lockA.json().resolved).toBe(false);
-  const lockB = await app.inject({ method: 'PUT', url: `/api/games/${id}/orders`, headers: H('tok-b'), payload: { orders: { slot: 1, pledge: 0, deploys: [], units: [] }, locked: true } });
+  const lockB = await app.inject({
+    method: 'PUT',
+    url: `/api/games/${id}/orders`,
+    headers: H('tok-b'),
+    payload: { orders: { slot: 1, pledge: 0, deploys: [], units: [] }, locked: true },
+  });
   expect(lockB.json().resolved).toBe(true);
-  const report = await app.inject({ method: 'GET', url: `/api/games/${id}/reports/1`, headers: H('tok-a') });
-  expect(report.json().pacts.length).toBeGreaterThan(0);   // mutual pledge → concord recorded
+  const report = await app.inject({
+    method: 'GET',
+    url: `/api/games/${id}/reports/1`,
+    headers: H('tok-a'),
+  });
+  expect(report.json().pacts.length).toBeGreaterThan(0); // mutual pledge → concord recorded
   expect(report.body).not.toContain('seed');
 });
 it('rejects unauthenticated requests', async () => {
@@ -514,7 +630,9 @@ it('rejects unauthenticated requests', async () => {
 });
 it('guards the tick route', async () => {
   expect((await app.inject({ method: 'POST', url: '/internal/tick' })).statusCode).toBe(401);
-  expect((await app.inject({ method: 'POST', url: '/internal/tick', headers: H('tick-ok') })).statusCode).toBe(200);
+  expect(
+    (await app.inject({ method: 'POST', url: '/internal/tick', headers: H('tick-ok') })).statusCode,
+  ).toBe(200);
 });
 ```
 
@@ -531,9 +649,9 @@ it('guards the tick route', async () => {
 - [ ] **Step 3: CI** — in `.github/workflows/ci.yml` `check` job, after `pnpm test`, add:
 
 ```yaml
-      - run: pnpm build
-      - name: Server integration tests
-        run: pnpm exec firebase emulators:exec --only firestore,auth --project demo-www "pnpm exec vitest run packages/server"
+- run: pnpm build
+- name: Server integration tests
+  run: pnpm exec firebase emulators:exec --only firestore,auth --project demo-www "pnpm exec vitest run packages/server"
 ```
 
 and add `firebase-tools` to root devDependencies (pinned major 15). Ubuntu runners ship Java, which the Firestore emulator needs.

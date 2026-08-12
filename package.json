@@ -18,6 +18,7 @@
     "typecheck": "tsc --build --force",
     "test": "vitest run",
     "test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run --no-file-parallelism packages/server\"",
+    "dev:server": "firebase emulators:exec --only firestore,auth --project demo-www \"tsx watch packages/server/src/main.ts\"",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
+    "firebase-tools": "^15.26.0",
     "@types/node": "^22.20.0",
     "eslint": "^9.39.0",
     "fast-check": "^4.5.0",

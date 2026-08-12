@@ -211,11 +211,7 @@ function activate(doc: GameDoc, now: Timestamp): void {
   doc.deadlineAt = Timestamp.fromMillis(now.toMillis() + doc.turnMinutes * 60_000);
 }
 
-export async function joinGame(
-  db: Firestore,
-  gameId: string,
-  user: AuthedUser,
-): Promise<GameView> {
+export async function joinGame(db: Firestore, gameId: string, user: AuthedUser): Promise<GameView> {
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
@@ -293,9 +289,7 @@ export async function submitOrders(
             ...otherHumans.map((slot) => ordersCol(db, gameId).doc(orderDocId(game.turn, slot))),
           )
         : [];
-    const othersLocked = lockSnaps.every(
-      (s) => s.exists && (s.data() as OrderDoc).locked,
-    );
+    const othersLocked = lockSnaps.every((s) => s.exists && (s.data() as OrderDoc).locked);
 
     tx.set(ordersCol(db, gameId).doc(orderDocId(game.turn, mySlot)), {
       ordersJson: JSON.stringify(orders),

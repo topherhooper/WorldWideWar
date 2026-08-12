@@ -26,7 +26,9 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tick', () => {
 
   it('resolves games past their deadline', async () => {
     const id = await twoPlayerGame();
-    await games(db).doc(id).update({ deadlineAt: Timestamp.fromMillis(Date.now() - 60_000) });
+    await games(db)
+      .doc(id)
+      .update({ deadlineAt: Timestamp.fromMillis(Date.now() - 60_000) });
     const result = await runTick(db, mailer, 'http://x', new Date());
     expect(result.resolvedGames).toEqual([id]);
     expect(result.errors).toEqual([]);
@@ -35,7 +37,9 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tick', () => {
 
   it('reminds only unlocked humans, and only once per turn', async () => {
     const id = await twoPlayerGame();
-    await games(db).doc(id).update({ deadlineAt: Timestamp.fromMillis(Date.now() + 10 * 60_000) });
+    await games(db)
+      .doc(id)
+      .update({ deadlineAt: Timestamp.fromMillis(Date.now() + 10 * 60_000) });
     await submitOrders(db, mailer, 'http://x', id, alice, {
       orders: { slot: 0, pledge: null, deploys: [], units: [] },
       locked: true,

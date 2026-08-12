@@ -99,9 +99,7 @@ export async function resolveGameTurn(
       stateJson: serializeState(next),
       turn: next.turn,
       status: finished ? 'finished' : 'active',
-      deadlineAt: finished
-        ? null
-        : Timestamp.fromMillis(Date.now() + game.turnMinutes * 60_000),
+      deadlineAt: finished ? null : Timestamp.fromMillis(Date.now() + game.turnMinutes * 60_000),
     });
     tx.set(reportsCol(db, gameId).doc(String(expectedTurn)), {
       reportJson: canonicalJson(report),

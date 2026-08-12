@@ -2,14 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import type { Mailer } from './mailer.js';
 import { resolveGameTurn } from './resolve.js';
-import {
-  games,
-  ordersCol,
-  orderDocId,
-  parseState,
-  type GameDoc,
-  type OrderDoc,
-} from './store.js';
+import { games, ordersCol, orderDocId, parseState, type GameDoc, type OrderDoc } from './store.js';
 
 export interface TickResult {
   resolvedGames: string[];

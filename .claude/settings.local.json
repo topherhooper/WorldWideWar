@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C D:/Projects/WorldWideWar add docs/superpowers/specs/2026-08-11-game-server-design.md)",
+      "Bash(git -C D:/Projects/WorldWideWar commit -m \"Add game server and web client design spec\")",
+      "Bash(git -C D:/Projects/WorldWideWar log --oneline -1)"
+    ]
+  }
+}

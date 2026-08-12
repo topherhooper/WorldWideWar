@@ -29,7 +29,12 @@ export async function emulatorToken(email: string, name: string): Promise<string
     {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password: 'password1', displayName: name, returnSecureToken: true }),
+      body: JSON.stringify({
+        email,
+        password: 'password1',
+        displayName: name,
+        returnSecureToken: true,
+      }),
     },
   );
   if (!res.ok) throw new Error(`auth emulator signUp failed: ${res.status}`);

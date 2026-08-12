@@ -3,7 +3,14 @@ import { generateMap, createInitialState, rulesFor } from '@www/engine';
 import { Timestamp } from 'firebase-admin/firestore';
 
 import { emulatorDb, clearFirestore } from './testing.js';
-import { games, serializeState, serializeMap, parseState, parseMap, type GameDoc } from './store.js';
+import {
+  games,
+  serializeState,
+  serializeMap,
+  parseState,
+  parseMap,
+  type GameDoc,
+} from './store.js';
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
   beforeEach(clearFirestore);

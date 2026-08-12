@@ -34,6 +34,12 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+      # Integration tests against the Firestore + Auth emulators (needs Java,
+      # preinstalled on ubuntu runners). Serialized: the suites share one
+      # emulator and each wipes it between tests.
+      - name: Server integration tests
+        run: pnpm test:server
+
   mapgen:
     name: Map generator sweep
     runs-on: ubuntu-latest
