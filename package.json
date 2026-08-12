@@ -17,6 +17,7 @@
     "clean": "tsc --build --clean",
     "typecheck": "tsc --build --force",
     "test": "vitest run",
+    "test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run packages/server\"",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",

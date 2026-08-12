@@ -1,0 +1,19 @@
+{
+  "name": "@www/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --force",
+    "dev": "tsx watch src/main.ts"
+  },
+  "dependencies": {
+    "@www/engine": "workspace:*",
+    "fastify": "^5.6.2",
+    "firebase-admin": "^13.4.0",
+    "google-auth-library": "^10.1.0",
+    "resend": "^4.5.1"
+  }
+}
