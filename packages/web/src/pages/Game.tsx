@@ -7,6 +7,7 @@ import { GameHud } from '../game/GameHud.js';
 import { HowToWin } from '../game/HowToWin.js';
 import { MapView } from '../game/MapView.js';
 import { DeleteGame } from '../game/DeleteGame.js';
+import { ResolveNow } from '../game/ResolveNow.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
 import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
@@ -183,7 +184,10 @@ function GameInner({ id }: { id: string }) {
               </div>
             )}
             {mySlot === 0 && (
-              <div className="panel">
+              <div className="panel host-tools">
+                {view.status === 'active' && (
+                  <ResolveNow gameId={view.id} onResolved={() => void refresh()} />
+                )}
                 <DeleteGame gameId={view.id} />
               </div>
             )}

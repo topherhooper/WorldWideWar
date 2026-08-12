@@ -222,12 +222,6 @@ export function OrdersPanel(props: Props) {
             You can unlock and change your orders until the whole table has locked.
           </span>
         )}
-        <span className="muted">
-          locked:{' '}
-          {view.lockedSlots.length === 0
-            ? 'nobody yet'
-            : view.lockedSlots.map((slot) => view.seats[slot]?.name ?? `seat ${slot}`).join(', ')}
-        </span>
       </div>
     </aside>
   );

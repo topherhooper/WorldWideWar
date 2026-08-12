@@ -352,6 +352,25 @@ export async function startGame(
   return getView(db, gameId, user, doc);
 }
 
+/**
+ * Creator ends the current turn on demand — the deadline and the all-locked
+ * shortcut are not the only ways forward. Unlocked players fight with whatever
+ * draft they last autosaved, exactly as if the deadline had passed.
+ */
+export async function resolveNow(
+  db: Firestore,
+  mailer: Mailer,
+  baseUrl: string,
+  gameId: string,
+  user: AuthedUser,
+): Promise<GameView> {
+  const game = await loadGame(db, gameId);
+  if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can end the turn');
+  if (game.status !== 'active') throw new HttpError(409, 'game is not active');
+  await resolveGameTurn(db, mailer, baseUrl, gameId, game.turn);
+  return getView(db, gameId, user);
+}
+
 export async function submitLobbyList(
   db: Firestore,
   gameId: string,

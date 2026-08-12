@@ -14,6 +14,7 @@ import {
   joinGame,
   listGames,
   readReport,
+  resolveNow,
   startGame,
   submitLobbyList,
   submitOrders,
@@ -88,6 +89,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/start', async (req) => {
         const { id } = req.params as { id: string };
         return startGame(db, id, req.user);
+      });
+
+      api.post('/games/:id/resolve', async (req) => {
+        const { id } = req.params as { id: string };
+        return resolveNow(db, mailer, baseUrl, id, req.user);
       });
 
       api.put('/games/:id/lobby-list', async (req) => {

@@ -9,6 +9,7 @@ import {
   getView,
   joinGame,
   listGames,
+  resolveNow,
   startGame,
   submitOrders,
   HttpError,
@@ -134,6 +135,31 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     });
     expect(b.resolved).toBe(true);
     expect(b.view.turn).toBe(2);
+  });
+
+  it('creator resolves the turn early; unlocked drafts still count', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob);
+    await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: false,
+    });
+    const view = await resolveNow(db, mailer, 'http://x', id, alice);
+    expect(view.turn).toBe(2);
+    expect(view.latestReport?.turn).toBe(1);
+  });
+
+  it('only the creator resolves early, and only while active', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await expect(resolveNow(db, mailer, 'http://x', id, alice)).rejects.toMatchObject({
+      statusCode: 409,
+    });
+    await joinGame(db, id, bob);
+    await expect(resolveNow(db, mailer, 'http://x', id, bob)).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 
   it('rejects orders from non-players', async () => {
