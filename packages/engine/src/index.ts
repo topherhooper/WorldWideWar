@@ -74,6 +74,8 @@ export {
 } from './contest/pact.js';
 export {
   applyTiersRecord,
+  decideTiersList,
+  decideTiersOrders,
   makeTiersList,
   normalizeItemText,
   normalizeTiersList,

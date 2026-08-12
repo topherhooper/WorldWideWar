@@ -17,7 +17,8 @@
  * shuffle applied when a new list is installed.
  */
 
-import { substream } from '../rng.js';
+import { substream, type Rng } from '../rng.js';
+import type { TiersTopic } from './topics.js';
 import type {
   GameState,
   Slot,
@@ -245,4 +246,59 @@ export function tiersWarnings(
     }
   }
   return warnings;
+}
+
+/**
+ * A bot's list: the topic's canned items in popularity order, lightly
+ * perturbed. Mostly-predictable on purpose — an attentive human can learn that
+ * bots follow the obvious order, which keeps guessing bots from being a pure
+ * gamble and keeps bot-vs-bot games from going inert.
+ */
+export function decideTiersList(topic: TiersTopic, rng: Rng): string[] {
+  const items = topic.canned.slice(0, TIERS_LIST_SIZE);
+  const swaps = rng.int(3);
+  for (let i = 0; i < swaps; i++) {
+    const at = rng.int(TIERS_LIST_SIZE - 1);
+    const tmp = items[at];
+    items[at] = items[at + 1];
+    items[at + 1] = tmp;
+  }
+  return items;
+}
+
+/**
+ * A bot's full tiers input. Guesses assume the author ranked by popularity —
+ * right about other bots, and the "consensus" read against humans. Expects the
+ * bot's *redacted* view, where rival items arrive in public order.
+ */
+export function decideTiersOrders(
+  state: GameState,
+  slot: Slot,
+  writeTopic: TiersTopic,
+  prevTopic: TiersTopic,
+  rng: Rng,
+): TiersOrders {
+  const popularity = new Map(prevTopic.canned.map((item, rank) => [normalizeItemText(item), rank]));
+
+  const targets: Slot[] = [];
+  for (let other = 0; other < state.playerCount; other++) {
+    if (other !== slot && state.status[other] === 'active' && state.tiersLists[other] !== null) {
+      targets.push(other);
+    }
+  }
+
+  const guesses: TiersGuess[] = rng
+    .shuffle(targets)
+    .slice(0, TIERS_MAX_GUESSES)
+    .map((target) => {
+      const items = state.tiersLists[target]!.items;
+      const order = Array.from({ length: TIERS_LIST_SIZE }, (_, position) => position).sort(
+        (a, b) =>
+          (popularity.get(normalizeItemText(items[a])) ?? TIERS_LIST_SIZE) -
+            (popularity.get(normalizeItemText(items[b])) ?? TIERS_LIST_SIZE) || a - b,
+      );
+      return { target, order };
+    });
+
+  return { list: decideTiersList(writeTopic, rng), guesses };
 }
