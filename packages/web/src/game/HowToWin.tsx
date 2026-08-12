@@ -71,12 +71,36 @@ export function HowToWin({
           strength) decide.
         </li>
       </ul>
+      <h4 className="regions-head">Regions — hold one whole for its income bonus</h4>
+      <ul className="report-list">
+        {map.regions.map((region) => {
+          const live = region.territoryIds.filter((id) => !state.collapsed[id]);
+          if (live.length === 0) return null;
+          const owners = new Set(live.map((id) => state.owner[id]));
+          const holder = owners.size === 1 ? [...owners][0] : undefined;
+          const status =
+            holder === undefined
+              ? 'contested'
+              : holder === null
+                ? 'unclaimed'
+                : holder === mySlot
+                  ? 'held whole by you'
+                  : `held whole by ${view.seats[holder]?.name ?? `seat ${holder}`}`;
+          return (
+            <li key={region.id}>
+              {region.name} <strong>+{region.bonus}</strong>{' '}
+              <span className="muted">
+                — {live.length} {live.length === 1 ? 'territory' : 'territories'}, {status}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       <p className="muted hint">
         The storm starts collapsing the map&rsquo;s edge on turn {rules.stormFirstWave}, then every{' '}
         {rules.stormInterval === 1 ? 'turn' : `${rules.stormInterval} turns`}. A world event lands
-        every {rules.eventInterval} turns and is always announced one turn ahead. Regions pay their
-        +bonus only when you hold every territory in them; dashed blue lines are sea lanes and count
-        as adjacency.
+        every {rules.eventInterval} turns and is always announced one turn ahead. Sea lanes (⚓)
+        make two distant territories adjacent for movement.
       </p>
     </details>
   );

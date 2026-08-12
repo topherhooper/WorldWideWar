@@ -42,29 +42,61 @@ function regionBorders(map: GeneratedMap): [number, number, number, number][] {
   return out;
 }
 
-/** A region's label position: the average of its member centroids. */
+function polygonArea(polygon: readonly [number, number][]): number {
+  let sum = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const [ax, ay] = polygon[i];
+    const [bx, by] = polygon[(i + 1) % polygon.length];
+    sum += ax * by - bx * ay;
+  }
+  return Math.abs(sum) / 2;
+}
+
+/** One anchor per region: the centroid of its largest territory. */
 function regionAnchors(map: GeneratedMap): { id: number; x: number; y: number }[] {
   return map.regions.map((region) => {
-    let x = 0;
-    let y = 0;
+    let best = region.territoryIds[0];
+    let bestArea = -1;
     for (const id of region.territoryIds) {
-      x += map.territories[id].centroid[0];
-      y += map.territories[id].centroid[1];
+      const area = polygonArea(map.territories[id].polygon);
+      if (area > bestArea) {
+        bestArea = area;
+        best = id;
+      }
     }
-    const n = Math.max(1, region.territoryIds.length);
-    return { id: region.id, x: x / n, y: y / n };
+    const [x, y] = map.territories[best].centroid;
+    return { id: region.id, x, y };
   });
+}
+
+/** A sea-lane path bowed sideways, so it reads as a route rather than a border. */
+function lanePath(map: GeneratedMap, a: TerritoryId, b: TerritoryId): string {
+  const [ax, ay] = map.territories[a].centroid;
+  const [bx, by] = map.territories[b].centroid;
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = 0.16 * len + map.radius * 0.05;
+  return `M ${ax} ${ay} Q ${mx - (dy / len) * bow} ${my + (dx / len) * bow} ${bx} ${by}`;
 }
 
 export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }: Props) {
   const r = map.radius * 1.04;
-  const armyFont = map.radius * 0.052;
-  const regionFont = map.radius * 0.034;
+  const armyFont = map.radius * 0.05;
+  const nameFont = map.radius * 0.026;
+  const regionFont = map.radius * 0.03;
   const targets = selected === null ? new Set<number>() : new Set(map.adjacency[selected]);
   const capitals = new Set(state.capital.filter((c): c is TerritoryId => c !== null));
   const borders = useMemo(() => regionBorders(map), [map]);
   const anchors = useMemo(() => regionAnchors(map), [map]);
   const seaLanes = useMemo(() => map.edges.filter((e) => e.kind === 'sea'), [map]);
+  const ports = useMemo(() => new Set(seaLanes.flatMap((e) => [e.a, e.b])), [seaLanes]);
+  // Routes are drawn only for the selected port — always-on lanes crossing the
+  // whole map read as noise, not adjacency.
+  const activeLanes =
+    selected === null ? [] : seaLanes.filter((e) => e.a === selected || e.b === selected);
   // In move mode with nothing picked, light up the territories you can move from.
   const pickingSource = mode === 'move' && selected === null;
 
@@ -103,65 +135,88 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
         );
       })}
 
-      {/* Region seams and names sit above fills but below army counts. */}
+      {/* Region seams: a dark base with a light core, so they stay visible over
+          both bright ownership fills and the muted neutral tone. */}
       {borders.map(([ax, ay, bx, by], i) => (
-        <line
-          key={`b${i}`}
-          x1={ax}
-          y1={ay}
-          x2={bx}
-          y2={by}
-          stroke="#0b0b12"
-          strokeWidth={5}
-          strokeLinecap="round"
+        <g key={`b${i}`} pointerEvents="none">
+          <line
+            x1={ax}
+            y1={ay}
+            x2={bx}
+            y2={by}
+            stroke="#0b0b12"
+            strokeWidth={8}
+            strokeLinecap="round"
+          />
+          <line
+            x1={ax}
+            y1={ay}
+            x2={bx}
+            y2={by}
+            stroke="#e8e6df"
+            strokeOpacity={0.4}
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        </g>
+      ))}
+
+      {activeLanes.map((e, i) => (
+        <path
+          key={`s${i}`}
+          d={lanePath(map, e.a, e.b)}
+          fill="none"
+          stroke="#66e0ff"
+          strokeOpacity={0.85}
+          strokeWidth={map.radius * 0.008}
+          strokeDasharray="16 12"
           pointerEvents="none"
         />
-      ))}
-      {seaLanes.map((e, i) => (
-        <line
-          key={`s${i}`}
-          x1={map.territories[e.a].centroid[0]}
-          y1={map.territories[e.a].centroid[1]}
-          x2={map.territories[e.b].centroid[0]}
-          y2={map.territories[e.b].centroid[1]}
-          stroke="#66e0ff"
-          strokeOpacity={0.55}
-          strokeWidth={map.radius * 0.006}
-          strokeDasharray="14 10"
-          pointerEvents="none"
-        >
-          <title>sea lane — these territories are adjacent</title>
-        </line>
-      ))}
-      {anchors.map((a) => (
-        <text
-          key={`r${a.id}`}
-          x={a.x}
-          y={a.y - map.radius * 0.055}
-          className="map-region-label"
-          fontSize={regionFont}
-          textAnchor="middle"
-          pointerEvents="none"
-        >
-          {map.regions[a.id].name} +{map.regions[a.id].bonus}
-        </text>
       ))}
 
       {map.territories.map((t) => {
         if (state.collapsed[t.id]) return null;
+        const armies = state.armies[t.id];
+        return (
+          <g key={`l${t.id}`} pointerEvents="none">
+            <text
+              x={t.centroid[0]}
+              y={t.centroid[1] - map.radius * 0.034}
+              className="map-name"
+              fontSize={nameFont}
+              textAnchor="middle"
+            >
+              {t.name}
+            </text>
+            <text
+              x={t.centroid[0]}
+              y={t.centroid[1] + map.radius * 0.014}
+              className="map-label"
+              fontSize={armyFont}
+              textAnchor="middle"
+              dominantBaseline="central"
+            >
+              {capitals.has(t.id) ? '★' : ''}
+              {armies === HIDDEN_ARMIES ? '?' : armies}
+              {ports.has(t.id) ? '⚓' : ''}
+            </text>
+          </g>
+        );
+      })}
+
+      {anchors.map((a) => {
+        const region = map.regions[a.id];
         return (
           <text
-            key={`a${t.id}`}
-            x={t.centroid[0]}
-            y={t.centroid[1]}
-            className="map-label"
-            fontSize={armyFont}
+            key={`r${a.id}`}
+            x={a.x}
+            y={a.y - map.radius * 0.075}
+            className="map-region-label"
+            fontSize={regionFont}
             textAnchor="middle"
-            dominantBaseline="central"
             pointerEvents="none"
           >
-            {capitals.has(t.id) ? '★' : ''}
-            {state.armies[t.id] === HIDDEN_ARMIES ? '?' : state.armies[t.id]}
+            {region.name.replace(/^The /, '')} +{region.bonus}
           </text>
         );
       })}

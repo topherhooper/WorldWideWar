@@ -125,6 +125,11 @@ function GameInner({ id }: { id: string }) {
           mode={mode}
           onTerritoryClick={onTerritoryClick}
         />
+        <p className="muted hint map-key">
+          Number = armies stationed there · ★ = capital · gold outline = yours · grey = neutral
+          garrisons that defend and grow over time · ⚓ = sea-lane port (select it to see the route
+          it connects) · heavy seams divide regions.
+        </p>
         <HowToWin view={view} state={state} map={view.map} />
         {error !== null && <p className="error">{error}</p>}
       </div>

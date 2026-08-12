@@ -208,15 +208,33 @@ select {
   font-weight: 700;
 }
 
-.map-region-label {
+.map-name {
   fill: #ffffff;
-  opacity: 0.55;
+  opacity: 0.85;
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 5px;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 4px;
+  font-weight: 600;
+}
+
+.map-region-label {
+  fill: #ffe9a3;
+  opacity: 0.9;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 6px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.map-key {
+  margin: 0.5rem 0 0;
+}
+
+.regions-head {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
 }
 
 .hud {
