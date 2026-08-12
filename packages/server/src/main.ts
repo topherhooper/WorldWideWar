@@ -8,9 +8,13 @@ const port = Number(process.env.PORT ?? 3001);
 const projectId = process.env.GCP_PROJECT ?? 'demo-www';
 const baseUrl = process.env.BASE_URL ?? `http://localhost:${port}`;
 
+// Trimmed: secrets piped in from Windows shells arrive with BOMs and newlines,
+// and a single stray byte in an Authorization header kills the process at boot.
+const resendKey = process.env.RESEND_API_KEY?.trim();
+const mailFrom = process.env.MAIL_FROM?.trim();
 const mailer =
-  process.env.RESEND_API_KEY !== undefined && process.env.MAIL_FROM !== undefined
-    ? resendMailer(process.env.RESEND_API_KEY, process.env.MAIL_FROM)
+  resendKey !== undefined && resendKey !== '' && mailFrom !== undefined
+    ? resendMailer(resendKey, mailFrom)
     : new LogMailer();
 
 const app = buildApp({
