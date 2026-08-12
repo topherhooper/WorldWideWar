@@ -1,15 +1,22 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
 
-import type { CreateGameRequest, SubmitOrdersRequest } from './api-types.js';
+import type {
+  CreateGameRequest,
+  SubmitLobbyListRequest,
+  SubmitOrdersRequest,
+} from './api-types.js';
 import type { Verifiers } from './auth.js';
 import {
   createGame,
+  deleteGame,
   getView,
   joinGame,
   listGames,
   readReport,
+  resolveNow,
   startGame,
+  submitLobbyList,
   submitOrders,
   HttpError,
   type AuthedUser,
@@ -68,6 +75,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         return getView(db, id, req.user);
       });
 
+      api.delete('/games/:id', async (req) => {
+        const { id } = req.params as { id: string };
+        await deleteGame(db, id, req.user);
+        return { ok: true };
+      });
+
       api.post('/games/:id/join', async (req) => {
         const { id } = req.params as { id: string };
         return joinGame(db, id, req.user);
@@ -76,6 +89,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/start', async (req) => {
         const { id } = req.params as { id: string };
         return startGame(db, id, req.user);
+      });
+
+      api.post('/games/:id/resolve', async (req) => {
+        const { id } = req.params as { id: string };
+        return resolveNow(db, mailer, baseUrl, id, req.user);
+      });
+
+      api.put('/games/:id/lobby-list', async (req) => {
+        const { id } = req.params as { id: string };
+        const { list } = req.body as SubmitLobbyListRequest;
+        return submitLobbyList(db, id, req.user, list);
       });
 
       api.put('/games/:id/orders', async (req) => {

@@ -70,10 +70,26 @@ export interface Deployment {
   count: number;
 }
 
+/** One reordering of a rival's published items, submitted blind with orders. */
+export interface TiersGuess {
+  target: Slot;
+  /** order[t] = public position (0–5) of the item placed at tier t (0=A … 5=F). */
+  order: number[];
+}
+
+export interface TiersOrders {
+  /** Six free-text entries in the author's chosen A→F order. */
+  list: string[];
+  /** Up to two rivals' lists, reordered as the guesser believes they wrote them. */
+  guesses: TiersGuess[];
+}
+
 export interface OrderSet {
   slot: Slot;
   /** The pact pledge: another living slot, or null to abstain. */
   pledge: Slot | null;
+  /** Tiers contest input; absent in pact games. */
+  tiers?: TiersOrders;
   deploys: Deployment[];
   units: UnitOrder[];
 }
@@ -104,6 +120,39 @@ export interface PactResult {
   /** Consecutive turns of unbroken mutual concord with `partner`. */
   streak: number;
   partner: Slot | null;
+}
+
+// ─── Tiers ───────────────────────────────────────────────────────────────────
+
+/**
+ * A published tier list. `items` holds the six entries in the author's true
+ * A→F order and is a secret; what the table sees is the shuffled presentation:
+ * `shuffle[p]` is the author index (= true tier) of the item shown at public
+ * position `p`. Redaction rewrites rival lists into public order with an
+ * identity shuffle, so the true ordering never leaves the server.
+ */
+export interface TiersList {
+  items: string[];
+  shuffle: number[];
+}
+
+export interface TiersGuessResult {
+  guesser: Slot;
+  target: Slot;
+  /** 0–12: exact tier = 2 per item, one tier off = 1. */
+  score: number;
+}
+
+export interface TiersResult {
+  slot: Slot;
+  /** The list this player wrote last turn, revealed in true A→F order. */
+  revealed: string[] | null;
+  /** Guesses this player made this turn, scored. */
+  guesses: TiersGuessResult[];
+  /** The best guess made against this player's list. */
+  bestRead: TiersGuessResult | null;
+  /** Combat multiplier, ×100. */
+  multiplier: number;
 }
 
 // ─── Game state ──────────────────────────────────────────────────────────────
@@ -180,6 +229,10 @@ export interface GameState {
   /** Consecutive turns holding enough rival capitals to claim decapitation. */
   decapitationStreak: number[];
 
+  // Tiers bookkeeping — the list each slot wrote last turn, guessable this turn.
+  // All null in pact games.
+  tiersLists: (TiersList | null)[];
+
   // World
   /** Event applying this turn, announced at the end of the previous one. */
   activeEvent: string | null;
@@ -249,6 +302,10 @@ export interface TurnReport {
   headline: string;
   /** Pact outcomes lead the report; betrayals are the emotional peak. */
   pacts: PactResult[];
+  /** Tiers outcomes; empty in pact games. */
+  tiers: TiersResult[];
+  /** Topic of the lists revealed this turn; null in pact games. */
+  revealedTopic: string | null;
   clashes: ClashReport[];
   battles: BattleReport[];
   /** Uncontested moves, collapsed to a count so the log stays readable. */
@@ -259,7 +316,12 @@ export interface TurnReport {
 
 // ─── Resolution context ──────────────────────────────────────────────────────
 
+/** Which social contest drives combat multipliers. */
+export type ContestKind = 'pact' | 'tiers';
+
 export interface RuleConfig {
+  /** Which social contest drives combat multipliers. */
+  contest: ContestKind;
   turnCap: number;
   /** Fraction of surviving territories needed for a solo domination win. */
   dominationShare: number;

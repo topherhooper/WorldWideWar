@@ -3,8 +3,14 @@ import { useParams } from 'react-router';
 import { emptyOrders } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
 
+import { GameHud } from '../game/GameHud.js';
+import { HowCombatWorks } from '../game/HowCombatWorks.js';
+import { HowToWin } from '../game/HowToWin.js';
 import { MapView } from '../game/MapView.js';
+import { DeleteGame } from '../game/DeleteGame.js';
+import { ResolveNow } from '../game/ResolveNow.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
+import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
 import { useGame } from '../useGame.js';
 import { Lobby } from './Lobby.js';
@@ -23,7 +29,8 @@ function GameInner({ id }: { id: string }) {
   const [draft, setDraft] = useState<OrderSet | null>(null);
   const [selected, setSelected] = useState<TerritoryId | null>(null);
   const [mode, setMode] = useState<EntryMode>('deploy');
-  const [moveCount, setMoveCount] = useState(1);
+  // '' while the player has the field cleared mid-edit; treated as 1 on use.
+  const [moveCount, setMoveCount] = useState<number | ''>(1);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [showReport, setShowReport] = useState(false);
   const draftTurn = useRef<number | null>(null);
@@ -35,7 +42,10 @@ function GameInner({ id }: { id: string }) {
     if (draftTurn.current === view.turn) return;
     draftTurn.current = view.turn;
     dirty.current = false;
-    setDraft(view.myOrders ?? emptyOrders(view.mySlot));
+    // Copy — myOrders is owned by useGame state and must not be mutated.
+    const base = { ...(view.myOrders ?? emptyOrders(view.mySlot)) };
+    if (view.contest === 'tiers' && base.tiers === undefined) base.tiers = emptyTiers();
+    setDraft(base);
     setSelected(null);
     setWarnings([]);
     setShowReport(false);
@@ -94,7 +104,7 @@ function GameInner({ id }: { id: string }) {
     }
     if (view.map.adjacency[selected]?.includes(tid)) {
       const max = Math.max(1, state.armies[selected]);
-      const count = Math.min(Math.max(1, moveCount), max);
+      const count = Math.min(Math.max(1, moveCount === '' ? 1 : moveCount), max);
       changeDraft({
         ...draft,
         units: [...draft.units, { kind: 'MOVE', from: selected, to: tid, count }],
@@ -110,13 +120,23 @@ function GameInner({ id }: { id: string }) {
   return (
     <main className="game-layout">
       <div className="map-wrap">
+        <GameHud view={view} state={state} />
         <MapView
           map={view.map}
           state={state}
           mySlot={mySlot}
           selected={selected}
+          mode={mode}
           onTerritoryClick={onTerritoryClick}
         />
+        <p className="muted hint map-key">
+          Number = armies stationed there · ★ = capital · gold outline = yours · grey = neutral
+          garrisons that defend and grow over time · ⚓ = sea-lane port (select it to see the route
+          it connects) · heavy seams divide regions · beaded ridges are impassable — bordering lands
+          you cannot march across.
+        </p>
+        <HowToWin view={view} state={state} map={view.map} />
+        <HowCombatWorks contest={view.contest} />
         {error !== null && <p className="error">{error}</p>}
       </div>
 
@@ -133,21 +153,30 @@ function GameInner({ id }: { id: string }) {
                 spectating.
               </p>
             ) : mySlot !== null && draft !== null ? (
-              <OrdersPanel
-                view={view}
-                state={state}
-                map={view.map}
-                draft={draft}
-                mode={mode}
-                moveCount={moveCount}
-                warnings={warnings}
-                onModeChange={setMode}
-                onMoveCountChange={setMoveCount}
-                onDraftChange={changeDraft}
-                onLock={() => {
-                  if (draft !== null) void saveOrders(draft, true).then(setWarnings);
-                }}
-              />
+              <>
+                <OrdersPanel
+                  view={view}
+                  state={state}
+                  map={view.map}
+                  draft={draft}
+                  mode={mode}
+                  moveCount={moveCount}
+                  selected={selected}
+                  warnings={warnings}
+                  onModeChange={setMode}
+                  onMoveCountChange={setMoveCount}
+                  onDraftChange={changeDraft}
+                  onLock={() => {
+                    if (draft !== null) void saveOrders(draft, true).then(setWarnings);
+                  }}
+                  onUnlock={() => {
+                    if (draft !== null) void saveOrders(draft, false).then(setWarnings);
+                  }}
+                />
+                {view.contest === 'tiers' && (
+                  <TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />
+                )}
+              </>
             ) : (
               <p className="panel muted">Spectating.</p>
             )}
@@ -157,6 +186,14 @@ function GameInner({ id }: { id: string }) {
                   {showReport ? 'Hide' : 'Show'} last turn&rsquo;s report
                 </button>
                 {showReport && <ReportView view={view} map={view.map} report={view.latestReport} />}
+              </div>
+            )}
+            {mySlot === 0 && (
+              <div className="panel host-tools">
+                {view.status === 'active' && (
+                  <ResolveNow gameId={view.id} onResolved={() => void refresh()} />
+                )}
+                <DeleteGame gameId={view.id} />
               </div>
             )}
           </>

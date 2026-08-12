@@ -49,6 +49,10 @@ export const api = {
   getGame: (id: string) => apiFetch<GameView>('GET', `/api/games/${id}`),
   join: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/join`),
   start: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/start`),
+  resolveNow: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/resolve`),
   submitOrders: (id: string, req: SubmitOrdersRequest) =>
     apiFetch<SubmitOrdersResponse>('PUT', `/api/games/${id}/orders`, req),
+  submitLobbyList: (id: string, list: string[]) =>
+    apiFetch<GameView>('PUT', `/api/games/${id}/lobby-list`, { list }),
+  deleteGame: (id: string) => apiFetch<{ ok: boolean }>('DELETE', `/api/games/${id}`),
 };

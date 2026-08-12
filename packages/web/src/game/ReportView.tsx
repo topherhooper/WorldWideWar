@@ -1,4 +1,5 @@
-import type { GeneratedMap, PactResult, TurnReport } from '@www/engine';
+import { describeEvent } from '@www/engine';
+import type { GeneratedMap, PactResult, TiersResult, TurnReport } from '@www/engine';
 import type { GameView } from '@www/server/api-types';
 
 import { playerColor } from '../format.js';
@@ -67,6 +68,35 @@ export function ReportView({ view, map, report }: Props) {
         })}
       </ul>
 
+      {(report.tiers ?? []).length > 0 && (
+        <div className="tiers-report">
+          <h4>Tier lists revealed{report.revealedTopic ? ` — ${report.revealedTopic}` : ''}</h4>
+          <ul className="report-list">
+            {(report.tiers ?? []).map((t: TiersResult) => (
+              <li key={`t${t.slot}`}>
+                <Dot slot={t.slot} /> <strong>{seatName(t.slot)}</strong>
+                {t.revealed !== null ? (
+                  <span className="muted"> — {t.revealed.join(' › ')}</span>
+                ) : (
+                  <span className="muted"> — wrote no list</span>
+                )}
+                {t.guesses.map((g, i) => (
+                  <div key={i} className="muted">
+                    read {seatName(g.target)}: {g.score}/12
+                  </div>
+                ))}
+                {t.bestRead !== null && t.bestRead.score >= 10 && (
+                  <div className="concord">
+                    {seatName(t.bestRead.guesser)} read {seatName(t.slot)} like a book —{' '}
+                    {t.bestRead.score}/12
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {report.clashes.length > 0 && (
         <ul className="report-list">
           {report.clashes.map((c, i) => (
@@ -131,7 +161,8 @@ export function ReportView({ view, map, report }: Props) {
               case 'event_announced':
                 return (
                   <li key={i} className="event">
-                    {w.kind === 'global_event' ? 'In effect' : 'Announced'}: {w.id}
+                    {w.kind === 'global_event' ? 'In effect' : 'Announced for next turn'}:{' '}
+                    {describeEvent(w.id)}
                   </li>
                 );
               default:

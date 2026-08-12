@@ -72,6 +72,21 @@ export {
   MAX_COURTED_BONUS,
   type PactInput,
 } from './contest/pact.js';
+export {
+  applyTiersRecord,
+  decideTiersList,
+  decideTiersOrders,
+  makeTiersList,
+  normalizeItemText,
+  normalizeTiersList,
+  resolveTiers,
+  scoreGuess,
+  tiersWarnings,
+  TIERS_LIST_SIZE,
+  TIERS_MAX_GUESSES,
+  TIERS_MAX_ITEM_LENGTH,
+} from './contest/tiers.js';
+export { TIERS_TOPICS, topicForTurn, type TiersTopic } from './contest/topics.js';
 export type { Contest, ContestContext, ContestOutcome } from './contest/types.js';
 export {
   decideOrders,

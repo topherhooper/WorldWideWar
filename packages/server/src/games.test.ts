@@ -5,9 +5,11 @@ import { games } from './store.js';
 import { LogMailer } from './mailer.js';
 import {
   createGame,
+  deleteGame,
   getView,
   joinGame,
   listGames,
+  resolveNow,
   startGame,
   submitOrders,
   HttpError,
@@ -105,6 +107,61 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     expect(b.view.latestReport?.turn).toBe(1);
   });
 
+  it('a locked player can unlock and edit until the turn resolves', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob);
+    const orders = { slot: 0, pledge: null, deploys: [], units: [] };
+    const lockedRes = await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders,
+      locked: true,
+    });
+    expect(lockedRes.view.lockedSlots).toEqual([0]);
+
+    const unlocked = await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders,
+      locked: false,
+    });
+    expect(unlocked.resolved).toBe(false);
+    expect(unlocked.view.myLocked).toBe(false);
+    expect(unlocked.view.lockedSlots).toEqual([]);
+    expect(unlocked.view.turn).toBe(1);
+
+    // Re-locking still resolves once the whole table is in.
+    await submitOrders(db, mailer, 'http://x', id, alice, { orders, locked: true });
+    const b = await submitOrders(db, mailer, 'http://x', id, bob, {
+      orders: { slot: 1, pledge: null, deploys: [], units: [] },
+      locked: true,
+    });
+    expect(b.resolved).toBe(true);
+    expect(b.view.turn).toBe(2);
+  });
+
+  it('creator resolves the turn early; unlocked drafts still count', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob);
+    await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: false,
+    });
+    const view = await resolveNow(db, mailer, 'http://x', id, alice);
+    expect(view.turn).toBe(2);
+    expect(view.latestReport?.turn).toBe(1);
+  });
+
+  it('only the creator resolves early, and only while active', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await expect(resolveNow(db, mailer, 'http://x', id, alice)).rejects.toMatchObject({
+      statusCode: 409,
+    });
+    await joinGame(db, id, bob);
+    await expect(resolveNow(db, mailer, 'http://x', id, bob)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+
   it('rejects orders from non-players', async () => {
     const mailer = new LogMailer();
     const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
@@ -122,5 +179,24 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     expect((await listGames(db, alice)).map((g) => g.id)).toContain(id);
     expect(await listGames(db, bob)).toEqual([]);
+  });
+
+  it('only the creator deletes a game, and it vanishes for everyone', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob); // auto-starts; both players now list it
+    await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: false,
+    });
+
+    await expect(deleteGame(db, id, bob)).rejects.toMatchObject({ statusCode: 403 });
+    await deleteGame(db, id, alice);
+
+    expect((await games(db).doc(id).get()).exists).toBe(false);
+    expect(await listGames(db, alice)).toEqual([]);
+    expect(await listGames(db, bob)).toEqual([]);
+    await expect(getView(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(deleteGame(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
   });
 });

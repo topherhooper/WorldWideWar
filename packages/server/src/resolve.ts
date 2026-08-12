@@ -2,10 +2,12 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
   canonicalJson,
   decideOrders,
+  decideTiersOrders,
   makePersonality,
   redact,
   resolveTurn,
   substream,
+  topicForTurn,
 } from '@www/engine';
 import type { OrderSet, TurnReport } from '@www/engine';
 
@@ -77,13 +79,24 @@ export async function resolveGameTurn(
           slot,
           'normal',
         );
-        submissions[slot] = decideOrders(
-          redact(state, slot),
+        const view = redact(state, slot);
+        const orderSet = decideOrders(
+          view,
           map,
           slot,
           substream(game.seed, 'bot', expectedTurn, slot),
           personality,
         );
+        if ((game.rules.contest ?? 'pact') === 'tiers') {
+          orderSet.tiers = decideTiersOrders(
+            view,
+            slot,
+            topicForTurn(game.seed, expectedTurn),
+            topicForTurn(game.seed, expectedTurn - 1),
+            substream(game.seed, expectedTurn, 'tiers-bot', slot),
+          );
+        }
+        submissions[slot] = orderSet;
       }
     }
 

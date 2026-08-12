@@ -3,12 +3,20 @@ import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
   MAX_PLAYERS,
+  MAX_TURN_CAP,
   MIN_PLAYERS,
+  MIN_TURN_CAP,
   createInitialState,
+  decideTiersList,
   generateMap,
+  makeTiersList,
   normalizeOrders,
+  normalizeTiersList,
   redact,
   rulesFor,
+  substream,
+  tiersWarnings,
+  topicForTurn,
 } from '@www/engine';
 import type { GameResult, OrderSet, TurnReport, WorldEvent } from '@www/engine';
 
@@ -75,6 +83,14 @@ export async function createGame(
       `turnMinutes must be an integer in [${MIN_TURN_MINUTES}, ${MAX_TURN_MINUTES}]`,
     );
   }
+  const contest = req.contest ?? 'pact';
+  if (contest !== 'pact' && contest !== 'tiers') {
+    throw new HttpError(400, "contest must be 'pact' or 'tiers'");
+  }
+  const turnCap = req.turnCap ?? 25;
+  if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
+    throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
+  }
 
   // The map ships to clients (and embeds its own seed), so it must not share
   // the combat seed — that one stays server-side and decides battle rolls.
@@ -94,7 +110,7 @@ export async function createGame(
     turnMinutes,
     remindedTurn: 0,
     seed,
-    rules: rulesFor(playerCount),
+    rules: rulesFor(playerCount, turnCap, contest),
     stateJson: null,
     mapJson: serializeMap(map),
   };
@@ -170,6 +186,24 @@ export async function getView(
   const latestReport = await readReport(db, gameId, game.turn - 1);
   const result: GameResult | null = latestReport?.result ?? null;
 
+  const contest = game.rules.contest ?? 'pact';
+  // Stored rules win; rulesFor only fills fields that games predating them
+  // never stored. New games get exactly the rules resolution uses.
+  const rules = { ...rulesFor(game.playerCount, game.rules.turnCap, contest), ...game.rules };
+  let tiersTopic: string | null = null;
+  let lobbyListSlots: number[] = [];
+  if (contest === 'tiers') {
+    tiersTopic = topicForTurn(game.seed, game.status === 'lobby' ? 0 : game.turn).title;
+    if (game.status === 'lobby') {
+      if (humans.length > 0) {
+        const snaps = await db.getAll(
+          ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(0, slot))),
+        );
+        lobbyListSlots = humans.filter((_, i) => snaps[i].exists);
+      }
+    }
+  }
+
   return {
     id: gameId,
     status: game.status,
@@ -178,6 +212,11 @@ export async function getView(
     turn: game.turn,
     deadlineAt: game.deadlineAt?.toDate().toISOString() ?? null,
     turnMinutes: game.turnMinutes,
+    contest,
+    turnCap: rules.turnCap,
+    rules,
+    tiersTopic,
+    lobbyListSlots,
     map: parseMap(game),
     state: state === null ? null : redact(state, mySlot),
     mySlot,
@@ -204,11 +243,68 @@ const BOT_NAMES = [
   'Chancellor Lark',
 ];
 
+/** Lobby ("turn 0") lists per slot, read inside a transaction before any writes. */
+async function readLobbyLists(
+  tx: FirebaseFirestore.Transaction,
+  db: Firestore,
+  gameId: string,
+  game: GameDoc,
+): Promise<(string[] | null)[]> {
+  const lists: (string[] | null)[] = new Array(game.playerCount).fill(null);
+  if ((game.rules.contest ?? 'pact') !== 'tiers') return lists;
+  const humans = humanSlots(game.seats);
+  if (humans.length === 0) return lists;
+  const snaps = await tx.getAll(
+    ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(0, slot))),
+  );
+  snaps.forEach((snap, i) => {
+    if (!snap.exists) return;
+    const set = JSON.parse((snap.data() as OrderDoc).ordersJson) as OrderSet;
+    lists[humans[i]] = set.tiers?.list ?? null;
+  });
+  return lists;
+}
+
+function canActivate(game: GameDoc, lobbyLists: readonly (string[] | null)[]): boolean {
+  if (!game.seats.every((seat) => seat !== null)) return false;
+  if ((game.rules.contest ?? 'pact') !== 'tiers') return true;
+  // A seat is not ready until its first list is in.
+  return humanSlots(game.seats).every((slot) => normalizeTiersList(lobbyLists[slot]) !== null);
+}
+
 /** Mutates `doc` in place: the game begins now. */
-function activate(doc: GameDoc, now: Timestamp): void {
+function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] | null)[]): void {
   doc.status = 'active';
-  doc.stateJson = serializeState(createInitialState(parseMap(doc), doc.rules));
+  const map = parseMap(doc);
+  const state = createInitialState(map, doc.rules);
+  if ((doc.rules.contest ?? 'pact') === 'tiers') {
+    for (let slot = 0; slot < doc.playerCount; slot++) {
+      const raw = doc.seats[slot]?.isBot
+        ? decideTiersList(topicForTurn(doc.seed, 0), substream(doc.seed, 'tiers-bot-list', slot))
+        : lobbyLists[slot];
+      state.tiersLists[slot] = makeTiersList(raw, doc.seed, 0, slot);
+    }
+  }
+  doc.stateJson = serializeState(state);
   doc.deadlineAt = Timestamp.fromMillis(now.toMillis() + doc.turnMinutes * 60_000);
+}
+
+export async function deleteGame(db: Firestore, gameId: string, user: AuthedUser): Promise<void> {
+  const game = await loadGame(db, gameId);
+  if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can delete');
+
+  // Take the game out of every seated human's list first, so a concurrent
+  // listGames cannot surface a half-deleted id.
+  const uids = new Set(game.seats.flatMap((s) => (s !== null && s.uid !== null ? [s.uid] : [])));
+  await Promise.all(
+    [...uids].map((uid) =>
+      usersCol(db)
+        .doc(uid)
+        .set({ gameIds: FieldValue.arrayRemove(gameId) }, { merge: true }),
+    ),
+  );
+  // Removes the orders and reports subcollections along with the doc.
+  await db.recursiveDelete(games(db).doc(gameId));
 }
 
 export async function joinGame(db: Firestore, gameId: string, user: AuthedUser): Promise<GameView> {
@@ -218,10 +314,11 @@ export async function joinGame(db: Firestore, gameId: string, user: AuthedUser):
     const game = snap.data() as GameDoc;
     if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
     if (slotOf(game, user.uid) !== null) throw new HttpError(409, 'already seated');
+    const lobbyLists = await readLobbyLists(tx, db, gameId, game);
     const slot = game.seats.findIndex((s) => s === null);
     if (slot === -1) throw new HttpError(409, 'game is full');
     game.seats[slot] = { uid: user.uid, name: user.name, email: user.email, isBot: false };
-    if (game.seats.every((s) => s !== null)) activate(game, Timestamp.now());
+    if (canActivate(game, lobbyLists)) activate(game, Timestamp.now(), lobbyLists);
     tx.set(games(db).doc(gameId), game);
     tx.set(
       usersCol(db).doc(user.uid),
@@ -244,12 +341,80 @@ export async function startGame(
     const game = snap.data() as GameDoc;
     if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can start');
     if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
+    const lobbyLists = await readLobbyLists(tx, db, gameId, game);
     game.seats = game.seats.map(
       (seat, slot) =>
         seat ?? { uid: null, name: BOT_NAMES[slot % BOT_NAMES.length], email: null, isBot: true },
     );
-    activate(game, Timestamp.now());
+    if (!canActivate(game, lobbyLists)) {
+      throw new HttpError(409, 'waiting for tier lists from seated players');
+    }
+    activate(game, Timestamp.now(), lobbyLists);
     tx.set(games(db).doc(gameId), game);
+    return game;
+  });
+  return getView(db, gameId, user, doc);
+}
+
+/**
+ * Creator ends the current turn on demand — the deadline and the all-locked
+ * shortcut are not the only ways forward. Unlocked players fight with whatever
+ * draft they last autosaved, exactly as if the deadline had passed.
+ */
+export async function resolveNow(
+  db: Firestore,
+  mailer: Mailer,
+  baseUrl: string,
+  gameId: string,
+  user: AuthedUser,
+): Promise<GameView> {
+  const game = await loadGame(db, gameId);
+  if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can end the turn');
+  if (game.status !== 'active') throw new HttpError(409, 'game is not active');
+  await resolveGameTurn(db, mailer, baseUrl, gameId, game.turn);
+  return getView(db, gameId, user);
+}
+
+export async function submitLobbyList(
+  db: Firestore,
+  gameId: string,
+  user: AuthedUser,
+  listRaw: unknown,
+): Promise<GameView> {
+  const list = normalizeTiersList(listRaw);
+  if (list === null) {
+    throw new HttpError(400, 'list must be six distinct, non-empty entries');
+  }
+  const doc = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(games(db).doc(gameId));
+    if (!snap.exists) throw new HttpError(404, 'game not found');
+    const game = snap.data() as GameDoc;
+    if ((game.rules.contest ?? 'pact') !== 'tiers') {
+      throw new HttpError(409, 'this game has no tier lists');
+    }
+    if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
+    const mySlot = slotOf(game, user.uid);
+    if (mySlot === null) throw new HttpError(403, 'not seated in this game');
+
+    const lobbyLists = await readLobbyLists(tx, db, gameId, game);
+    lobbyLists[mySlot] = list;
+
+    tx.set(ordersCol(db, gameId).doc(orderDocId(0, mySlot)), {
+      ordersJson: JSON.stringify({
+        slot: mySlot,
+        pledge: null,
+        deploys: [],
+        units: [],
+        tiers: { list, guesses: [] },
+      } satisfies OrderSet),
+      locked: true,
+      updatedAt: Timestamp.now(),
+    } satisfies OrderDoc);
+
+    if (canActivate(game, lobbyLists)) {
+      activate(game, Timestamp.now(), lobbyLists);
+      tx.set(games(db).doc(gameId), game);
+    }
     return game;
   });
   return getView(db, gameId, user, doc);
@@ -279,6 +444,10 @@ export async function submitOrders(
     const events: WorldEvent[] = [];
     normalizeOrders(state, parseMap(game), mySlot, orders, events);
     const rejections = events.flatMap((e) => (e.kind === 'order_rejected' ? [e.reason] : []));
+    if ((game.rules.contest ?? 'pact') === 'tiers' && req.locked) {
+      // Only on lock-in: warning about a half-typed list on every autosave is noise.
+      rejections.push(...tiersWarnings(state, mySlot, orders.tiers ?? null));
+    }
 
     const otherHumans = liveHumanSlots(game.seats, state).filter((slot) => slot !== mySlot);
     const lockSnaps =

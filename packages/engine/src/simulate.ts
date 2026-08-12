@@ -13,6 +13,8 @@ import {
   type Difficulty,
 } from './bot/index.js';
 import { rulesFor } from './constants.js';
+import { decideTiersList, decideTiersOrders, makeTiersList } from './contest/tiers.js';
+import { topicForTurn } from './contest/topics.js';
 import { generateMap } from './mapgen/generate.js';
 import { redact } from './redact.js';
 import { substream } from './rng.js';
@@ -80,6 +82,18 @@ export function playBotGame(options: SimulateOptions): GameSummary {
   const map = generateMap(seed, playerCount);
   let state = createInitialState(map, rules);
 
+  if (rules.contest === 'tiers') {
+    // The lobby ("turn 0") lists, so turn 1 already has something to guess.
+    for (let slot = 0; slot < playerCount; slot++) {
+      state.tiersLists[slot] = makeTiersList(
+        decideTiersList(topicForTurn(seed, 0), substream(seed, 'tiers-bot-list', slot)),
+        seed,
+        0,
+        slot,
+      );
+    }
+  }
+
   const personalities = Array.from({ length: playerCount }, (_, slot) =>
     makePersonality(substream(seed, 'personality', slot), slot, difficulty),
   );
@@ -107,7 +121,17 @@ export function playBotGame(options: SimulateOptions): GameSummary {
       // human in the same seat could not.
       const view = redact(state, slot);
       const rng = substream(seed, state.turn, 'bot', slot);
-      submissions.push(decideOrders(view, map, slot, rng, personalities[slot]));
+      const orderSet = decideOrders(view, map, slot, rng, personalities[slot]);
+      if (rules.contest === 'tiers') {
+        orderSet.tiers = decideTiersOrders(
+          view,
+          slot,
+          topicForTurn(seed, state.turn),
+          topicForTurn(seed, state.turn - 1),
+          substream(seed, state.turn, 'tiers-bot', slot),
+        );
+      }
+      submissions.push(orderSet);
     }
 
     const { next, report } = resolveTurn(state, submissions, { seed, map, rules });

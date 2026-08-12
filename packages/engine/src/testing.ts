@@ -20,6 +20,7 @@ import type {
   Slot,
   StartingPosition,
   TerritoryId,
+  TiersList,
   UnitOrder,
 } from './types.js';
 
@@ -147,6 +148,7 @@ export function scenario(map: GeneratedMap, options: ScenarioOptions): GameState
     concordAt: Array.from({ length: playerCount }, () => new Array<number>(playerCount).fill(-1)),
     hegemonyStreak: new Array<number>(playerCount).fill(0),
     decapitationStreak: new Array<number>(playerCount).fill(0),
+    tiersLists: new Array<TiersList | null>(playerCount).fill(null),
     activeEvent: options.activeEvent ?? null,
     pendingEvent: null,
     usedEvents: [],

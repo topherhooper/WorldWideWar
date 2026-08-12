@@ -3,7 +3,7 @@
 import { CAPITAL_START_ARMIES, DEFAULT_RULES, TERRITORY_START_ARMIES } from './constants.js';
 import { recomputeIncome } from './income.js';
 import { recomputeSupply } from './supply.js';
-import type { GameState, GeneratedMap, RuleConfig } from './types.js';
+import type { GameState, GeneratedMap, RuleConfig, TiersList } from './types.js';
 
 export function createInitialState(
   map: GeneratedMap,
@@ -34,6 +34,7 @@ export function createInitialState(
     concordAt: Array.from({ length: playerCount }, () => new Array<number>(playerCount).fill(-1)),
     hegemonyStreak: new Array<number>(playerCount).fill(0),
     decapitationStreak: new Array<number>(playerCount).fill(0),
+    tiersLists: new Array<TiersList | null>(playerCount).fill(null),
 
     activeEvent: null,
     pendingEvent: null,
@@ -94,6 +95,9 @@ export function cloneState(state: GameState): GameState {
     concordAt: state.concordAt.map((row) => row.slice()),
     hegemonyStreak: state.hegemonyStreak.slice(),
     decapitationStreak: state.decapitationStreak.slice(),
+    tiersLists: state.tiersLists.map((list) =>
+      list === null ? null : { items: list.items.slice(), shuffle: list.shuffle.slice() },
+    ),
     usedEvents: state.usedEvents.slice(),
     pendingBonusIncome: state.pendingBonusIncome.slice(),
     result: state.result

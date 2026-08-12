@@ -2,7 +2,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type CollectionReference, type Firestore } from 'firebase-admin/firestore';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { canonicalJson } from '@www/engine';
-import type { GameState, GeneratedMap, RuleConfig } from '@www/engine';
+import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
 
 import type { GameStatus } from './api-types.js';
 
@@ -62,6 +62,11 @@ export const orderDocId = (turn: number, slot: number): string => `${turn}-${slo
 export const serializeState = (state: GameState): string => canonicalJson(state);
 export const serializeMap = (map: GeneratedMap): string => canonicalJson(map);
 
-export const parseState = (doc: GameDoc): GameState | null =>
-  doc.stateJson === null ? null : (JSON.parse(doc.stateJson) as GameState);
+export const parseState = (doc: GameDoc): GameState | null => {
+  if (doc.stateJson === null) return null;
+  const state = JSON.parse(doc.stateJson) as GameState;
+  // Games stored before the tiers contest lack the field.
+  state.tiersLists ??= new Array<TiersList | null>(state.playerCount).fill(null);
+  return state;
+};
 export const parseMap = (doc: GameDoc): GeneratedMap => JSON.parse(doc.mapJson) as GeneratedMap;

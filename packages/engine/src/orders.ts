@@ -14,6 +14,7 @@ import type {
   OrderSet,
   Slot,
   TerritoryId,
+  TiersOrders,
   WorldEvent,
 } from './types.js';
 
@@ -40,6 +41,7 @@ export interface NormalizedSupport {
 export interface NormalizedOrders {
   slot: Slot;
   pledge: Slot | null;
+  tiers: TiersOrders | null;
   deploys: Deployment[];
   moves: NormalizedMove[];
   supports: NormalizedSupport[];
@@ -63,6 +65,7 @@ export function normalizeOrders(
   const normalized: NormalizedOrders = {
     slot,
     pledge: raw?.pledge ?? null,
+    tiers: raw?.tiers ?? null,
     deploys: [],
     moves: [],
     supports: [],

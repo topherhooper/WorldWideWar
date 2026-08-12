@@ -14,11 +14,19 @@ const TURN_LENGTHS: [label: string, minutes: number][] = [
   ['48 hours', 2880],
 ];
 
+const GAME_LENGTHS: [label: string, turns: number][] = [
+  ['Short — 15 turns', 15],
+  ['Standard — 25 turns', 25],
+  ['Long — 35 turns', 35],
+];
+
 export function Home() {
   const [gamesList, setGamesList] = useState<GameSummaryView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playerCount, setPlayerCount] = useState(4);
   const [turnMinutes, setTurnMinutes] = useState(1440);
+  const [contest, setContest] = useState<'pact' | 'tiers'>('pact');
+  const [turnCap, setTurnCap] = useState(25);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const now = useNow();
@@ -35,7 +43,7 @@ export function Home() {
   const create = async () => {
     setCreating(true);
     try {
-      const { id } = await api.createGame({ playerCount, turnMinutes });
+      const { id } = await api.createGame({ playerCount, turnMinutes, contest, turnCap });
       await navigate(`/g/${id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'failed to create game');
@@ -63,6 +71,26 @@ export function Home() {
             <select value={turnMinutes} onChange={(e) => setTurnMinutes(Number(e.target.value))}>
               {TURN_LENGTHS.map(([label, minutes]) => (
                 <option key={minutes} value={minutes}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Contest{' '}
+            <select
+              value={contest}
+              onChange={(e) => setContest(e.target.value as 'pact' | 'tiers')}
+            >
+              <option value="pact">Pact — pledge &amp; betray</option>
+              <option value="tiers">Tiers — read your rivals</option>
+            </select>
+          </label>
+          <label>
+            Game length{' '}
+            <select value={turnCap} onChange={(e) => setTurnCap(Number(e.target.value))}>
+              {GAME_LENGTHS.map(([label, turns]) => (
+                <option key={turns} value={turns}>
                   {label}
                 </option>
               ))}

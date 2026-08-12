@@ -7,7 +7,7 @@
  * almost always in this file.
  */
 
-import type { PactOutcome, RuleConfig } from './types.js';
+import type { ContestKind, PactOutcome, RuleConfig } from './types.js';
 
 /** Multipliers are stored ×100 so combat resolution stays in integer math. */
 export const SCALE = 100;
@@ -60,7 +60,12 @@ export const WAR_ECONOMY_INTERVAL = 5;
 /** Neutral garrisons grow every N turns, so unclaimed land does not stay free. */
 export const NEUTRAL_GROWTH_INTERVAL = 3;
 
+/** Creation-time bounds on the configurable game length. */
+export const MIN_TURN_CAP = 10;
+export const MAX_TURN_CAP = 50;
+
 export const DEFAULT_RULES: RuleConfig = {
+  contest: 'pact',
   turnCap: 25,
   // 0.55, not the 0.7 this started at. Measured: by the time the storm has
   // finished there are only `players + 1` territories left, and 70% of seven
@@ -157,9 +162,18 @@ export const MIN_CONCORDAT_PLAYERS = 4;
  * So the domination bar falls and the storm bites earlier as players are added.
  * All values below come from the balance harness, not from intuition.
  */
-export function rulesFor(playerCount: number): RuleConfig {
+export function rulesFor(
+  playerCount: number,
+  turnCap: number = DEFAULT_RULES.turnCap,
+  contest: ContestKind = 'pact',
+): RuleConfig {
+  // Same per-table-size fraction that produced the tuned 10/9/6 first waves at
+  // the default cap of 25; the cap now just stretches or compresses the clock.
+  const firstWaveFraction = playerCount <= 6 ? 0.4 : playerCount <= 9 ? 0.36 : 0.24;
   return {
     ...DEFAULT_RULES,
+    contest,
+    turnCap,
     // Raised across the board now that hegemony, decapitation and the concordat
     // exist. At the old values domination ended ~70% of games and the other
     // routes were decorative; a higher bar makes each of them a real plan
@@ -171,8 +185,10 @@ export function rulesFor(playerCount: number): RuleConfig {
     // unreachable: half of twenty-five regions is not a strategy, and hegemony
     // simply stopped existing above six players.
     hegemonyShare: playerCount <= 4 ? 0.5 : playerCount <= 6 ? 0.45 : playerCount <= 9 ? 0.4 : 0.45,
-    stormFirstWave: playerCount <= 6 ? 10 : playerCount <= 9 ? 9 : 6,
-    stormInterval: playerCount <= 6 ? 2 : 1,
+    stormFirstWave: Math.max(4, Math.round(turnCap * firstWaveFraction)),
+    stormInterval: playerCount <= 6 ? (turnCap <= 15 ? 1 : 2) : 1,
+    // "Recent cooperation" must never mean a third of the game ago.
+    concordatWindow: Math.min(5, Math.max(2, Math.round(turnCap / 3))),
   };
 }
 

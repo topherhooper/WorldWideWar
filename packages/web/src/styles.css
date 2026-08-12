@@ -198,13 +198,137 @@ select {
   display: block;
 }
 
+/* Sized via the SVG font-size attribute (map units), so counts stay readable
+   at any zoom — a px size here would override it. */
 .map-label {
-  font-size: 11px;
   fill: #ffffff;
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.65);
-  stroke-width: 2.5px;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 6px;
   font-weight: 700;
+}
+
+.map-name {
+  fill: #ffffff;
+  opacity: 0.85;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 4px;
+  font-weight: 600;
+}
+
+.map-region-label {
+  fill: #ffe9a3;
+  opacity: 0.9;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 6px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.map-key {
+  margin: 0.5rem 0 0;
+}
+
+.regions-head {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.hud {
+  margin-bottom: 0.5rem;
+}
+
+.legend {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.legend-me {
+  border-color: var(--accent);
+  background: #2a2718;
+  font-weight: 700;
+}
+
+.legend-dead {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.legend-stats {
+  font-size: 0.8rem;
+}
+
+/* Marching-ants outline on territories a selected stack can move to. */
+@keyframes map-target-march {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+.map-target {
+  animation: map-target-march 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-target {
+    animation: none;
+  }
+}
+
+.lock-badge {
+  font-size: 0.72rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.lock-badge-in {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.event-banner {
+  margin: 0.35rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.event-coming {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.how-to-win {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.9rem;
+}
+
+.how-to-win summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.how-to-win ul {
+  margin-top: 0.5rem;
 }
 
 .side {
@@ -316,6 +440,13 @@ select {
   opacity: 0.7;
 }
 
+.unlock-btn {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  padding: 0.6rem;
+}
+
 .report {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -366,4 +497,46 @@ select {
   gap: 0.75rem;
   text-align: center;
   padding: 2rem;
+}
+
+.tiers-editor {
+  margin: 1rem 0;
+}
+.tier-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.tier-label {
+  width: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+}
+.tier-row input {
+  flex: 1;
+}
+.guess-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0;
+}
+.guess-item .spacer {
+  flex: 1;
+}
+
+.danger-btn {
+  border-color: #a33;
+  color: #c55;
+}
+.host-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
