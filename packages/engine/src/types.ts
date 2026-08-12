@@ -106,6 +106,20 @@ export interface PactResult {
   partner: Slot | null;
 }
 
+// ─── Tiers ───────────────────────────────────────────────────────────────────
+
+/**
+ * A published tier list. `items` holds the six entries in the author's true
+ * A→F order and is a secret; what the table sees is the shuffled presentation:
+ * `shuffle[p]` is the author index (= true tier) of the item shown at public
+ * position `p`. Redaction rewrites rival lists into public order with an
+ * identity shuffle, so the true ordering never leaves the server.
+ */
+export interface TiersList {
+  items: string[];
+  shuffle: number[];
+}
+
 // ─── Game state ──────────────────────────────────────────────────────────────
 
 export type PlayerStatus = 'active' | 'eliminated' | 'resigned';
@@ -179,6 +193,10 @@ export interface GameState {
   hegemonyStreak: number[];
   /** Consecutive turns holding enough rival capitals to claim decapitation. */
   decapitationStreak: number[];
+
+  // Tiers bookkeeping — the list each slot wrote last turn, guessable this turn.
+  // All null in pact games.
+  tiersLists: (TiersList | null)[];
 
   // World
   /** Event applying this turn, announced at the end of the previous one. */

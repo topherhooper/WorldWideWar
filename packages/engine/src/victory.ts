@@ -513,6 +513,8 @@ export function processEliminations(state: GameState, events: WorldEvent[]): voi
     // streak cannot be propped up by someone no longer on the board.
     state.pactPartner[slot] = null;
     state.pactStreak[slot] = 0;
+    // A dead player's list leaves the guessable pool with them.
+    state.tiersLists[slot] = null;
     for (let other = 0; other < state.playerCount; other++) {
       if (state.pactPartner[other] === slot) {
         state.pactPartner[other] = null;

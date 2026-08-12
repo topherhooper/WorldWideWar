@@ -26,9 +26,21 @@ export const HIDDEN_ARMIES = -1;
  * @param viewer The slot receiving this state, or null for a spectator.
  */
 export function redact(state: GameState, viewer: Slot | null): GameState {
-  if (!fogActive(state)) return cloneShallow(state);
-
   const out = cloneShallow(state);
+
+  // Tier-list orderings are secret regardless of fog: rivals and spectators get
+  // the items in public (shuffled) order with an identity shuffle, so the true
+  // ordering is unrecoverable. Authors keep their own.
+  out.tiersLists = state.tiersLists.map((list, slot) => {
+    if (list === null) return null;
+    if (viewer === slot) return { items: list.items.slice(), shuffle: list.shuffle.slice() };
+    return {
+      items: list.shuffle.map((authorIndex) => list.items[authorIndex]),
+      shuffle: list.shuffle.map((_, position) => position),
+    };
+  });
+
+  if (!fogActive(state)) return out;
 
   // Fog hides strength, never ownership: you can still see who holds what, you
   // just cannot count what is standing on it.
@@ -63,6 +75,9 @@ function cloneShallow(state: GameState): GameState {
     concordAt: state.concordAt.map((row) => row.slice()),
     hegemonyStreak: state.hegemonyStreak.slice(),
     decapitationStreak: state.decapitationStreak.slice(),
+    tiersLists: state.tiersLists.map((list) =>
+      list === null ? null : { items: list.items.slice(), shuffle: list.shuffle.slice() },
+    ),
     usedEvents: state.usedEvents.slice(),
     pendingBonusIncome: state.pendingBonusIncome.slice(),
     result: state.result
