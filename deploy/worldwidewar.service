@@ -1,0 +1,68 @@
+# systemd unit for the game server.
+#
+# Install to /etc/systemd/system/worldwidewar.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now worldwidewar
+
+[Unit]
+Description=World Wide War game server
+Documentation=https://github.com/topherhooper/WorldWideWar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=worldwidewar
+Group=worldwidewar
+WorkingDirectory=/opt/worldwidewar
+ExecStart=/usr/bin/node packages/server/dist/main.js
+
+Environment=NODE_ENV=production
+# Loopback only: Caddy is the only thing that should be able to reach this.
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+# Where game snapshots live. Created and owned via StateDirectory below.
+Environment=DATA_DIR=/var/lib/worldwidewar
+# Caddy sets X-Forwarded-For, so rate limits can see the real client.
+Environment=TRUST_PROXY=1
+
+Restart=on-failure
+RestartSec=2
+# A restart must not cut off a queued snapshot mid-write. The server stops
+# listening on SIGTERM and then drains; give it room to finish.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# ── Hardening ────────────────────────────────────────────────────────────────
+# The process needs one directory, one TCP port, and nothing else.
+StateDirectory=worldwidewar
+StateDirectoryMode=0750
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Deliberately NOT set: MemoryDenyWriteExecute. V8 compiles machine code at
+# runtime, so denying writable-executable memory stops Node from starting at
+# all. Everything above is compatible with a JIT; this one is not.
+
+[Install]
+WantedBy=multi-user.target

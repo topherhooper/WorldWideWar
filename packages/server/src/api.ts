@@ -29,12 +29,17 @@ export interface ApiRequest {
   path: string;
   query: URLSearchParams;
   body: unknown;
+  /** Lower-cased request headers. Carries the seat token on reads. */
+  headers?: Record<string, string | undefined>;
 }
 
 export interface ApiResponse {
   status: number;
   body: unknown;
 }
+
+/** Where a seat token travels on a request that has no body. */
+export const SEAT_TOKEN_HEADER = 'x-seat-token';
 
 export function handleApi(store: GameStore, request: ApiRequest): ApiResponse {
   try {
@@ -170,9 +175,15 @@ function openGames(store: GameStore): unknown[] {
     .map(lobbyEntry);
 }
 
+/**
+ * A seat token is a bearer credential, so it travels in a header or a body and
+ * never in a URL — query strings end up in proxy access logs, browser history
+ * and `Referer`, none of which should hold something that plays your turns.
+ */
 function tokenOf(request: ApiRequest): string | null {
-  const fromQuery = request.query.get('token');
-  if (fromQuery) return fromQuery;
+  const fromHeader = request.headers?.[SEAT_TOKEN_HEADER];
+  if (typeof fromHeader === 'string' && fromHeader) return fromHeader;
+
   const body = request.body;
   if (typeof body === 'object' && body !== null) {
     const token = (body as Record<string, unknown>).token;

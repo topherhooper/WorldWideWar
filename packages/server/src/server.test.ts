@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HIDDEN_ARMIES, type GameState, type OrderSet } from '@www/engine';
-import { handleApi, type ApiResponse } from './api.js';
+import { handleApi, SEAT_TOKEN_HEADER, type ApiResponse } from './api.js';
 import { GameStore } from './store.js';
 import { parseOrderSet } from './orders.js';
 import type { GameDeps } from './game.js';
@@ -28,8 +28,13 @@ function post(store: GameStore, path: string, body: unknown): ApiResponse {
 }
 
 function get(store: GameStore, path: string, token?: string): ApiResponse {
-  const query = new URLSearchParams(token ? { token } : {});
-  return handleApi(store, { method: 'GET', path, query, body: null });
+  return handleApi(store, {
+    method: 'GET',
+    path,
+    query: new URLSearchParams(),
+    body: null,
+    ...(token ? { headers: { [SEAT_TOKEN_HEADER]: token } } : {}),
+  });
 }
 
 const NEW_GAME = { name: 'Ada', playerCount: 4, humanSeats: 1, turnSeconds: 60, seed: 'test-seed' };
@@ -321,6 +326,24 @@ describe('what a player is allowed to see', () => {
     expect(mine.players[1].armies).toBeNull();
     expect((spectator.state as GameState).armies.every((n) => n === HIDDEN_ARMIES)).toBe(true);
     expect(spectator.players.every((player) => player.armies === null)).toBe(true);
+  });
+
+  it('ignores a seat token offered in the query string', () => {
+    const store = new GameStore(fakeDeps());
+    const { gameId, token } = createSolo(store);
+
+    // Tokens in URLs end up in proxy logs, history and referrers. A token that
+    // arrives that way must buy nothing, or the leak is real whatever the
+    // client happens to send today.
+    const smuggled = handleApi(store, {
+      method: 'GET',
+      path: `/games/${gameId}`,
+      query: new URLSearchParams({ token }),
+      body: null,
+    });
+
+    expect((smuggled.body as GameView).you).toBeNull();
+    expect((smuggled.body as GameView).draft).toBeNull();
   });
 
   it('refuses to act on an unknown token', () => {

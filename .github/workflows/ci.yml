@@ -50,30 +50,42 @@ jobs:
       - run: pnpm build
 
       # The test suite exercises the server in-process, which cannot catch the
-      # one thing this does: that the built entry point finds the built client
-      # on disk and hands a browser a page that boots.
-      - name: Boot and play one turn over HTTP
+      # two things this does: that the built entry point finds the built client
+      # on disk, and that a game outlives the process that created it.
+      - name: Boot, play a turn, and restart without losing it
         run: |
-          node packages/server/dist/main.js &
-          server=$!
-          trap 'kill $server' EXIT
+          set -euo pipefail
+          export DATA_DIR="$RUNNER_TEMP/games"
+          export HOST=127.0.0.1
 
-          for attempt in $(seq 1 30); do
-            curl -fsS http://localhost:8787/ > /dev/null 2>&1 && break
-            sleep 1
-          done
+          start() {
+            node packages/server/dist/main.js &
+            server=$!
+            for _ in $(seq 1 30); do
+              curl -fsS http://127.0.0.1:8787/ > /dev/null 2>&1 && return 0
+              sleep 1
+            done
+            echo "server never answered" >&2
+            exit 1
+          }
 
-          curl -fsS http://localhost:8787/ | grep -q 'World Wide War'
-          curl -fsS http://localhost:8787/main.js | grep -q 'app.js'
-          curl -fsS http://localhost:8787/style.css > /dev/null
+          start
+          trap 'kill $server 2>/dev/null || true' EXIT
 
-          game=$(curl -fsS -X POST http://localhost:8787/api/games \
+          curl -fsS http://127.0.0.1:8787/ | grep -q 'World Wide War'
+          curl -fsS http://127.0.0.1:8787/main.js | grep -q 'app.js'
+          curl -fsS http://127.0.0.1:8787/style.css > /dev/null
+
+          # The policy is only worth having if it actually ships on responses.
+          curl -fsSI http://127.0.0.1:8787/ | grep -qi "content-security-policy: default-src 'self'"
+
+          game=$(curl -fsS -X POST http://127.0.0.1:8787/api/games \
             -H 'content-type: application/json' \
             -d '{"name":"CI","playerCount":4,"humanSeats":1,"turnSeconds":60,"seed":"ci"}')
           code=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).code)" "$game")
           token=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).token)" "$game")
 
-          view=$(curl -fsS -X POST "http://localhost:8787/api/games/$code/orders" \
+          view=$(curl -fsS -X POST "http://127.0.0.1:8787/api/games/$code/orders" \
             -H 'content-type: application/json' \
             -d "{\"token\":\"$token\",\"locked\":true,\"orders\":{\"pledge\":1,\"deploys\":[],\"units\":[]}}")
           node -e "
@@ -82,6 +94,20 @@ jobs:
             if (!view.report) throw new Error('no turn report');
             console.log('resolved turn 1:', view.report.headline);
           " "$view"
+
+          # A deploy is a restart, and a restart must not be a casualty.
+          kill -TERM $server
+          wait $server 2>/dev/null || true
+          start
+
+          revived=$(curl -fsS "http://127.0.0.1:8787/api/games/$code" -H "x-seat-token: $token")
+          node -e "
+            const view = JSON.parse(process.argv[1]);
+            if (view.turn !== 2) throw new Error('game came back at turn ' + view.turn);
+            if (view.you === null) throw new Error('seat was not restored');
+            if (!view.report) throw new Error('history was lost');
+            console.log('survived restart at turn', view.turn, 'as', view.you.name);
+          " "$revived"
 
   mapgen:
     name: Map generator sweep

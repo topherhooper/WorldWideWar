@@ -20,10 +20,25 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Where a seat token travels on a request that has no body to carry it. */
+const SEAT_TOKEN_HEADER = 'x-seat-token';
+
+interface Options {
+  method?: string;
+  body?: unknown;
+  /** Sent as a header, never as a query parameter — see `session` below. */
+  token?: string | null;
+}
+
+async function request<T>(path: string, options: Options = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) headers['content-type'] = 'application/json';
+  if (options.token) headers[SEAT_TOKEN_HEADER] = options.token;
+
   const response = await fetch(`/api${path}`, {
-    ...init,
-    ...(init?.body ? { headers: { 'content-type': 'application/json' } } : {}),
+    method: options.method ?? 'GET',
+    headers,
+    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
   });
 
   const raw = await response.text();
@@ -43,7 +58,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  return request<T>(path, { method: 'POST', body });
 }
 
 export const api = {
@@ -55,10 +70,8 @@ export const api = {
   join: (code: string, name: string, token: string | null): Promise<JoinResponse> =>
     post(`/games/${encodeURIComponent(code)}/join`, { name, token }),
 
-  view: (code: string, token: string | null): Promise<GameView> => {
-    const query = token ? `?token=${encodeURIComponent(token)}` : '';
-    return request(`/games/${encodeURIComponent(code)}${query}`);
-  },
+  view: (code: string, token: string | null): Promise<GameView> =>
+    request(`/games/${encodeURIComponent(code)}`, { token }),
 
   map: (code: string): Promise<GeneratedMap> => request(`/games/${encodeURIComponent(code)}/map`),
 

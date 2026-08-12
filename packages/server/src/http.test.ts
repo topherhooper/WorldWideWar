@@ -79,7 +79,7 @@ describe('the JSON API over HTTP', () => {
     const { code, token } = await createGame();
 
     const view = (await (
-      await fetch(`${base}/api/games/${code}?token=${token}`)
+      await fetch(`${base}/api/games/${code}`, { headers: { 'x-seat-token': token } })
     ).json()) as GameView;
     expect(view.phase).toBe('active');
     expect(view.you?.slot).toBe(0);
@@ -168,6 +168,125 @@ function openStream(url: string): {
     },
   };
 }
+
+describe('hardening', () => {
+  it('sends a strict policy with every kind of response', async () => {
+    const { code } = await createGame();
+
+    for (const url of [base, `${base}/style.css`, `${base}/api/games`]) {
+      const response = await fetch(url);
+      const policy = response.headers.get('content-security-policy') ?? '';
+      expect(policy, url).toContain("default-src 'self'");
+      // The client has no inline script or style, so nothing needs unsafe-*.
+      expect(policy, url).not.toContain('unsafe-inline');
+      expect(policy, url).not.toContain('unsafe-eval');
+      expect(policy, url).toContain("frame-ancestors 'none'");
+      expect(response.headers.get('x-content-type-options'), url).toBe('nosniff');
+      expect(response.headers.get('referrer-policy'), url).toBe('no-referrer');
+      await response.text();
+    }
+
+    const stream = await fetch(`${base}/api/games/${code}/stream`);
+    expect(stream.headers.get('content-security-policy')).toContain("default-src 'self'");
+    await stream.body?.cancel();
+  });
+
+  it('answers a malformed URL without a stack trace', async () => {
+    // Valid as a URL, but not valid percent-encoding.
+    const response = await fetch(`${base}/%E0%A4%A`);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'malformed URL' });
+  });
+
+  it('refuses a flood of game creation, with a Retry-After', async () => {
+    const tight = createServer({
+      webRoots: [publicDir],
+      tickMs: 1000,
+      rateLimits: {
+        create: { capacity: 2, perHour: 2 },
+        join: { capacity: 50, perHour: 500 },
+        write: { capacity: 50, perHour: 500 },
+        read: { capacity: 50, perHour: 500 },
+      },
+    });
+    const port = await tight.listen(0, '127.0.0.1');
+    const origin = `http://127.0.0.1:${port}`;
+
+    const create = (): Promise<Response> =>
+      fetch(`${origin}/api/games`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Flood',
+          playerCount: 3,
+          humanSeats: 1,
+          turnSeconds: 60,
+        }),
+      });
+
+    expect((await create()).status).toBe(201);
+    expect((await create()).status).toBe(201);
+
+    const refused = await create();
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0);
+    await refused.text();
+
+    // Being throttled for creating games must not stop you playing one.
+    const reading = await fetch(`${origin}/api/games`);
+    expect(reading.status).toBe(200);
+    await reading.text();
+
+    await tight.close();
+  });
+
+  it('only believes X-Forwarded-For when told to trust a proxy', async () => {
+    const limits = {
+      create: { capacity: 1, perHour: 1 },
+      join: { capacity: 50, perHour: 500 },
+      write: { capacity: 50, perHour: 500 },
+      read: { capacity: 50, perHour: 500 },
+    };
+
+    const body = JSON.stringify({
+      name: 'Proxy',
+      playerCount: 3,
+      humanSeats: 1,
+      turnSeconds: 60,
+    });
+
+    const attempt = async (origin: string, forwarded: string): Promise<number> => {
+      const response = await fetch(`${origin}/api/games`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': forwarded },
+        body,
+      });
+      await response.text();
+      return response.status;
+    };
+
+    const untrusting = createServer({ webRoots: [publicDir], rateLimits: limits });
+    const a = `http://127.0.0.1:${await untrusting.listen(0, '127.0.0.1')}`;
+    expect(await attempt(a, '10.0.0.1')).toBe(201);
+    // Same socket, new claimed address — and it buys nothing.
+    expect(await attempt(a, '10.0.0.2')).toBe(429);
+    await untrusting.close();
+
+    const trusting = createServer({
+      webRoots: [publicDir],
+      rateLimits: limits,
+      trustProxy: true,
+    });
+    const b = `http://127.0.0.1:${await trusting.listen(0, '127.0.0.1')}`;
+    expect(await attempt(b, '10.0.0.1')).toBe(201);
+    expect(await attempt(b, '10.0.0.2')).toBe(201);
+    expect(await attempt(b, '10.0.0.2')).toBe(429);
+    // A client prepending its own hop cannot dodge the limit: only the entry
+    // the trusted proxy appended counts.
+    expect(await attempt(b, 'fake, 10.0.0.2')).toBe(429);
+    await trusting.close();
+  });
+});
 
 describe('the event stream', () => {
   it('pushes a version bump to a listening client', async () => {

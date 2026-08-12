@@ -1,0 +1,44 @@
+# Caddy in front of the game server.
+#
+# Caddy's job here is TLS and nothing else clever: it obtains and renews a
+# certificate, terminates HTTPS, and passes plain HTTP to a server bound to
+# loopback. The two settings below are not defaults and both matter.
+#
+# Set the domain when starting Caddy:
+#   sudo WWW_DOMAIN=play.example.com caddy run --config /etc/caddy/Caddyfile
+
+{$WWW_DOMAIN} {
+	# Turn resolution reaches the browser over server-sent events, and a proxy
+	# that buffers a response has no way to know the stream will never end. This
+	# disables that buffering; without it a turn appears to resolve minutes late,
+	# or not until something else forces a flush.
+	reverse_proxy 127.0.0.1:8787 {
+		flush_interval -1
+	}
+
+	# Compression, but never for the event stream — a compressor is another
+	# buffer, and it would undo the line above.
+	encode zstd gzip {
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/javascript*
+			header Content-Type application/json*
+			header Content-Type image/svg+xml*
+		}
+	}
+
+	header {
+		# The server sets the rest of the security headers, but not this one: it
+		# cannot know whether it was reached over TLS. Caddy can.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/worldwidewar.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

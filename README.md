@@ -50,9 +50,13 @@ commit to one.
 
 ## Status
 
-Playable in a browser. `pnpm dev` serves a game you can create, share a code for, and play
-through to a result — against bots, against other people, or both at once. Games live in memory,
-so a restart clears the table; everything needed to change that is already in one file.
+Playable in a browser and deployable to a small VM. `pnpm dev` serves a game you can create,
+share a code for, and play through to a result — against bots, against other people, or both at
+once. Set `DATA_DIR` and games survive a restart; see [deploy/](deploy/README.md) for putting it
+on the internet behind TLS.
+
+What it does not have yet is accounts or notifications, which together are what stand between
+this and a genuinely week-long async game.
 
 ## Repository layout
 
@@ -84,6 +88,12 @@ The client is compiled by `tsc` and served as plain ES modules — no bundler an
 project. It may import _types_ from the engine and server, never values; that too is an ESLint
 rule rather than a convention, since a stray value import is a bare specifier the browser cannot
 resolve.
+
+Persistence leans on the same determinism the engine was built for. A snapshot stores the seed
+and the things that cannot be derived — seats, state, history — and regenerates the map, the rule
+set and the bot personalities on load, because all three are pure functions of that seed. One
+file per game, written whole and moved into place, so a process killed mid-write leaves the
+previous snapshot intact rather than half of the next one.
 
 ## Requirements
 
@@ -119,7 +129,10 @@ has — or when the clock runs out, whichever comes first.
 
 ## HTTP API
 
-The browser client is one consumer of a small JSON API, not a privileged one.
+The browser client is one consumer of a small JSON API, not a privileged one. A seat token
+identifies the caller: in the request body on writes, and in an `X-Seat-Token` header on reads —
+never in the URL, since query strings survive in proxy logs and browser history. The event stream
+needs no token at all, because a version number is not a secret.
 
 | Endpoint                     | What it does                                                         |
 | ---------------------------- | -------------------------------------------------------------------- |

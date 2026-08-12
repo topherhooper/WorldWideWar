@@ -26,7 +26,7 @@ import {
   selectionPanel,
   type PanelActions,
 } from './panels.js';
-import { colourFor } from './palette.js';
+import { swatch } from './palette.js';
 
 const POLL_MS = 5000;
 const SAVE_DEBOUNCE_MS = 400;
@@ -739,7 +739,7 @@ function lobbyList(games: LobbyEntry[], onJoin: (code: string) => void): HTMLEle
       h(
         'li',
         {},
-        h('span', { class: 'swatch', style: `background:${colourFor(game.playerCount % 12)}` }),
+        swatch(game.playerCount % 12),
         h('span', {}, `${game.code} — ${game.playerCount} players, ${game.openSeats} open`),
         h('button', { class: 'link', type: 'button', onclick: () => onJoin(game.code) }, 'join'),
       ),

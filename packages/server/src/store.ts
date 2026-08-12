@@ -1,13 +1,18 @@
 /**
- * In-memory table of live games, plus the heartbeat that fires turn deadlines.
+ * The table of live games, plus the heartbeat that fires turn deadlines.
  *
- * Deliberately not a database. Everything a game needs to be rebuilt is its
- * seed and its order history, so persistence is a change of storage rather than
- * a change of design — and until there is a reason to keep games across a
- * restart, a Map is the honest implementation.
+ * Games are held in memory and mirrored to an archive, rather than read back
+ * from storage on every request. That is not a shortcut: a turn is resolved by
+ * a pure function over a whole game, so the working set is one object and the
+ * archive exists to survive a restart, not to be queried.
+ *
+ * `flush` is the single choke point where a change becomes visible to anyone
+ * else — subscribers and disk both — which is why exactly one place has to be
+ * right about when a game has moved.
  */
 
 import { randomUUID } from 'node:crypto';
+import { nullArchive, type GameArchive } from './archive.js';
 import { createGame, maybeResolve, type GameDeps, type GameRecord, GameError } from './game.js';
 import type { CreateGameRequest } from './protocol.js';
 
@@ -19,6 +24,15 @@ export const defaultDeps: GameDeps = {
 /** Games untouched for this long are dropped to keep memory bounded. */
 export const GAME_TTL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * A ceiling on live games.
+ *
+ * The TTL bounds memory over hours; this bounds it over seconds. Without it a
+ * script can generate maps until the process dies, and a public origin should
+ * refuse politely long before that.
+ */
+export const MAX_GAMES = 500;
+
 type Listener = (version: number) => void;
 
 export class GameStore {
@@ -27,14 +41,47 @@ export class GameStore {
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly notified = new Map<string, number>();
 
-  constructor(readonly deps: GameDeps = defaultDeps) {}
+  constructor(
+    readonly deps: GameDeps = defaultDeps,
+    private readonly archive: GameArchive = nullArchive,
+    private readonly maxGames: number = MAX_GAMES,
+  ) {}
 
   create(request: CreateGameRequest): GameRecord {
+    // Expiring first means a burst that hits the ceiling is turned away only
+    // when the games actually in progress fill it, not by yesterday's leftovers.
+    this.prune();
+    if (this.games.size >= this.maxGames) {
+      throw new GameError('the server is full — try again shortly', 503);
+    }
+
     const game = createGame(request, this.deps);
     this.games.set(game.id, game);
     this.byCode.set(game.code, game.id);
     this.notified.set(game.id, game.version);
+    this.archive.save(game);
     return game;
+  }
+
+  /**
+   * Brings back everything that survived the last shutdown.
+   *
+   * A game whose deadline passed while the server was down is not resolved
+   * here: `tick` will notice it like any other overdue turn, so there is one
+   * code path for a late turn rather than a separate one for a restart.
+   */
+  async restore(): Promise<number> {
+    for (const game of await this.archive.load()) {
+      this.games.set(game.id, game);
+      this.byCode.set(game.code, game.id);
+      this.notified.set(game.id, game.version);
+    }
+    return this.games.size;
+  }
+
+  /** Waits for every queued write to land. Call before exiting. */
+  drain(): Promise<void> {
+    return this.archive.drain();
   }
 
   get(id: string): GameRecord | null {
@@ -75,12 +122,13 @@ export class GameStore {
     this.flush();
   }
 
-  /** Publishes pending version changes. Call after any mutation. */
+  /** Publishes pending version changes, to subscribers and to disk. */
   flush(): void {
     for (const game of this.games.values()) {
       const last = this.notified.get(game.id);
       if (last === game.version) continue;
       this.notified.set(game.id, game.version);
+      this.archive.save(game);
       for (const listener of this.listeners.get(game.id) ?? []) listener(game.version);
     }
   }
@@ -110,6 +158,7 @@ export class GameStore {
       this.games.delete(game.id);
       this.byCode.delete(game.code);
       this.notified.delete(game.id);
+      this.archive.remove(game.id);
     }
   }
 }

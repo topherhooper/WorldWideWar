@@ -19,7 +19,7 @@ import type {
 } from '@www/engine';
 import type { GameView, PlayerView } from '@www/server';
 import { h } from './dom.js';
-import { colourFor } from './palette.js';
+import { swatch } from './palette.js';
 import type { TargetMode } from './map.js';
 import type { OrderDraft } from './orders.js';
 import { HIDDEN } from './orders.js';
@@ -38,10 +38,6 @@ export interface PanelActions {
   onLock: () => void;
   onUnlock: () => void;
   onResign: () => void;
-}
-
-function swatch(slot: Slot | null): HTMLElement {
-  return h('span', { class: 'swatch', style: `background:${colourFor(slot)}` });
 }
 
 function nameOf(view: GameView, slot: Slot | null): string {

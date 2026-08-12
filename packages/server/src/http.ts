@@ -17,6 +17,7 @@ import {
 } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { handleApi } from './api.js';
+import { bucketFor, DEFAULT_LIMITS, RateLimiter, type RateLimits } from './limits.js';
 import { GameStore } from './store.js';
 
 export interface ServerOptions {
@@ -29,6 +30,14 @@ export interface ServerOptions {
   webRoots?: string[];
   /** How often deadlines are checked. */
   tickMs?: number;
+  /**
+   * Trust `X-Forwarded-For` for the client address. On behind a reverse proxy
+   * that sets it, off when the socket is the only thing that cannot lie —
+   * a directly exposed server that trusted the header would let any client
+   * claim a fresh rate-limit allowance per request.
+   */
+  trustProxy?: boolean;
+  rateLimits?: RateLimits;
 }
 
 export interface RunningServer {
@@ -40,6 +49,35 @@ export interface RunningServer {
 
 const MAX_BODY_BYTES = 256 * 1024;
 const HEARTBEAT_MS = 25_000;
+
+/**
+ * The client loads no third-party anything, and has no inline script or style,
+ * so the policy can be about as tight as a policy gets. `data:` is open for
+ * images only, for the inline favicon.
+ *
+ * Strict-Transport-Security is deliberately absent: the server does not know
+ * whether it is being reached over TLS, and the terminating proxy does.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+].join('; ');
+
+const SECURITY_HEADERS: Record<string, string> = {
+  'content-security-policy': CSP,
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'cross-origin-opener-policy': 'same-origin',
+  'permissions-policy': 'geolocation=(), camera=(), microphone=(), payment=()',
+};
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -56,14 +94,22 @@ export function createServer(options: ServerOptions = {}): RunningServer {
   const store = options.store ?? new GameStore();
   const webRoots = (options.webRoots ?? []).map((root) => resolve(root));
   const tickMs = options.tickMs ?? 1000;
+  const trustProxy = options.trustProxy ?? false;
+  const limiter = new RateLimiter(store.deps.now, options.rateLimits ?? DEFAULT_LIMITS);
 
   const server = createHttpServer((request, response) => {
-    handle(store, webRoots, request, response).catch((error: unknown) => {
-      sendJson(response, 500, { error: error instanceof Error ? error.message : 'server error' });
+    handle({ store, webRoots, limiter, trustProxy }, request, response).catch((error: unknown) => {
+      // Whatever went wrong, the client learns that something did and nothing
+      // else: an internal message is for the log, not for the wire.
+      console.error('request failed:', error);
+      sendJson(response, 500, { error: 'server error' });
     });
   });
 
-  const timer = setInterval(() => store.tick(), tickMs);
+  const timer = setInterval(() => {
+    store.tick();
+    limiter.sweep();
+  }, tickMs);
   // A pending deadline should never be the reason a process refuses to exit.
   timer.unref?.();
 
@@ -87,20 +133,47 @@ export function createServer(options: ServerOptions = {}): RunningServer {
   };
 }
 
+interface Context {
+  store: GameStore;
+  webRoots: string[];
+  limiter: RateLimiter;
+  trustProxy: boolean;
+}
+
 async function handle(
-  store: GameStore,
-  webRoots: string[],
+  context: Context,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
+  const { store, webRoots, limiter, trustProxy } = context;
   const url = new URL(request.url ?? '/', 'http://localhost');
-  const path = decodeURIComponent(url.pathname);
+
+  // A path that is not valid percent-encoding is the client's mistake, not an
+  // internal failure — say so rather than logging a stack trace for it.
+  let path: string;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    sendJson(response, 400, { error: 'malformed URL' });
+    return;
+  }
 
   if (path.startsWith('/api/')) {
     const apiPath = path.slice('/api'.length);
+    const method = request.method ?? 'GET';
+    const bucket = bucketFor(method, apiPath);
+
+    if (!limiter.take(bucket, clientAddress(request, trustProxy))) {
+      response.setHeader('retry-after', String(limiter.retryAfter(bucket)));
+      sendJson(response, 429, { error: 'too many requests — slow down' });
+      return;
+    }
 
     const stream = apiPath.match(/^\/games\/([^/]+)\/stream$/);
     if (stream) {
+      // The stream carries nothing but a version number, so it needs no seat
+      // token — which is what keeps credentials out of URLs entirely, since an
+      // EventSource cannot send a header.
       openStream(store, stream[1], request, response);
       return;
     }
@@ -118,10 +191,11 @@ async function handle(
     }
 
     const result = handleApi(store, {
-      method: request.method ?? 'GET',
+      method,
       path: apiPath,
       query: url.searchParams,
       body,
+      headers: request.headers as Record<string, string | undefined>,
     });
     sendJson(response, result.status, result.body);
     return;
@@ -133,6 +207,25 @@ async function handle(
   }
 
   await sendStatic(webRoots, path, request, response);
+}
+
+/**
+ * Who to charge a request to.
+ *
+ * `X-Forwarded-For` is a list the client can prepend to, so only the last entry
+ * — the one the trusted proxy appended — is worth anything.
+ */
+function clientAddress(request: IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = request.headers['x-forwarded-for'];
+    const chain = Array.isArray(forwarded) ? forwarded.join(',') : (forwarded ?? '');
+    const hops = chain
+      .split(',')
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+  return request.socket.remoteAddress ?? 'unknown';
 }
 
 // ─── Server-sent events ──────────────────────────────────────────────────────
@@ -150,6 +243,7 @@ function openStream(
   }
 
   response.writeHead(200, {
+    ...SECURITY_HEADERS,
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',
     connection: 'keep-alive',
@@ -197,6 +291,7 @@ async function sendStatic(
 
   const type = MIME[extname(fallback).toLowerCase()] ?? 'application/octet-stream';
   response.writeHead(200, {
+    ...SECURITY_HEADERS,
     'content-type': type,
     // The client is rebuilt on every deploy and served from a bare filename, so
     // caching it would serve yesterday's game to today's server.
@@ -270,6 +365,7 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
   }
   const payload = JSON.stringify(body ?? null);
   response.writeHead(status, {
+    ...SECURITY_HEADERS,
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(payload),
     'cache-control': 'no-store',
