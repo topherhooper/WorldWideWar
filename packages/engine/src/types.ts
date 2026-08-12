@@ -302,6 +302,10 @@ export interface TurnReport {
   headline: string;
   /** Pact outcomes lead the report; betrayals are the emotional peak. */
   pacts: PactResult[];
+  /** Tiers outcomes; empty in pact games. */
+  tiers: TiersResult[];
+  /** Topic of the lists revealed this turn; null in pact games. */
+  revealedTopic: string | null;
   clashes: ClashReport[];
   battles: BattleReport[];
   /** Uncontested moves, collapsed to a count so the log stays readable. */

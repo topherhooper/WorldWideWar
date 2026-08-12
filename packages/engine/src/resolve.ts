@@ -23,6 +23,8 @@
 
 import { CAPITAL_DEFENCE_BONUS } from './constants.js';
 import { applyPactRecord, resolvePacts } from './contest/pact.js';
+import { applyTiersRecord, resolveTiers } from './contest/tiers.js';
+import { topicForTurn } from './contest/topics.js';
 import { computePower, retreatSurvivors, splitProportionally, winnerCasualties } from './combat.js';
 import {
   applyEventEffects,
@@ -48,6 +50,7 @@ import type {
   ResolveContext,
   Slot,
   TerritoryId,
+  TiersResult,
   TurnReport,
   WorldEvent,
 } from './types.js';
@@ -93,7 +96,7 @@ export function resolveTurn(
   const orders: NormalizedOrders[] = [];
   for (let slot = 0; slot < state.playerCount; slot++) {
     if (state.status[slot] !== 'active') {
-      orders.push({ slot, pledge: null, deploys: [], moves: [], supports: [] });
+      orders.push({ slot, pledge: null, deploys: [], moves: [], supports: [], tiers: null });
       continue;
     }
     orders.push(normalizeOrders(state, map, slot, submissions[slot] ?? null, world));
@@ -119,17 +122,25 @@ export function resolveTurn(
     set.moves = surviving;
   }
 
-  // ── Phase 4 — the pact ───────────────────────────────────────────────────
+  // ── Phase 4 — the social contest ─────────────────────────────────────────
   const attacked = buildAttackMatrix(state, orders);
   const aliveSlots: Slot[] = [];
   for (let slot = 0; slot < state.playerCount; slot++) {
     if (state.status[slot] === 'active') aliveSlots.push(slot);
   }
-  const pact = resolvePacts(
-    state,
-    orders.map((set) => set.pledge),
-    { attacked, aliveSlots },
-  );
+  const contestContext = { attacked, aliveSlots };
+  const tiersInputs = orders.map((set) => set.tiers);
+  const pact =
+    rules.contest === 'tiers'
+      ? null
+      : resolvePacts(
+          state,
+          orders.map((set) => set.pledge),
+          contestContext,
+        );
+  const tiers = rules.contest === 'tiers' ? resolveTiers(state, tiersInputs, contestContext) : null;
+  // Whichever contest ran, this is the multiplier/bonus surface the battles use.
+  const contest = (pact ?? tiers)!;
 
   // ── Phase 5 — support cuts ───────────────────────────────────────────────
   const hostileSources = new Map<TerritoryId, TerritoryId[]>();
@@ -243,8 +254,8 @@ export function resolveTurn(
     const effB = moveB.count + supportStrength(orders, a, moveB.player, garrison);
     const rollA = rngCombat.d6();
     const rollB = rngCombat.d6();
-    const powerA = computePower(effA, pact.multiplier[moveA.player], rollA);
-    const powerB = computePower(effB, pact.multiplier[moveB.player], rollB);
+    const powerA = computePower(effA, contest.multiplier[moveA.player], rollA);
+    const powerB = computePower(effB, contest.multiplier[moveB.player], rollB);
 
     const aWins = powerA !== powerB ? powerA > powerB : rngTie.bool();
     const winner = aWins ? moveA : moveB;
@@ -302,7 +313,7 @@ export function resolveTurn(
       side.multiplier =
         side.slot === null
           ? 100
-          : Math.max(1, pact.multiplier[side.slot] - attackerPenalty(state, side.isDefender));
+          : Math.max(1, contest.multiplier[side.slot] - attackerPenalty(state, side.isDefender));
     }
   }
 
@@ -408,9 +419,10 @@ export function resolveTurn(
     }
   }
 
-  applyPactRecord(next, pact.results);
+  if (pact !== null) applyPactRecord(next, pact.results);
+  if (tiers !== null) applyTiersRecord(next, tiersInputs, seed, state.turn);
   for (let slot = 0; slot < next.playerCount; slot++) {
-    next.pendingBonusIncome[slot] += pact.bonusIncome[slot];
+    next.pendingBonusIncome[slot] += contest.bonusIncome[slot];
   }
 
   // ── Phase 10 — world tick ────────────────────────────────────────────────
@@ -461,8 +473,17 @@ export function resolveTurn(
 
   const report: TurnReport = {
     turn: state.turn,
-    headline: buildHeadline(state.turn, pact.results, battles, clashes, world),
-    pacts: pact.results,
+    headline: buildHeadline(
+      state.turn,
+      pact?.results ?? [],
+      tiers?.results ?? [],
+      battles,
+      clashes,
+      world,
+    ),
+    pacts: pact?.results ?? [],
+    tiers: tiers?.results ?? [],
+    revealedTopic: tiers === null ? null : topicForTurn(seed, state.turn - 1).title,
     clashes: clashes.sort((x, y) => y.salience - x.salience),
     battles: battles.sort((x, y) => y.salience - x.salience || x.territory - y.territory),
     quietMoves,
@@ -581,6 +602,7 @@ function growNeutrals(state: GameState): void {
 function buildHeadline(
   turn: number,
   pacts: readonly PactResult[],
+  tiersResults: readonly TiersResult[],
   battles: readonly BattleReport[],
   clashes: readonly ClashReport[],
   world: readonly WorldEvent[],
@@ -604,6 +626,14 @@ function buildHeadline(
   const betrayal = pacts.find((pact) => pact.outcome === 'betrayal');
   if (betrayal && betrayal.pledged !== null) {
     return `Turn ${turn} — player ${betrayal.slot} broke faith with player ${betrayal.pledged}`;
+  }
+
+  // The best read of the turn is the tiers analogue of a betrayal headline.
+  const reads = tiersResults
+    .flatMap((result) => (result.bestRead === null ? [] : [result.bestRead]))
+    .sort((a, b) => b.score - a.score || a.guesser - b.guesser);
+  if (reads.length > 0 && reads[0].score >= 10) {
+    return `Turn ${turn} — player ${reads[0].guesser} read player ${reads[0].target} like a book`;
   }
 
   const captured = battles.filter((battle) => battle.captured).length;

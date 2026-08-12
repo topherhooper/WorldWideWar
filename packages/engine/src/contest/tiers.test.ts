@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { redact } from '../redact.js';
-import { lineMap, scenario } from '../testing.js';
+import { resolveTurn } from '../resolve.js';
+import { TEST_RULES, lineMap, orders, scenario } from '../testing.js';
+import { topicForTurn } from './topics.js';
 import {
   applyTiersRecord,
   makeTiersList,
@@ -263,5 +265,62 @@ describe('tiersWarnings', () => {
         guesses: [{ target: 1, order: [...IDENTITY] }],
       }),
     ).toHaveLength(0);
+  });
+});
+
+describe('resolveTurn under the tiers contest', () => {
+  const rules = { ...TEST_RULES, contest: 'tiers' as const };
+
+  function setup() {
+    const map = lineMap(4, 2);
+    const state = scenario(map, { owner: [0, 0, 1, 1], armies: [3, 3, 3, 3] });
+    state.tiersLists[0] = { items: ['a', 'b', 'c', 'd', 'e', 'f'], shuffle: [0, 1, 2, 3, 4, 5] };
+    state.tiersLists[1] = { items: ['u', 'v', 'w', 'x', 'y', 'z'], shuffle: [0, 1, 2, 3, 4, 5] };
+    return { map, state };
+  }
+
+  const submission = (slot: number, target: number) => ({
+    ...orders(slot),
+    tiers: {
+      list: ['1', '2', '3', '4', '5', '6'],
+      guesses: [{ target, order: [0, 1, 2, 3, 4, 5] }],
+    },
+  });
+
+  it('scores guesses, installs new lists, reveals the old ones and skips the pact', () => {
+    const { map, state } = setup();
+    const { next, report } = resolveTurn(state, [submission(0, 1), submission(1, 0)], {
+      seed: 'seed-t',
+      map,
+      rules,
+    });
+    expect(report.pacts).toEqual([]);
+    expect(report.tiers).toHaveLength(2);
+    expect(report.tiers[0].guesses[0].score).toBe(12);
+    expect(report.tiers[0].revealed).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(report.revealedTopic).toBe(topicForTurn('seed-t', 0).title);
+    expect(next.tiersLists[0]?.items).toEqual(['1', '2', '3', '4', '5', '6']);
+    // Pact bookkeeping untouched → pact-based victories can never fire.
+    expect(next.pactPartner).toEqual([null, null]);
+    expect(next.pactStreak).toEqual([0, 0]);
+  });
+
+  it('is deterministic and order-independent', () => {
+    const { map, state } = setup();
+    const context = { seed: 'seed-t', map, rules };
+    const a = resolveTurn(state, [submission(0, 1), submission(1, 0)], context);
+    const b = resolveTurn(state, [submission(0, 1), submission(1, 0)], context);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('pact games report an empty tiers array and a null topic', () => {
+    const { map, state } = setup();
+    const { report } = resolveTurn(state, [orders(0), orders(1)], {
+      seed: 'seed-t',
+      map,
+      rules: TEST_RULES,
+    });
+    expect(report.tiers).toEqual([]);
+    expect(report.revealedTopic).toBeNull();
   });
 });
