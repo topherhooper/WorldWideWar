@@ -12,7 +12,7 @@
 
 - Resolution must stay a pure function of `(state, orders, seed)` — no `Math.random`, no clock. All randomness via `substream(seed, ...)` (`packages/engine/src/rng.ts`).
 - Invalid input never throws inside resolution; it degrades silently (Pact's normalization pattern).
-- `redact()` (`packages/engine/src/redact.ts`) is the only path game state takes to a client. Rival tier-list *orderings* must never survive it, fog or no fog.
+- `redact()` (`packages/engine/src/redact.ts`) is the only path game state takes to a client. Rival tier-list _orderings_ must never survive it, fog or no fog.
 - Multiplier space is ×100 integers; Tiers multipliers clamp to [80, 140]. Guess scoring: exact = 2, adjacent = 1, max 12/guess; guess contributes `(score − 6) × 2`; author gains `max(0, best − 6)`.
 - Turn cap: creation range [10, 50], default 25. `rulesFor(playerCount)` with no cap argument must return exactly today's values (existing tests and stored games depend on it).
 - Backwards compatibility: stored `GameDoc`s lack `rules.contest`; stored states lack `tiersLists`; stored reports lack `tiers`/`revealedTopic`. Every reader must tolerate that (`?? 'pact'`, hydration in `parseState`, `?? []` in web).
@@ -21,15 +21,15 @@
 
 ## File Structure
 
-| File | Role |
-| --- | --- |
-| `packages/engine/src/types.ts` | + `ContestKind`, `TiersGuess`, `TiersOrders`, `TiersList`, `TiersGuessResult`, `TiersResult`; `OrderSet.tiers?`, `GameState.tiersLists`, `RuleConfig.contest`, `TurnReport.tiers`/`revealedTopic` |
-| `packages/engine/src/constants.ts` | + `MIN_TURN_CAP`/`MAX_TURN_CAP`, `DEFAULT_RULES.contest`, cap-aware `rulesFor` |
-| `packages/engine/src/contest/topics.ts` (new) | Topic bank (40 topics × 8 canned items, popularity order) + `topicForTurn` |
-| `packages/engine/src/contest/tiers.ts` (new) | Normalization, scoring, `resolveTiers`, `applyTiersRecord`, `makeTiersList`, `tiersWarnings`, bot helpers `decideTiersList`/`decideTiersOrders` |
-| `packages/engine/src/setup.ts`, `redact.ts`, `victory.ts`, `orders.ts`, `resolve.ts`, `simulate.ts`, `testing.ts`, `index.ts` | Plumbing: state field, redaction, elimination cleanup, order carry-through, Phase-4 dispatch, bot games, exports |
-| `packages/server/src/api-types.ts`, `store.ts`, `games.ts`, `resolve.ts`, `app.ts` | Creation options, view fields, lobby-list endpoint + activation gating, bot tiers orders, warnings |
-| `packages/web/src/api.ts`, `pages/Home.tsx`, `pages/Lobby.tsx`, `pages/Game.tsx`, `game/OrdersPanel.tsx`, `game/TiersPanel.tsx` (new), `game/ReportView.tsx`, `styles.css` | Creation form, lobby list editor, write/guess panel, report reveals |
+| File                                                                                                                                                                       | Role                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/engine/src/types.ts`                                                                                                                                             | + `ContestKind`, `TiersGuess`, `TiersOrders`, `TiersList`, `TiersGuessResult`, `TiersResult`; `OrderSet.tiers?`, `GameState.tiersLists`, `RuleConfig.contest`, `TurnReport.tiers`/`revealedTopic` |
+| `packages/engine/src/constants.ts`                                                                                                                                         | + `MIN_TURN_CAP`/`MAX_TURN_CAP`, `DEFAULT_RULES.contest`, cap-aware `rulesFor`                                                                                                                    |
+| `packages/engine/src/contest/topics.ts` (new)                                                                                                                              | Topic bank (40 topics × 8 canned items, popularity order) + `topicForTurn`                                                                                                                        |
+| `packages/engine/src/contest/tiers.ts` (new)                                                                                                                               | Normalization, scoring, `resolveTiers`, `applyTiersRecord`, `makeTiersList`, `tiersWarnings`, bot helpers `decideTiersList`/`decideTiersOrders`                                                   |
+| `packages/engine/src/setup.ts`, `redact.ts`, `victory.ts`, `orders.ts`, `resolve.ts`, `simulate.ts`, `testing.ts`, `index.ts`                                              | Plumbing: state field, redaction, elimination cleanup, order carry-through, Phase-4 dispatch, bot games, exports                                                                                  |
+| `packages/server/src/api-types.ts`, `store.ts`, `games.ts`, `resolve.ts`, `app.ts`                                                                                         | Creation options, view fields, lobby-list endpoint + activation gating, bot tiers orders, warnings                                                                                                |
+| `packages/web/src/api.ts`, `pages/Home.tsx`, `pages/Lobby.tsx`, `pages/Game.tsx`, `game/OrdersPanel.tsx`, `game/TiersPanel.tsx` (new), `game/ReportView.tsx`, `styles.css` | Creation form, lobby list editor, write/guess panel, report reveals                                                                                                                               |
 
 Tests: `packages/engine/src/constants.test.ts` (new), `packages/engine/src/contest/topics.test.ts` (new), `packages/engine/src/contest/tiers.test.ts` (new), `packages/engine/src/simulate-tiers.test.ts` (new), `packages/server/src/tiers.test.ts` (new).
 
@@ -38,11 +38,13 @@ Tests: `packages/engine/src/constants.test.ts` (new), `packages/engine/src/conte
 ### Task 1: Contest kind + turn-cap-aware rules
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (RuleConfig, ~line 262)
 - Modify: `packages/engine/src/constants.ts` (DEFAULT_RULES ~line 63, `rulesFor` ~line 160)
 - Create: `packages/engine/src/constants.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `DEFAULT_RULES`, `RuleConfig`.
 - Produces: `type ContestKind = 'pact' | 'tiers'` (types.ts); `RuleConfig.contest: ContestKind`; `MIN_TURN_CAP = 10`, `MAX_TURN_CAP = 50` (constants.ts); `rulesFor(playerCount: number, turnCap?: number, contest?: ContestKind): RuleConfig`. Later tasks branch on `rules.contest === 'tiers'` everywhere.
 
@@ -122,6 +124,7 @@ export interface RuleConfig {
 ```
 
 In `packages/engine/src/constants.ts`:
+
 - Import the type: extend the existing type import to `import type { ContestKind, PactOutcome, RuleConfig } from './types.js';`
 - Add `contest: 'pact',` as the first field of `DEFAULT_RULES`.
 - Add near the top (after the existing player constants is fine):
@@ -177,6 +180,7 @@ git commit -m "feat(engine): contest kind and turn-cap-aware rulesFor"
 ### Task 2: `GameState.tiersLists` plumbing and redaction
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (GameState, ~line 143)
 - Modify: `packages/engine/src/setup.ts` (`createInitialState`, `cloneState`)
 - Modify: `packages/engine/src/redact.ts`
@@ -185,6 +189,7 @@ git commit -m "feat(engine): contest kind and turn-cap-aware rulesFor"
 - Create: `packages/engine/src/contest/tiers.test.ts` (redaction tests only for now)
 
 **Interfaces:**
+
 - Consumes: `cloneShallow`/`cloneState` field-copy pattern.
 - Produces: `interface TiersList { items: string[]; shuffle: number[] }` in types.ts, where **`shuffle[p]` = author index (= true tier, 0=A…5=F) of the item displayed at public position `p`**; `GameState.tiersLists: (TiersList | null)[]` (per slot); redacted rival views carry `items` in public order with an identity `shuffle`. Every later task relies on these exact semantics.
 
@@ -299,8 +304,8 @@ In `GameState`, after `decapitationStreak`:
 `packages/engine/src/victory.ts` — in `processEliminations`, next to the pact cleanup (`state.pactPartner[slot] = null;`):
 
 ```ts
-    // A dead player's list leaves the guessable pool with them.
-    state.tiersLists[slot] = null;
+// A dead player's list leaves the guessable pool with them.
+state.tiersLists[slot] = null;
 ```
 
 `packages/engine/src/redact.ts` — replace `redact` and extend `cloneShallow`:
@@ -358,10 +363,12 @@ git commit -m "feat(engine): tiersLists state field with always-on redaction"
 ### Task 3: Topic bank
 
 **Files:**
+
 - Create: `packages/engine/src/contest/topics.ts`
 - Create: `packages/engine/src/contest/topics.test.ts`
 
 **Interfaces:**
+
 - Consumes: `substream` from `../rng.js`.
 - Produces: `interface TiersTopic { title: string; canned: string[] }` (canned items in descending popularity — bots lean on this order); `TIERS_TOPICS: readonly TiersTopic[]` (40 topics, 8 canned each); `topicForTurn(seed: string, writeTurn: number): TiersTopic` — deterministic, repeat-free within a cycle of the bank (`writeTurn` 0 = lobby list).
 
@@ -451,46 +458,418 @@ export interface TiersTopic {
 }
 
 export const TIERS_TOPICS: readonly TiersTopic[] = [
-  { title: 'Fast food chains', canned: ["McDonald's", 'Chick-fil-A', "Wendy's", 'Taco Bell', 'Burger King', 'Subway', 'KFC', "Arby's"] },
-  { title: 'Pizza toppings', canned: ['Pepperoni', 'Mushrooms', 'Sausage', 'Extra cheese', 'Onions', 'Bacon', 'Pineapple', 'Anchovies'] },
-  { title: 'Dog breeds', canned: ['Labrador', 'Golden Retriever', 'German Shepherd', 'Poodle', 'Beagle', 'Corgi', 'Dachshund', 'Chihuahua'] },
-  { title: 'Superpowers', canned: ['Flight', 'Teleportation', 'Time travel', 'Invisibility', 'Super strength', 'Mind reading', 'Healing', 'X-ray vision'] },
-  { title: 'Breakfast cereals', canned: ['Cinnamon Toast Crunch', 'Frosted Flakes', 'Lucky Charms', 'Cheerios', 'Froot Loops', 'Rice Krispies', 'Corn Flakes', 'Raisin Bran'] },
-  { title: 'Ice cream flavors', canned: ['Chocolate', 'Cookies and cream', 'Vanilla', 'Mint chip', 'Strawberry', 'Cookie dough', 'Pistachio', 'Rum raisin'] },
-  { title: 'Board games', canned: ['Chess', 'Catan', 'Scrabble', 'Monopoly', 'Risk', 'Clue', 'Checkers', 'Candy Land'] },
-  { title: 'Sodas', canned: ['Coca-Cola', 'Dr Pepper', 'Sprite', 'Pepsi', 'Mountain Dew', 'Root beer', 'Fanta', 'Tab'] },
-  { title: 'Candy', canned: ["Reese's", 'Kit Kat', 'Snickers', "M&M's", 'Twix', 'Skittles', 'Candy corn', 'Black licorice'] },
-  { title: 'Fruits', canned: ['Strawberry', 'Mango', 'Watermelon', 'Apple', 'Banana', 'Pineapple', 'Grapefruit', 'Durian'] },
-  { title: 'Vegetables', canned: ['Corn', 'Potatoes', 'Carrots', 'Broccoli', 'Spinach', 'Cauliflower', 'Brussels sprouts', 'Okra'] },
-  { title: 'Household chores', canned: ['Cooking', 'Laundry', 'Vacuuming', 'Dishes', 'Dusting', 'Mowing the lawn', 'Cleaning the bathroom', 'Unclogging drains'] },
-  { title: 'Kinds of weather', canned: ['Sunny and mild', 'Snow day', 'Light rain', 'Thunderstorm', 'Fog', 'Windy', 'Hail', 'Heat wave'] },
-  { title: 'Holidays', canned: ['Christmas', 'Halloween', 'Thanksgiving', "New Year's Eve", 'Fourth of July', 'Easter', "Valentine's Day", 'Tax Day'] },
-  { title: 'Movie genres', canned: ['Comedy', 'Action', 'Thriller', 'Sci-fi', 'Horror', 'Romance', 'Documentary', 'Musical'] },
-  { title: 'Music genres', canned: ['Rock', 'Pop', 'Hip hop', 'Country', 'Jazz', 'Classical', 'Metal', 'Polka'] },
-  { title: 'Pets', canned: ['Dog', 'Cat', 'Fish', 'Rabbit', 'Hamster', 'Parrot', 'Snake', 'Tarantula'] },
-  { title: 'Sandwiches', canned: ['Grilled cheese', 'Turkey club', 'BLT', 'Peanut butter and jelly', 'Ham and cheese', 'Tuna salad', 'Egg salad', 'Liverwurst'] },
-  { title: 'Condiments', canned: ['Ketchup', 'Ranch', 'Mayonnaise', 'Mustard', 'BBQ sauce', 'Hot sauce', 'Relish', 'Miracle Whip'] },
-  { title: 'School subjects', canned: ['Gym', 'Art', 'Science', 'History', 'Math', 'English', 'Chemistry', 'Latin'] },
-  { title: 'Ways to travel', canned: ['Airplane', 'Train', 'Road trip', 'Boat', 'Bicycle', 'Motorcycle', 'Bus', 'Walking'] },
-  { title: 'Vacations', canned: ['Beach resort', 'Mountain cabin', 'Big city trip', 'National park', 'Cruise', 'Theme park', 'Camping', 'Visiting relatives'] },
-  { title: 'Mythical creatures', canned: ['Dragon', 'Phoenix', 'Unicorn', 'Mermaid', 'Griffin', 'Werewolf', 'Kraken', 'Goblin'] },
-  { title: 'Video game genres', canned: ['RPG', 'Shooter', 'Platformer', 'Strategy', 'Puzzle', 'Racing', 'Fighting', 'Sports'] },
-  { title: 'Card games', canned: ['Poker', 'Uno', 'Blackjack', 'Solitaire', 'Hearts', 'Go Fish', 'Rummy', 'War'] },
-  { title: 'Coffee orders', canned: ['Latte', 'Cold brew', 'Cappuccino', 'Mocha', 'Black coffee', 'Espresso', 'Frappuccino', 'Decaf'] },
-  { title: 'Desserts', canned: ['Chocolate cake', 'Cheesecake', 'Brownies', 'Apple pie', 'Tiramisu', 'Ice cream sundae', 'Donuts', 'Fruitcake'] },
-  { title: 'Snacks', canned: ['Potato chips', 'Popcorn', 'Pretzels', 'Trail mix', 'Crackers', 'Beef jerky', 'Rice cakes', 'Plain celery'] },
-  { title: 'Ways to exercise', canned: ['Walking', 'Swimming', 'Weightlifting', 'Yoga', 'Running', 'Cycling', 'Rowing', 'Burpees'] },
-  { title: 'Pasta shapes', canned: ['Spaghetti', 'Penne', 'Fettuccine', 'Elbow macaroni', 'Ravioli', 'Lasagna', 'Angel hair', 'Orzo'] },
-  { title: 'Cheeses', canned: ['Cheddar', 'Mozzarella', 'Parmesan', 'Swiss', 'Brie', 'Gouda', 'Feta', 'Limburger'] },
-  { title: 'Pies', canned: ['Apple', 'Pumpkin', 'Pecan', 'Cherry', 'Key lime', 'Lemon meringue', 'Blueberry', 'Mincemeat'] },
-  { title: 'Kitchen appliances', canned: ['Microwave', 'Air fryer', 'Coffee maker', 'Dishwasher', 'Blender', 'Toaster', 'Slow cooker', 'Bread machine'] },
-  { title: 'Smells', canned: ['Fresh bread', 'Coffee', 'Rain on pavement', 'Campfire', 'Fresh-cut grass', 'Vanilla', 'Gasoline', 'Wet dog'] },
-  { title: 'Gadgets', canned: ['Smartphone', 'Laptop', 'Headphones', 'Smart watch', 'Tablet', 'E-reader', 'Drone', 'Fax machine'] },
-  { title: 'Social media platforms', canned: ['YouTube', 'Instagram', 'TikTok', 'Reddit', 'Twitter', 'Facebook', 'Snapchat', 'LinkedIn'] },
-  { title: 'Ocean animals', canned: ['Dolphin', 'Sea turtle', 'Octopus', 'Whale', 'Seahorse', 'Shark', 'Crab', 'Jellyfish'] },
-  { title: 'Birds', canned: ['Eagle', 'Owl', 'Penguin', 'Hummingbird', 'Parrot', 'Flamingo', 'Crow', 'Pigeon'] },
-  { title: 'Sports to watch', canned: ['Football', 'Basketball', 'Baseball', 'Soccer', 'Hockey', 'Tennis', 'Golf', 'Bowling'] },
-  { title: 'Things on toast', canned: ['Butter', 'Avocado', 'Jam', 'Peanut butter', 'Nutella', 'Honey', 'Cream cheese', 'Marmite'] },
+  {
+    title: 'Fast food chains',
+    canned: [
+      "McDonald's",
+      'Chick-fil-A',
+      "Wendy's",
+      'Taco Bell',
+      'Burger King',
+      'Subway',
+      'KFC',
+      "Arby's",
+    ],
+  },
+  {
+    title: 'Pizza toppings',
+    canned: [
+      'Pepperoni',
+      'Mushrooms',
+      'Sausage',
+      'Extra cheese',
+      'Onions',
+      'Bacon',
+      'Pineapple',
+      'Anchovies',
+    ],
+  },
+  {
+    title: 'Dog breeds',
+    canned: [
+      'Labrador',
+      'Golden Retriever',
+      'German Shepherd',
+      'Poodle',
+      'Beagle',
+      'Corgi',
+      'Dachshund',
+      'Chihuahua',
+    ],
+  },
+  {
+    title: 'Superpowers',
+    canned: [
+      'Flight',
+      'Teleportation',
+      'Time travel',
+      'Invisibility',
+      'Super strength',
+      'Mind reading',
+      'Healing',
+      'X-ray vision',
+    ],
+  },
+  {
+    title: 'Breakfast cereals',
+    canned: [
+      'Cinnamon Toast Crunch',
+      'Frosted Flakes',
+      'Lucky Charms',
+      'Cheerios',
+      'Froot Loops',
+      'Rice Krispies',
+      'Corn Flakes',
+      'Raisin Bran',
+    ],
+  },
+  {
+    title: 'Ice cream flavors',
+    canned: [
+      'Chocolate',
+      'Cookies and cream',
+      'Vanilla',
+      'Mint chip',
+      'Strawberry',
+      'Cookie dough',
+      'Pistachio',
+      'Rum raisin',
+    ],
+  },
+  {
+    title: 'Board games',
+    canned: ['Chess', 'Catan', 'Scrabble', 'Monopoly', 'Risk', 'Clue', 'Checkers', 'Candy Land'],
+  },
+  {
+    title: 'Sodas',
+    canned: [
+      'Coca-Cola',
+      'Dr Pepper',
+      'Sprite',
+      'Pepsi',
+      'Mountain Dew',
+      'Root beer',
+      'Fanta',
+      'Tab',
+    ],
+  },
+  {
+    title: 'Candy',
+    canned: [
+      "Reese's",
+      'Kit Kat',
+      'Snickers',
+      "M&M's",
+      'Twix',
+      'Skittles',
+      'Candy corn',
+      'Black licorice',
+    ],
+  },
+  {
+    title: 'Fruits',
+    canned: [
+      'Strawberry',
+      'Mango',
+      'Watermelon',
+      'Apple',
+      'Banana',
+      'Pineapple',
+      'Grapefruit',
+      'Durian',
+    ],
+  },
+  {
+    title: 'Vegetables',
+    canned: [
+      'Corn',
+      'Potatoes',
+      'Carrots',
+      'Broccoli',
+      'Spinach',
+      'Cauliflower',
+      'Brussels sprouts',
+      'Okra',
+    ],
+  },
+  {
+    title: 'Household chores',
+    canned: [
+      'Cooking',
+      'Laundry',
+      'Vacuuming',
+      'Dishes',
+      'Dusting',
+      'Mowing the lawn',
+      'Cleaning the bathroom',
+      'Unclogging drains',
+    ],
+  },
+  {
+    title: 'Kinds of weather',
+    canned: [
+      'Sunny and mild',
+      'Snow day',
+      'Light rain',
+      'Thunderstorm',
+      'Fog',
+      'Windy',
+      'Hail',
+      'Heat wave',
+    ],
+  },
+  {
+    title: 'Holidays',
+    canned: [
+      'Christmas',
+      'Halloween',
+      'Thanksgiving',
+      "New Year's Eve",
+      'Fourth of July',
+      'Easter',
+      "Valentine's Day",
+      'Tax Day',
+    ],
+  },
+  {
+    title: 'Movie genres',
+    canned: [
+      'Comedy',
+      'Action',
+      'Thriller',
+      'Sci-fi',
+      'Horror',
+      'Romance',
+      'Documentary',
+      'Musical',
+    ],
+  },
+  {
+    title: 'Music genres',
+    canned: ['Rock', 'Pop', 'Hip hop', 'Country', 'Jazz', 'Classical', 'Metal', 'Polka'],
+  },
+  {
+    title: 'Pets',
+    canned: ['Dog', 'Cat', 'Fish', 'Rabbit', 'Hamster', 'Parrot', 'Snake', 'Tarantula'],
+  },
+  {
+    title: 'Sandwiches',
+    canned: [
+      'Grilled cheese',
+      'Turkey club',
+      'BLT',
+      'Peanut butter and jelly',
+      'Ham and cheese',
+      'Tuna salad',
+      'Egg salad',
+      'Liverwurst',
+    ],
+  },
+  {
+    title: 'Condiments',
+    canned: [
+      'Ketchup',
+      'Ranch',
+      'Mayonnaise',
+      'Mustard',
+      'BBQ sauce',
+      'Hot sauce',
+      'Relish',
+      'Miracle Whip',
+    ],
+  },
+  {
+    title: 'School subjects',
+    canned: ['Gym', 'Art', 'Science', 'History', 'Math', 'English', 'Chemistry', 'Latin'],
+  },
+  {
+    title: 'Ways to travel',
+    canned: ['Airplane', 'Train', 'Road trip', 'Boat', 'Bicycle', 'Motorcycle', 'Bus', 'Walking'],
+  },
+  {
+    title: 'Vacations',
+    canned: [
+      'Beach resort',
+      'Mountain cabin',
+      'Big city trip',
+      'National park',
+      'Cruise',
+      'Theme park',
+      'Camping',
+      'Visiting relatives',
+    ],
+  },
+  {
+    title: 'Mythical creatures',
+    canned: ['Dragon', 'Phoenix', 'Unicorn', 'Mermaid', 'Griffin', 'Werewolf', 'Kraken', 'Goblin'],
+  },
+  {
+    title: 'Video game genres',
+    canned: ['RPG', 'Shooter', 'Platformer', 'Strategy', 'Puzzle', 'Racing', 'Fighting', 'Sports'],
+  },
+  {
+    title: 'Card games',
+    canned: ['Poker', 'Uno', 'Blackjack', 'Solitaire', 'Hearts', 'Go Fish', 'Rummy', 'War'],
+  },
+  {
+    title: 'Coffee orders',
+    canned: [
+      'Latte',
+      'Cold brew',
+      'Cappuccino',
+      'Mocha',
+      'Black coffee',
+      'Espresso',
+      'Frappuccino',
+      'Decaf',
+    ],
+  },
+  {
+    title: 'Desserts',
+    canned: [
+      'Chocolate cake',
+      'Cheesecake',
+      'Brownies',
+      'Apple pie',
+      'Tiramisu',
+      'Ice cream sundae',
+      'Donuts',
+      'Fruitcake',
+    ],
+  },
+  {
+    title: 'Snacks',
+    canned: [
+      'Potato chips',
+      'Popcorn',
+      'Pretzels',
+      'Trail mix',
+      'Crackers',
+      'Beef jerky',
+      'Rice cakes',
+      'Plain celery',
+    ],
+  },
+  {
+    title: 'Ways to exercise',
+    canned: [
+      'Walking',
+      'Swimming',
+      'Weightlifting',
+      'Yoga',
+      'Running',
+      'Cycling',
+      'Rowing',
+      'Burpees',
+    ],
+  },
+  {
+    title: 'Pasta shapes',
+    canned: [
+      'Spaghetti',
+      'Penne',
+      'Fettuccine',
+      'Elbow macaroni',
+      'Ravioli',
+      'Lasagna',
+      'Angel hair',
+      'Orzo',
+    ],
+  },
+  {
+    title: 'Cheeses',
+    canned: ['Cheddar', 'Mozzarella', 'Parmesan', 'Swiss', 'Brie', 'Gouda', 'Feta', 'Limburger'],
+  },
+  {
+    title: 'Pies',
+    canned: [
+      'Apple',
+      'Pumpkin',
+      'Pecan',
+      'Cherry',
+      'Key lime',
+      'Lemon meringue',
+      'Blueberry',
+      'Mincemeat',
+    ],
+  },
+  {
+    title: 'Kitchen appliances',
+    canned: [
+      'Microwave',
+      'Air fryer',
+      'Coffee maker',
+      'Dishwasher',
+      'Blender',
+      'Toaster',
+      'Slow cooker',
+      'Bread machine',
+    ],
+  },
+  {
+    title: 'Smells',
+    canned: [
+      'Fresh bread',
+      'Coffee',
+      'Rain on pavement',
+      'Campfire',
+      'Fresh-cut grass',
+      'Vanilla',
+      'Gasoline',
+      'Wet dog',
+    ],
+  },
+  {
+    title: 'Gadgets',
+    canned: [
+      'Smartphone',
+      'Laptop',
+      'Headphones',
+      'Smart watch',
+      'Tablet',
+      'E-reader',
+      'Drone',
+      'Fax machine',
+    ],
+  },
+  {
+    title: 'Social media platforms',
+    canned: [
+      'YouTube',
+      'Instagram',
+      'TikTok',
+      'Reddit',
+      'Twitter',
+      'Facebook',
+      'Snapchat',
+      'LinkedIn',
+    ],
+  },
+  {
+    title: 'Ocean animals',
+    canned: ['Dolphin', 'Sea turtle', 'Octopus', 'Whale', 'Seahorse', 'Shark', 'Crab', 'Jellyfish'],
+  },
+  {
+    title: 'Birds',
+    canned: ['Eagle', 'Owl', 'Penguin', 'Hummingbird', 'Parrot', 'Flamingo', 'Crow', 'Pigeon'],
+  },
+  {
+    title: 'Sports to watch',
+    canned: ['Football', 'Basketball', 'Baseball', 'Soccer', 'Hockey', 'Tennis', 'Golf', 'Bowling'],
+  },
+  {
+    title: 'Things on toast',
+    canned: [
+      'Butter',
+      'Avocado',
+      'Jam',
+      'Peanut butter',
+      'Nutella',
+      'Honey',
+      'Cream cheese',
+      'Marmite',
+    ],
+  },
 ];
 
 /**
@@ -521,12 +900,14 @@ git commit -m "feat(engine): tiers topic bank with seeded repeat-free draws"
 ### Task 4: Tiers contest core — normalization, scoring, resolution
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (Orders section ~line 61, Report section ~line 200)
 - Modify: `packages/engine/src/contest/tiers.ts` (extend the stub from Task 3)
 - Modify: `packages/engine/src/index.ts` (exports)
 - Modify: `packages/engine/src/contest/tiers.test.ts` (add scoring/resolution tests)
 
 **Interfaces:**
+
 - Consumes: `TiersList` (Task 2), `ContestContext`/`ContestOutcome` (`contest/types.ts`), `substream`.
 - Produces (types.ts):
   - `interface TiersGuess { target: Slot; order: number[] }` — **`order[t]` = public position (0–5) of the item the guesser places at tier `t` (0=A…5=F)**.
@@ -575,7 +956,12 @@ function context(state: ReturnType<typeof stateWithList>): ContestContext {
 describe('normalizeTiersList', () => {
   it('accepts six distinct entries and preserves display text', () => {
     expect(normalizeTiersList(['A ', ' b', 'C', 'd', 'E', 'f'])).toEqual([
-      'A', 'b', 'C', 'd', 'E', 'f',
+      'A',
+      'b',
+      'C',
+      'd',
+      'E',
+      'f',
     ]);
   });
 
@@ -846,7 +1232,15 @@ Extend `packages/engine/src/contest/tiers.ts` to:
  */
 
 import { substream } from '../rng.js';
-import type { GameState, Slot, TiersGuess, TiersGuessResult, TiersList, TiersOrders, TiersResult } from '../types.js';
+import type {
+  GameState,
+  Slot,
+  TiersGuess,
+  TiersGuessResult,
+  TiersList,
+  TiersOrders,
+  TiersResult,
+} from '../types.js';
 import type { ContestContext, ContestOutcome } from './types.js';
 
 export const TIERS_LIST_SIZE = 6;
@@ -1027,7 +1421,9 @@ export function tiersWarnings(
 ): string[] {
   const warnings: string[] = [];
   if (!tiers || normalizeTiersList(tiers.list) === null) {
-    warnings.push('tier list incomplete — six distinct entries needed, or rivals cannot read you next turn');
+    warnings.push(
+      'tier list incomplete — six distinct entries needed, or rivals cannot read you next turn',
+    );
   }
   const guesses = tiers?.guesses ?? [];
   if (guesses.length > TIERS_MAX_GUESSES) {
@@ -1098,12 +1494,14 @@ git commit -m "feat(engine): tiers contest core — normalization, scoring, reso
 ### Task 5: Resolution dispatch and turn report
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (`TurnReport`, ~line 247)
 - Modify: `packages/engine/src/orders.ts` (`NormalizedOrders`, `normalizeOrders`)
 - Modify: `packages/engine/src/resolve.ts` (Phase 4, Phase 9, report, headline)
 - Modify: `packages/engine/src/contest/tiers.test.ts` (integration tests)
 
 **Interfaces:**
+
 - Consumes: `resolveTiers`, `applyTiersRecord` (Task 4), `topicForTurn` (Task 3), `rules.contest` (Task 1).
 - Produces: `TurnReport.tiers: TiersResult[]` (empty in pact games), `TurnReport.revealedTopic: string | null`; `NormalizedOrders.tiers: TiersOrders | null`. Web (Task 13) reads exactly these.
 
@@ -1191,44 +1589,50 @@ Expected: FAIL — `report.tiers` does not exist.
 ```
 
 `packages/engine/src/orders.ts`:
+
 - `NormalizedOrders` gains `tiers: TiersOrders | null;` (import the type).
 - In `normalizeOrders`, the `normalized` literal gains `tiers: raw?.tiers ?? null,`.
 
 `packages/engine/src/resolve.ts`:
+
 - Imports: add `resolveTiers`, `applyTiersRecord` from `./contest/tiers.js`; `topicForTurn` from `./contest/topics.js`; type `TiersResult` from `./types.js`.
 - Phase 1's inactive-slot placeholder gains `tiers: null`:
 
 ```ts
-      orders.push({ slot, pledge: null, deploys: [], moves: [], supports: [], tiers: null });
+orders.push({ slot, pledge: null, deploys: [], moves: [], supports: [], tiers: null });
 ```
 
 - Phase 4 becomes a dispatch (replace the `const pact = resolvePacts(...)` statement):
 
 ```ts
-  const attacked = buildAttackMatrix(state, orders);
-  const aliveSlots: Slot[] = [];
-  for (let slot = 0; slot < state.playerCount; slot++) {
-    if (state.status[slot] === 'active') aliveSlots.push(slot);
-  }
-  const contestContext = { attacked, aliveSlots };
-  const tiersInputs = orders.map((set) => set.tiers);
-  const pact =
-    rules.contest === 'tiers'
-      ? null
-      : resolvePacts(state, orders.map((set) => set.pledge), contestContext);
-  const tiers = rules.contest === 'tiers' ? resolveTiers(state, tiersInputs, contestContext) : null;
-  // Whichever contest ran, this is the multiplier/bonus surface the battles use.
-  const contest = (pact ?? tiers)!;
+const attacked = buildAttackMatrix(state, orders);
+const aliveSlots: Slot[] = [];
+for (let slot = 0; slot < state.playerCount; slot++) {
+  if (state.status[slot] === 'active') aliveSlots.push(slot);
+}
+const contestContext = { attacked, aliveSlots };
+const tiersInputs = orders.map((set) => set.tiers);
+const pact =
+  rules.contest === 'tiers'
+    ? null
+    : resolvePacts(
+        state,
+        orders.map((set) => set.pledge),
+        contestContext,
+      );
+const tiers = rules.contest === 'tiers' ? resolveTiers(state, tiersInputs, contestContext) : null;
+// Whichever contest ran, this is the multiplier/bonus surface the battles use.
+const contest = (pact ?? tiers)!;
 ```
 
 - Replace every remaining `pact.multiplier[...]` with `contest.multiplier[...]` (two in the clash phase, one in Phase 8) and `pact.results`/`pact.bonusIncome` handling in Phase 9 with:
 
 ```ts
-  if (pact !== null) applyPactRecord(next, pact.results);
-  if (tiers !== null) applyTiersRecord(next, tiersInputs, seed, state.turn);
-  for (let slot = 0; slot < next.playerCount; slot++) {
-    next.pendingBonusIncome[slot] += contest.bonusIncome[slot];
-  }
+if (pact !== null) applyPactRecord(next, pact.results);
+if (tiers !== null) applyTiersRecord(next, tiersInputs, seed, state.turn);
+for (let slot = 0; slot < next.playerCount; slot++) {
+  next.pendingBonusIncome[slot] += contest.bonusIncome[slot];
+}
 ```
 
 - The report literal gains:
@@ -1242,13 +1646,13 @@ Expected: FAIL — `report.tiers` does not exist.
 - `buildHeadline` takes the tiers results after `pacts` (`tiersResults: readonly TiersResult[]`), and after the betrayal branch add:
 
 ```ts
-  // The best read of the turn is the tiers analogue of a betrayal headline.
-  const reads = tiersResults
-    .flatMap((result) => (result.bestRead === null ? [] : [result.bestRead]))
-    .sort((a, b) => b.score - a.score || a.guesser - b.guesser);
-  if (reads.length > 0 && reads[0].score >= 10) {
-    return `Turn ${turn} — player ${reads[0].guesser} read player ${reads[0].target} like a book`;
-  }
+// The best read of the turn is the tiers analogue of a betrayal headline.
+const reads = tiersResults
+  .flatMap((result) => (result.bestRead === null ? [] : [result.bestRead]))
+  .sort((a, b) => b.score - a.score || a.guesser - b.guesser);
+if (reads.length > 0 && reads[0].score >= 10) {
+  return `Turn ${turn} — player ${reads[0].guesser} read player ${reads[0].target} like a book`;
+}
 ```
 
 Update the call site: `buildHeadline(state.turn, pact?.results ?? [], tiers?.results ?? [], battles, clashes, world)`.
@@ -1269,12 +1673,14 @@ git commit -m "feat(engine): dispatch the tiers contest through turn resolution"
 ### Task 6: Bot lists and guesses; tiers bot games
 
 **Files:**
+
 - Modify: `packages/engine/src/contest/tiers.ts` (bot helpers)
 - Modify: `packages/engine/src/simulate.ts`
 - Modify: `packages/engine/src/index.ts` (add `decideTiersList`, `decideTiersOrders` to the Task 4 export block)
 - Create: `packages/engine/src/simulate-tiers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `TiersTopic` (canned popularity order), `makeTiersList`, redacted-state semantics (rival lists are public-order + identity shuffle).
 - Produces: `decideTiersList(topic: TiersTopic, rng: Rng): string[]`; `decideTiersOrders(state: GameState, slot: Slot, writeTopic: TiersTopic, prevTopic: TiersTopic, rng: Rng): TiersOrders`. Server Task 9 calls both with substreams `substream(seed, 'tiers-bot-list', slot)` (lobby) and `substream(seed, turn, 'tiers-bot', slot)` (in-game) — the simulate harness must use the same substream names.
 
@@ -1315,7 +1721,11 @@ describe('bot games under the tiers contest', () => {
   });
 
   it('short-cap tiers games still end decisively or on standings', () => {
-    const summary = playBotGame({ seed: 'tiers-short', playerCount: 4, rules: rulesFor(4, 15, 'tiers') });
+    const summary = playBotGame({
+      seed: 'tiers-short',
+      playerCount: 4,
+      rules: rulesFor(4, 15, 'tiers'),
+    });
     expect(summary.turns).toBeLessThanOrEqual(15);
     expect(summary.result.winners.length).toBeGreaterThan(0);
   });
@@ -1391,37 +1801,38 @@ export function decideTiersOrders(
 - [ ] **Step 4: Wire the simulate harness**
 
 `packages/engine/src/simulate.ts`:
+
 - Imports: `decideTiersList`, `decideTiersOrders`, `makeTiersList` from `./contest/tiers.js`; `topicForTurn` from `./contest/topics.js`.
 - After `let state = createInitialState(map, rules);`:
 
 ```ts
-  if (rules.contest === 'tiers') {
-    // The lobby ("turn 0") lists, so turn 1 already has something to guess.
-    for (let slot = 0; slot < playerCount; slot++) {
-      state.tiersLists[slot] = makeTiersList(
-        decideTiersList(topicForTurn(seed, 0), substream(seed, 'tiers-bot-list', slot)),
-        seed,
-        0,
-        slot,
-      );
-    }
+if (rules.contest === 'tiers') {
+  // The lobby ("turn 0") lists, so turn 1 already has something to guess.
+  for (let slot = 0; slot < playerCount; slot++) {
+    state.tiersLists[slot] = makeTiersList(
+      decideTiersList(topicForTurn(seed, 0), substream(seed, 'tiers-bot-list', slot)),
+      seed,
+      0,
+      slot,
+    );
   }
+}
 ```
 
 - In the turn loop, replace `submissions.push(decideOrders(view, map, slot, rng, personalities[slot]));` with:
 
 ```ts
-      const orderSet = decideOrders(view, map, slot, rng, personalities[slot]);
-      if (rules.contest === 'tiers') {
-        orderSet.tiers = decideTiersOrders(
-          view,
-          slot,
-          topicForTurn(seed, state.turn),
-          topicForTurn(seed, state.turn - 1),
-          substream(seed, state.turn, 'tiers-bot', slot),
-        );
-      }
-      submissions.push(orderSet);
+const orderSet = decideOrders(view, map, slot, rng, personalities[slot]);
+if (rules.contest === 'tiers') {
+  orderSet.tiers = decideTiersOrders(
+    view,
+    slot,
+    topicForTurn(seed, state.turn),
+    topicForTurn(seed, state.turn - 1),
+    substream(seed, state.turn, 'tiers-bot', slot),
+  );
+}
+submissions.push(orderSet);
 ```
 
 - Add `decideTiersList`/`decideTiersOrders` to the engine `index.ts` export block from Task 4.
@@ -1442,12 +1853,14 @@ git commit -m "feat(engine): popularity-order bots for the tiers contest"
 ### Task 7: Server creation options and view fields
 
 **Files:**
+
 - Modify: `packages/server/src/api-types.ts`
 - Modify: `packages/server/src/store.ts` (`parseState` hydration)
 - Modify: `packages/server/src/games.ts` (`createGame`, `getView`)
 - Create: `packages/server/src/tiers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `MIN_TURN_CAP`, `MAX_TURN_CAP`, `rulesFor`, `topicForTurn`, `ContestKind` from `@www/engine`.
 - Produces: `CreateGameRequest` gains `contest?: ContestKind; turnCap?: number`. `GameView` gains `contest: ContestKind; turnCap: number; tiersTopic: string | null; lobbyListSlots: number[]`. `parseState` hydrates `tiersLists` on states stored before this feature. Web tasks consume these exact field names.
 
@@ -1517,6 +1930,7 @@ Run: `pnpm test:server` — expected: the new file FAILS (`contest` not on `Crea
 - [ ] **Step 3: Implement**
 
 `packages/server/src/api-types.ts`:
+
 - Extend the engine type import with `ContestKind`.
 - `CreateGameRequest` gains:
 
@@ -1559,18 +1973,19 @@ export const parseState = (doc: GameDoc): GameState | null => {
 ```
 
 `packages/server/src/games.ts`:
+
 - Extend engine imports with `MAX_TURN_CAP`, `MIN_TURN_CAP`, `topicForTurn` (and later tasks' names as they arrive).
 - In `createGame`, after the `turnMinutes` check:
 
 ```ts
-  const contest = req.contest ?? 'pact';
-  if (contest !== 'pact' && contest !== 'tiers') {
-    throw new HttpError(400, "contest must be 'pact' or 'tiers'");
-  }
-  const turnCap = req.turnCap ?? 25;
-  if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
-    throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
-  }
+const contest = req.contest ?? 'pact';
+if (contest !== 'pact' && contest !== 'tiers') {
+  throw new HttpError(400, "contest must be 'pact' or 'tiers'");
+}
+const turnCap = req.turnCap ?? 25;
+if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
+  throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
+}
 ```
 
 and change the doc's rules line to `rules: rulesFor(playerCount, turnCap, contest),`.
@@ -1578,21 +1993,21 @@ and change the doc's rules line to `rules: rulesFor(playerCount, turnCap, contes
 - In `getView`, before the return (old docs lack `rules.contest`, hence the `?? 'pact'`):
 
 ```ts
-  const contest = game.rules.contest ?? 'pact';
-  let tiersTopic: string | null = null;
-  let lobbyListSlots: number[] = [];
-  if (contest === 'tiers') {
-    tiersTopic = topicForTurn(game.seed, game.status === 'lobby' ? 0 : game.turn).title;
-    if (game.status === 'lobby') {
-      const humans = humanSlots(game.seats);
-      if (humans.length > 0) {
-        const snaps = await db.getAll(
-          ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(0, slot))),
-        );
-        lobbyListSlots = humans.filter((_, i) => snaps[i].exists);
-      }
+const contest = game.rules.contest ?? 'pact';
+let tiersTopic: string | null = null;
+let lobbyListSlots: number[] = [];
+if (contest === 'tiers') {
+  tiersTopic = topicForTurn(game.seed, game.status === 'lobby' ? 0 : game.turn).title;
+  if (game.status === 'lobby') {
+    const humans = humanSlots(game.seats);
+    if (humans.length > 0) {
+      const snaps = await db.getAll(
+        ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(0, slot))),
+      );
+      lobbyListSlots = humans.filter((_, i) => snaps[i].exists);
     }
   }
+}
 ```
 
 and add to the returned literal: `contest`, `turnCap: game.rules.turnCap`, `tiersTopic`, `lobbyListSlots`.
@@ -1615,11 +2030,13 @@ git commit -m "feat(server): tiers/turn-cap creation options and view fields"
 ### Task 8: Lobby lists and activation gating
 
 **Files:**
+
 - Modify: `packages/server/src/games.ts` (`activate`, `joinGame`, `startGame`, new `submitLobbyList`)
 - Modify: `packages/server/src/app.ts` (route)
 - Modify: `packages/server/src/tiers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `makeTiersList`, `normalizeTiersList`, `decideTiersList`, `topicForTurn`, `substream` from `@www/engine`; `orderDocId(0, slot)` as the lobby-list document.
 - Produces: `submitLobbyList(db, gameId, user, listRaw): Promise<GameView>`; route `PUT /api/games/:id/lobby-list` with body `SubmitLobbyListRequest`. Activation rule: **a game activates only when every seat is filled AND (pact game, or every human seat has a valid lobby list)**. Bot lobby lists come from `decideTiersList(topicForTurn(seed, 0), substream(seed, 'tiers-bot-list', slot))` — identical to the simulate harness.
 
@@ -1665,9 +2082,13 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () =>
 
   it('rejects malformed lists, non-tiers games and started games', async () => {
     const id = await makeGame();
-    await expect(submitLobbyList(db, id, alice, ['only', 'five', 'items', 'in', 'list'])).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      submitLobbyList(db, id, alice, ['only', 'five', 'items', 'in', 'list']),
+    ).rejects.toMatchObject({ statusCode: 400 });
     const pactId = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
-    await expect(submitLobbyList(db, pactId, alice, LIST)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(submitLobbyList(db, pactId, alice, LIST)).rejects.toMatchObject({
+      statusCode: 409,
+    });
     await expect(submitLobbyList(db, id, bob, LIST)).rejects.toMatchObject({ statusCode: 403 });
   });
 });
@@ -1733,14 +2154,15 @@ function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] |
 ```
 
 Update the two call sites:
+
 - `joinGame`: read `const lobbyLists = await readLobbyLists(tx, db, gameId, game);` right after the game snapshot (reads must precede writes), then replace `if (game.seats.every((s) => s !== null)) activate(game, Timestamp.now());` with `if (canActivate(game, lobbyLists)) activate(game, Timestamp.now(), lobbyLists);`.
 - `startGame`: read `lobbyLists` the same way; after filling bot seats, add
 
 ```ts
-    if (!canActivate(game, lobbyLists)) {
-      throw new HttpError(409, 'waiting for tier lists from seated players');
-    }
-    activate(game, Timestamp.now(), lobbyLists);
+if (!canActivate(game, lobbyLists)) {
+  throw new HttpError(409, 'waiting for tier lists from seated players');
+}
+activate(game, Timestamp.now(), lobbyLists);
 ```
 
 Add the new service function:
@@ -1799,11 +2221,11 @@ export async function submitLobbyList(
 `packages/server/src/app.ts`, after the `/games/:id/start` route (extend imports with `submitLobbyList` and `SubmitLobbyListRequest`):
 
 ```ts
-      api.put('/games/:id/lobby-list', async (req) => {
-        const { id } = req.params as { id: string };
-        const { list } = req.body as SubmitLobbyListRequest;
-        return submitLobbyList(db, id, req.user, list);
-      });
+api.put('/games/:id/lobby-list', async (req) => {
+  const { id } = req.params as { id: string };
+  const { list } = req.body as SubmitLobbyListRequest;
+  return submitLobbyList(db, id, req.user, list);
+});
 ```
 
 - [ ] **Step 5: Run tests**
@@ -1822,11 +2244,13 @@ git commit -m "feat(server): lobby tier lists gate activation of tiers games"
 ### Task 9: Bot tiers orders at resolution; submit warnings
 
 **Files:**
+
 - Modify: `packages/server/src/resolve.ts` (bot submissions)
 - Modify: `packages/server/src/games.ts` (`submitOrders` warnings)
 - Modify: `packages/server/src/tiers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `decideTiersOrders`, `topicForTurn`, `tiersWarnings` from `@www/engine`; substream names from Task 6.
 - Produces: tiers games resolve end-to-end on the server; locked submissions return tier-list warnings.
 
@@ -1892,33 +2316,33 @@ Run: `pnpm test:server` — expected: first test FAILS (bot submits no tiers inp
 `packages/server/src/resolve.ts` — extend the engine import with `decideTiersOrders` and `topicForTurn`; in the bot loop, replace the `submissions[slot] = decideOrders(...)` statement with:
 
 ```ts
-        const view = redact(state, slot);
-        const orderSet = decideOrders(
-          view,
-          map,
-          slot,
-          substream(game.seed, 'bot', expectedTurn, slot),
-          personality,
-        );
-        if ((game.rules.contest ?? 'pact') === 'tiers') {
-          orderSet.tiers = decideTiersOrders(
-            view,
-            slot,
-            topicForTurn(game.seed, expectedTurn),
-            topicForTurn(game.seed, expectedTurn - 1),
-            substream(game.seed, expectedTurn, 'tiers-bot', slot),
-          );
-        }
-        submissions[slot] = orderSet;
+const view = redact(state, slot);
+const orderSet = decideOrders(
+  view,
+  map,
+  slot,
+  substream(game.seed, 'bot', expectedTurn, slot),
+  personality,
+);
+if ((game.rules.contest ?? 'pact') === 'tiers') {
+  orderSet.tiers = decideTiersOrders(
+    view,
+    slot,
+    topicForTurn(game.seed, expectedTurn),
+    topicForTurn(game.seed, expectedTurn - 1),
+    substream(game.seed, expectedTurn, 'tiers-bot', slot),
+  );
+}
+submissions[slot] = orderSet;
 ```
 
 `packages/server/src/games.ts` — in `submitOrders`, after the `rejections` line (extend imports with `tiersWarnings`):
 
 ```ts
-    if ((game.rules.contest ?? 'pact') === 'tiers' && req.locked) {
-      // Only on lock-in: warning about a half-typed list on every autosave is noise.
-      rejections.push(...tiersWarnings(state, mySlot, orders.tiers ?? null));
-    }
+if ((game.rules.contest ?? 'pact') === 'tiers' && req.locked) {
+  // Only on lock-in: warning about a half-typed list on every autosave is noise.
+  rejections.push(...tiersWarnings(state, mySlot, orders.tiers ?? null));
+}
 ```
 
 - [ ] **Step 4: Run tests**
@@ -1937,10 +2361,12 @@ git commit -m "feat(server): bot tiers orders at resolution and lock-in warnings
 ### Task 10: Web — API client and creation form
 
 **Files:**
+
 - Modify: `packages/web/src/api.ts`
 - Modify: `packages/web/src/pages/Home.tsx`
 
 **Interfaces:**
+
 - Consumes: `CreateGameRequest`/`SubmitLobbyListRequest` (Task 7/8), route from Task 8.
 - Produces: `api.submitLobbyList(id, list)`; Home sends `contest` and `turnCap`.
 
@@ -1956,6 +2382,7 @@ git commit -m "feat(server): bot tiers orders at resolution and lock-in warnings
 - [ ] **Step 2: Extend the creation form**
 
 `packages/web/src/pages/Home.tsx`:
+
 - Add below `TURN_LENGTHS`:
 
 ```ts
@@ -2007,10 +2434,12 @@ git commit -m "feat(web): contest and game-length creation options"
 ### Task 11: Web — lobby list editor
 
 **Files:**
+
 - Modify: `packages/web/src/pages/Lobby.tsx`
 - Modify: `packages/web/src/styles.css`
 
 **Interfaces:**
+
 - Consumes: `view.contest`, `view.tiersTopic`, `view.lobbyListSlots` (Task 7), `api.submitLobbyList` (Task 10), `normalizeTiersList` from `@www/engine` for client-side validation.
 - Produces: the lobby collects the turn-0 list; per-seat "list in" badges; the start button reflects the gate.
 
@@ -2129,7 +2558,9 @@ export function Lobby({ view, onChanged }: Props) {
           <button
             disabled={busy || (isTiers && humansMissing > 0)}
             title={
-              isTiers && humansMissing > 0 ? 'waiting for tier lists from seated players' : undefined
+              isTiers && humansMissing > 0
+                ? 'waiting for tier lists from seated players'
+                : undefined
             }
             onClick={() => void run(() => api.start(view.id))}
           >
@@ -2147,12 +2578,32 @@ Note the start button now renders whenever the viewer is the creator (not only w
 Add to `packages/web/src/styles.css`:
 
 ```css
-.tiers-editor { margin: 1rem 0; }
-.tier-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0; }
-.tier-label { width: 1.5rem; font-weight: 700; text-align: center; }
-.tier-row input { flex: 1; }
-.guess-item { display: flex; align-items: center; gap: 0.35rem; margin: 0.15rem 0; }
-.guess-item .spacer { flex: 1; }
+.tiers-editor {
+  margin: 1rem 0;
+}
+.tier-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.tier-label {
+  width: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+}
+.tier-row input {
+  flex: 1;
+}
+.guess-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0;
+}
+.guess-item .spacer {
+  flex: 1;
+}
 ```
 
 - [ ] **Step 2: Verify and commit**
@@ -2169,11 +2620,13 @@ git commit -m "feat(web): lobby tier-list editor and readiness badges"
 ### Task 12: Web — Tiers panel (write + guess)
 
 **Files:**
+
 - Create: `packages/web/src/game/TiersPanel.tsx`
 - Modify: `packages/web/src/game/OrdersPanel.tsx` (gate the pledge UI)
 - Modify: `packages/web/src/pages/Game.tsx` (draft init + render)
 
 **Interfaces:**
+
 - Consumes: `draft.tiers` (`TiersOrders`), redacted `state.tiersLists` (public order + identity shuffle), `view.tiersTopic`, `TIERS_MAX_GUESSES`.
 - Produces: a panel that edits `draft.tiers.list` and `draft.tiers.guesses` in place via `onDraftChange`, autosaved by Game.tsx's existing debounce.
 
@@ -2261,7 +2714,9 @@ export function TiersPanel({ view, state, draft, onDraftChange }: Props) {
       </div>
 
       <div className="tiers-editor">
-        <h3>Read your rivals ({tiers.guesses.length}/{TIERS_MAX_GUESSES})</h3>
+        <h3>
+          Read your rivals ({tiers.guesses.length}/{TIERS_MAX_GUESSES})
+        </h3>
         <p className="muted hint">
           Reorder a rival&rsquo;s items as you think THEY ranked them. A good read pays you both; a
           wild one costs you.
@@ -2286,7 +2741,10 @@ export function TiersPanel({ view, state, draft, onDraftChange }: Props) {
                     <span className="tier-label">{TIER_LABELS[tier]}</span>
                     <span>{items[position] ?? '?'}</span>
                     <span className="spacer" />
-                    <button disabled={locked || tier === 0} onClick={() => moveItem(guess, tier, -1)}>
+                    <button
+                      disabled={locked || tier === 0}
+                      onClick={() => moveItem(guess, tier, -1)}
+                    >
                       ▲
                     </button>
                     <button
@@ -2313,19 +2771,20 @@ export function TiersPanel({ view, state, draft, onDraftChange }: Props) {
 - [ ] **Step 3: Wire Game.tsx**
 
 `packages/web/src/pages/Game.tsx`:
+
 - Import `TiersPanel, { emptyTiers }`… — note `emptyTiers` is a named export: `import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';`
 - Draft re-seed effect: replace the `setDraft(...)` line with
 
 ```ts
-    const base = view.myOrders ?? emptyOrders(view.mySlot);
-    if (view.contest === 'tiers' && base.tiers === undefined) base.tiers = emptyTiers();
-    setDraft(base);
+const base = view.myOrders ?? emptyOrders(view.mySlot);
+if (view.contest === 'tiers' && base.tiers === undefined) base.tiers = emptyTiers();
+setDraft(base);
 ```
 
 - Render, immediately after the `<OrdersPanel …/>` element inside the same conditional:
 
 ```tsx
-                <TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />
+<TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />
 ```
 
 (place it as a sibling — wrap both in a fragment `<>…</>`).
@@ -2344,10 +2803,12 @@ git commit -m "feat(web): tiers write-and-guess panel"
 ### Task 13: Web report section, golden-path check, balance runs
 
 **Files:**
+
 - Modify: `packages/web/src/game/ReportView.tsx`
 - Verify: everything.
 
 **Interfaces:**
+
 - Consumes: `report.tiers ?? []`, `report.revealedTopic` (old stored reports lack both).
 
 - [ ] **Step 1: Report section**
@@ -2355,34 +2816,36 @@ git commit -m "feat(web): tiers write-and-guess panel"
 `packages/web/src/game/ReportView.tsx` — extend the engine type import with `TiersResult`; after the pacts `<ul>` add:
 
 ```tsx
-      {(report.tiers ?? []).length > 0 && (
-        <div className="tiers-report">
-          <h4>Tier lists revealed{report.revealedTopic ? ` — ${report.revealedTopic}` : ''}</h4>
-          <ul className="report-list">
-            {(report.tiers ?? []).map((t: TiersResult) => (
-              <li key={`t${t.slot}`}>
-                <Dot slot={t.slot} /> <strong>{seatName(t.slot)}</strong>
-                {t.revealed !== null ? (
-                  <span className="muted"> — {t.revealed.join(' › ')}</span>
-                ) : (
-                  <span className="muted"> — wrote no list</span>
-                )}
-                {t.guesses.map((g, i) => (
-                  <div key={i} className="muted">
-                    read {seatName(g.target)}: {g.score}/12
-                  </div>
-                ))}
-                {t.bestRead !== null && t.bestRead.score >= 10 && (
-                  <div className="concord">
-                    {seatName(t.bestRead.guesser)} read {seatName(t.slot)} like a book —{' '}
-                    {t.bestRead.score}/12
-                  </div>
-                )}
-              </li>
+{
+  (report.tiers ?? []).length > 0 && (
+    <div className="tiers-report">
+      <h4>Tier lists revealed{report.revealedTopic ? ` — ${report.revealedTopic}` : ''}</h4>
+      <ul className="report-list">
+        {(report.tiers ?? []).map((t: TiersResult) => (
+          <li key={`t${t.slot}`}>
+            <Dot slot={t.slot} /> <strong>{seatName(t.slot)}</strong>
+            {t.revealed !== null ? (
+              <span className="muted"> — {t.revealed.join(' › ')}</span>
+            ) : (
+              <span className="muted"> — wrote no list</span>
+            )}
+            {t.guesses.map((g, i) => (
+              <div key={i} className="muted">
+                read {seatName(g.target)}: {g.score}/12
+              </div>
             ))}
-          </ul>
-        </div>
-      )}
+            {t.bestRead !== null && t.bestRead.score >= 10 && (
+              <div className="concord">
+                {seatName(t.bestRead.guesser)} read {seatName(t.slot)} like a book —{' '}
+                {t.bestRead.score}/12
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 ```
 
 - [ ] **Step 2: Full verification**
@@ -2396,6 +2859,7 @@ pnpm exec tsx -e "import { playBotGame, rulesFor } from './packages/engine/src/i
 ```
 
 Expected: no cap overruns, no `condominium`/`concordat` kinds, a mix of decisive endings and `turn_cap`.
+
 - Browser golden path (requires `pnpm dev:server` + `pnpm dev:web`): create a Tiers/Short game → lobby shows topic + editor → submit list → start with bots → turn 1 shows write panel + readable bot lists → guess one, lock → report shows reveals and scores. Verify a pact game still shows the pledge UI and no tiers panel.
 
 - [ ] **Step 3: Commit**
@@ -2404,8 +2868,3 @@ Expected: no cap overruns, no `condominium`/`concordat` kinds, a mix of decisive
 git add packages/web/src/game/ReportView.tsx
 git commit -m "feat(web): tiers reveals and read scores in the turn report"
 ```
-
-
-
-
-

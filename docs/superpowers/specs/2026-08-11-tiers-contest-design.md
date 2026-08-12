@@ -9,7 +9,7 @@ Two features:
 
 1. **Tiers** — a second contest implementation behind the existing `Contest` interface
    (`packages/engine/src/contest/types.ts`). Where Pact is a loyalty game, Tiers is a
-   *legibility* game: each turn every player ranks a topic A–F in secret, and rivals score by
+   _legibility_ game: each turn every player ranks a topic A–F in secret, and rivals score by
    correctly guessing how others ordered their lists. Knowing your rivals pays; being known pays
    too.
 2. **Configurable turn cap** — game length becomes a creation option, with the time-based rule
@@ -30,8 +30,8 @@ across turns** so every playable turn has scoring potential:
    Each player writes six free-text entries, one per tier A–F: their honest ranking for the
    topic. Entries must be distinct after normalization (lowercase, trim, strip punctuation).
 3. **Publish.** When a turn resolves (and at game start for lobby lists), each player's six
-   items appear in the report **shuffled** (deterministic seeded shuffle). Everyone sees *what*
-   you wrote, not *where* you put it.
+   items appear in the report **shuffled** (deterministic seeded shuffle). Everyone sees _what_
+   you wrote, not _where_ you put it.
 4. **Guess (every turn).** Alongside writing their next list, each player picks **up to two
    living rivals** and reorders each rival's shuffled items into A–F as they believe the author
    placed them. Guessing is optional; abstaining is neutral.
@@ -63,7 +63,7 @@ Maximum 12 per guess. Random-permutation expectation ≈ 3.7.
 **Multiplier** = `clamp(80, 140, 100 + guessing + being_read)`:
 
 - **Guessing:** each submitted guess contributes `(score − 6) × 2` → −12…+12 per guess, so two
-  guesses span −24…+24. A wild guess *hurts* — guessing is a wager, not free upside. Abstaining
+  guesses span −24…+24. A wild guess _hurts_ — guessing is a wager, not free upside. Abstaining
   contributes 0.
 - **Being read:** with `B` = the best guess score made against your list, you gain
   `max(0, B − 6)` → up to +6, never negative. An illegible list denies rivals points but earns
