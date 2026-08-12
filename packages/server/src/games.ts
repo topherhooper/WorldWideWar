@@ -127,7 +127,7 @@ const seatViews = (doc: GameDoc): SeatView[] =>
     taken: seat !== null,
   }));
 
-async function readReport(
+export async function readReport(
   db: Firestore,
   gameId: string,
   turn: number,
