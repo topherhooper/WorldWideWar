@@ -51,4 +51,6 @@ export const api = {
   start: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/start`),
   submitOrders: (id: string, req: SubmitOrdersRequest) =>
     apiFetch<SubmitOrdersResponse>('PUT', `/api/games/${id}/orders`, req),
+  submitLobbyList: (id: string, list: string[]) =>
+    apiFetch<GameView>('PUT', `/api/games/${id}/lobby-list`, { list }),
 };
