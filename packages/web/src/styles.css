@@ -274,6 +274,21 @@ select {
   font-size: 0.8rem;
 }
 
+/* Marching-ants outline on territories a selected stack can move to. */
+@keyframes map-target-march {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+.map-target {
+  animation: map-target-march 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-target {
+    animation: none;
+  }
+}
+
 .lock-badge {
   font-size: 0.72rem;
   padding: 0.05rem 0.4rem;

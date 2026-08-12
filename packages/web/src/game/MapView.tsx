@@ -135,14 +135,21 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
         const isSelected = selected === t.id;
         const isTarget = targets.has(t.id) && !collapsed;
         const isSource = pickingSource && owner === mySlot && !collapsed && state.armies[t.id] > 0;
+        // With a source picked, everything unreachable steps back so the
+        // legal destinations are the only bright things on the map.
+        const dimmed =
+          mode === 'move' && selected !== null && !isSelected && !isTarget && !collapsed;
         return (
           <polygon
             key={t.id}
+            className={isTarget && !isSelected ? 'map-target' : undefined}
             points={t.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
             fill={fill}
-            fillOpacity={collapsed ? 0.9 : isTarget ? 0.92 : owner === mySlot ? 0.95 : 0.72}
+            fillOpacity={
+              collapsed ? 0.9 : dimmed ? 0.28 : isTarget ? 1 : owner === mySlot ? 0.95 : 0.72
+            }
             stroke={isSelected || isTarget ? '#ffffff' : isSource ? '#e6c84d' : '#14141c'}
-            strokeWidth={isSelected ? 5 : isTarget ? 3.5 : isSource ? 2.5 : 1}
+            strokeWidth={isSelected ? 5 : isTarget ? 4.5 : isSource ? 2.5 : 1}
             strokeDasharray={isTarget && !isSelected ? '8 6' : undefined}
             onClick={() => {
               if (!collapsed) onTerritoryClick(t.id);
@@ -227,8 +234,10 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
       {map.territories.map((t) => {
         if (state.collapsed[t.id]) return null;
         const armies = state.armies[t.id];
+        const dimmed =
+          mode === 'move' && selected !== null && t.id !== selected && !targets.has(t.id);
         return (
-          <g key={`l${t.id}`} pointerEvents="none">
+          <g key={`l${t.id}`} pointerEvents="none" opacity={dimmed ? 0.35 : 1}>
             <text
               x={t.centroid[0]}
               y={t.centroid[1] - map.radius * 0.034}
