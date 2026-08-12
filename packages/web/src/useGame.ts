@@ -10,7 +10,7 @@ const LOCKED_MS = 5_000;
 export interface UseGame {
   view: GameView | null;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<GameView | null>;
   /** Optimistic: myOrders update locally at once; returns server warnings. */
   saveOrders: (orders: OrderSet, locked: boolean) => Promise<string[]>;
 }
