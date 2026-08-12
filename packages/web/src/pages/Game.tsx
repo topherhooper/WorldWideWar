@@ -163,6 +163,9 @@ function GameInner({ id }: { id: string }) {
                   onLock={() => {
                     if (draft !== null) void saveOrders(draft, true).then(setWarnings);
                   }}
+                  onUnlock={() => {
+                    if (draft !== null) void saveOrders(draft, false).then(setWarnings);
+                  }}
                 />
                 {view.contest === 'tiers' && (
                   <TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />

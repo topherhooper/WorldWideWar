@@ -33,6 +33,7 @@ interface Props {
   onMoveCountChange: (count: number) => void;
   onDraftChange: (draft: OrderSet) => void;
   onLock: () => void;
+  onUnlock: () => void;
 }
 
 const name = (map: GeneratedMap, id: number): string => map.territories[id]?.name ?? `#${id}`;
@@ -210,9 +211,17 @@ export function OrdersPanel(props: Props) {
       )}
 
       <div className="lock-row">
-        <button className="lock-btn" disabled={locked} onClick={props.onLock}>
-          {locked ? 'Locked in' : 'Lock in orders'}
+        <button
+          className={locked ? 'unlock-btn' : 'lock-btn'}
+          onClick={locked ? props.onUnlock : props.onLock}
+        >
+          {locked ? 'Locked in — unlock to edit' : 'Lock in orders'}
         </button>
+        {locked && (
+          <span className="muted hint">
+            You can unlock and change your orders until the whole table has locked.
+          </span>
+        )}
         <span className="muted">
           locked:{' '}
           {view.lockedSlots.length === 0
