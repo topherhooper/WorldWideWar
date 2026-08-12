@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+.git
+docs
+out
+tools/mapviz/out
+*.log
+.env*
+**/.env*
+.claude
