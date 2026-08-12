@@ -1,6 +1,13 @@
 /** DTOs shared between the server routes and the web client. */
 
-import type { GameState, GeneratedMap, OrderSet, TurnReport, GameResult } from '@www/engine';
+import type {
+  ContestKind,
+  GameState,
+  GeneratedMap,
+  OrderSet,
+  TurnReport,
+  GameResult,
+} from '@www/engine';
 
 export type GameStatus = 'lobby' | 'active' | 'finished';
 
@@ -30,6 +37,12 @@ export interface GameView {
   turn: number;
   deadlineAt: string | null;
   turnMinutes: number;
+  contest: ContestKind;
+  turnCap: number;
+  /** Topic for the list being written now (lobby list in lobby); null in pact games. */
+  tiersTopic: string | null;
+  /** Seats that have submitted their lobby list; [] outside a tiers lobby. */
+  lobbyListSlots: number[];
   map: GeneratedMap;
   /** Redacted for the viewer; null while in lobby. */
   state: GameState | null;
@@ -44,6 +57,14 @@ export interface GameView {
 export interface CreateGameRequest {
   playerCount: number;
   turnMinutes: number;
+  /** Which social contest runs; defaults to 'pact'. */
+  contest?: ContestKind;
+  /** Game length in turns; defaults to 25. */
+  turnCap?: number;
+}
+
+export interface SubmitLobbyListRequest {
+  list: string[];
 }
 
 export interface SubmitOrdersRequest {

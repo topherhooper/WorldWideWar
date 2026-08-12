@@ -3,12 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
   MAX_PLAYERS,
+  MAX_TURN_CAP,
   MIN_PLAYERS,
+  MIN_TURN_CAP,
   createInitialState,
   generateMap,
   normalizeOrders,
   redact,
   rulesFor,
+  topicForTurn,
 } from '@www/engine';
 import type { GameResult, OrderSet, TurnReport, WorldEvent } from '@www/engine';
 
@@ -75,6 +78,14 @@ export async function createGame(
       `turnMinutes must be an integer in [${MIN_TURN_MINUTES}, ${MAX_TURN_MINUTES}]`,
     );
   }
+  const contest = req.contest ?? 'pact';
+  if (contest !== 'pact' && contest !== 'tiers') {
+    throw new HttpError(400, "contest must be 'pact' or 'tiers'");
+  }
+  const turnCap = req.turnCap ?? 25;
+  if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
+    throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
+  }
 
   // The map ships to clients (and embeds its own seed), so it must not share
   // the combat seed — that one stays server-side and decides battle rolls.
@@ -94,7 +105,7 @@ export async function createGame(
     turnMinutes,
     remindedTurn: 0,
     seed,
-    rules: rulesFor(playerCount),
+    rules: rulesFor(playerCount, turnCap, contest),
     stateJson: null,
     mapJson: serializeMap(map),
   };
@@ -170,6 +181,21 @@ export async function getView(
   const latestReport = await readReport(db, gameId, game.turn - 1);
   const result: GameResult | null = latestReport?.result ?? null;
 
+  const contest = game.rules.contest ?? 'pact';
+  let tiersTopic: string | null = null;
+  let lobbyListSlots: number[] = [];
+  if (contest === 'tiers') {
+    tiersTopic = topicForTurn(game.seed, game.status === 'lobby' ? 0 : game.turn).title;
+    if (game.status === 'lobby') {
+      if (humans.length > 0) {
+        const snaps = await db.getAll(
+          ...humans.map((slot) => ordersCol(db, gameId).doc(orderDocId(0, slot))),
+        );
+        lobbyListSlots = humans.filter((_, i) => snaps[i].exists);
+      }
+    }
+  }
+
   return {
     id: gameId,
     status: game.status,
@@ -178,6 +204,10 @@ export async function getView(
     turn: game.turn,
     deadlineAt: game.deadlineAt?.toDate().toISOString() ?? null,
     turnMinutes: game.turnMinutes,
+    contest,
+    turnCap: game.rules.turnCap,
+    tiersTopic,
+    lobbyListSlots,
     map: parseMap(game),
     state: state === null ? null : redact(state, mySlot),
     mySlot,
