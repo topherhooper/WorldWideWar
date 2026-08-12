@@ -56,10 +56,24 @@ Key configs:
 ```jsonc
 // package.json (deps pinned by pnpm at install time)
 {
-  "name": "@www/web", "private": true, "type": "module", "version": "0.0.0",
-  "scripts": { "dev": "vite", "build": "tsc --build && vite build", "typecheck": "tsc --build --force" },
+  "name": "@www/web",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --build && vite build",
+    "typecheck": "tsc --build --force",
+  },
   "dependencies": { "firebase": "^12", "react": "^19", "react-dom": "^19", "react-router": "^7" },
-  "devDependencies": { "@testing-library/react": "^16", "@types/react": "^19", "@types/react-dom": "^19", "@vitejs/plugin-react": "^5", "@www/server": "workspace:*", "jsdom": "^27" }
+  "devDependencies": {
+    "@testing-library/react": "^16",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5",
+    "@www/server": "workspace:*",
+    "jsdom": "^27",
+  },
 }
 ```
 
@@ -95,11 +109,12 @@ Hook contract:
 
 ```ts
 export interface UseGame {
-  view: GameView | null; error: string | null;
+  view: GameView | null;
+  error: string | null;
   refresh(): Promise<void>;
   saveOrders(orders: OrderSet, locked: boolean): Promise<string[]>; // returns warnings; optimistic: sets view.myOrders immediately
 }
-export function useGame(id: string): UseGame
+export function useGame(id: string): UseGame;
 ```
 
 Implementation: `useEffect` interval — 15_000ms default, 5_000ms when `view.myLocked && view.status === 'active'`; cleared when `document.hidden` (listen to `visibilitychange`, refetch immediately on visible); `saveOrders` PUTs, on success replaces `view` with `res.view` and returns `res.warnings`.

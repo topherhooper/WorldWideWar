@@ -127,7 +127,12 @@ function GameInner({ id }: { id: string }) {
           )
         ) : (
           <>
-            {mySlot !== null && draft !== null ? (
+            {mySlot !== null && state.status[mySlot] !== 'active' ? (
+              <p className="panel muted">
+                You were {state.status[mySlot]} on turn {state.eliminatedTurn[mySlot] ?? '?'} —
+                spectating.
+              </p>
+            ) : mySlot !== null && draft !== null ? (
               <OrdersPanel
                 view={view}
                 state={state}
@@ -151,9 +156,7 @@ function GameInner({ id }: { id: string }) {
                 <button onClick={() => setShowReport(!showReport)}>
                   {showReport ? 'Hide' : 'Show'} last turn&rsquo;s report
                 </button>
-                {showReport && (
-                  <ReportView view={view} map={view.map} report={view.latestReport} />
-                )}
+                {showReport && <ReportView view={view} map={view.map} report={view.latestReport} />}
               </div>
             )}
           </>

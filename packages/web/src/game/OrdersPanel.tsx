@@ -2,6 +2,7 @@ import type { GameView } from '@www/server/api-types';
 import type { Deployment, GameState, GeneratedMap, OrderSet, UnitOrder } from '@www/engine';
 
 import { formatRemaining, playerColor } from '../format.js';
+import { useNow } from '../useNow.js';
 
 export type EntryMode = 'move' | 'deploy';
 
@@ -23,6 +24,7 @@ const name = (map: GeneratedMap, id: number): string => map.territories[id]?.nam
 
 export function OrdersPanel(props: Props) {
   const { view, state, map, draft, mode, moveCount, warnings } = props;
+  const now = useNow();
   const mySlot = view.mySlot;
   if (mySlot === null) return null;
 
@@ -49,7 +51,7 @@ export function OrdersPanel(props: Props) {
       <div className="orders-head">
         <strong>Turn {view.turn}</strong>
         {view.deadlineAt !== null && (
-          <span className="muted">{formatRemaining(view.deadlineAt)}</span>
+          <span className="muted">{formatRemaining(view.deadlineAt, now)}</span>
         )}
       </div>
 
@@ -151,9 +153,7 @@ export function OrdersPanel(props: Props) {
           locked:{' '}
           {view.lockedSlots.length === 0
             ? 'nobody yet'
-            : view.lockedSlots
-                .map((slot) => view.seats[slot]?.name ?? `seat ${slot}`)
-                .join(', ')}
+            : view.lockedSlots.map((slot) => view.seats[slot]?.name ?? `seat ${slot}`).join(', ')}
         </span>
       </div>
     </aside>

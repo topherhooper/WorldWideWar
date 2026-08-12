@@ -16,9 +16,7 @@ export function ReportView({ view, map, report }: Props) {
     slot === null ? 'Neutral' : (view.seats[slot]?.name ?? `seat ${slot}`);
 
   const Dot = ({ slot }: { slot: number | null }) =>
-    slot === null ? null : (
-      <span className="seat-dot" style={{ background: playerColor(slot) }} />
-    );
+    slot === null ? null : <span className="seat-dot" style={{ background: playerColor(slot) }} />;
 
   const pactLine = (p: PactResult) => {
     switch (p.outcome) {
@@ -33,8 +31,7 @@ export function ReportView({ view, map, report }: Props) {
       case 'mutual_treachery':
         return p.partner !== null && p.slot < p.partner ? (
           <span className="betrayal">
-            <Dot slot={p.slot} /> {seatName(p.slot)} and {seatName(p.partner)} betrayed each
-            other
+            <Dot slot={p.slot} /> {seatName(p.slot)} and {seatName(p.partner)} betrayed each other
           </span>
         ) : null;
       case 'concord':
@@ -59,7 +56,9 @@ export function ReportView({ view, map, report }: Props) {
 
   return (
     <section className="report">
-      <h3>Turn {report.turn}: {report.headline}</h3>
+      <h3>
+        Turn {report.turn}: {report.headline}
+      </h3>
 
       <ul className="report-list">
         {report.pacts.map((p, i) => {
@@ -72,8 +71,8 @@ export function ReportView({ view, map, report }: Props) {
         <ul className="report-list">
           {report.clashes.map((c, i) => (
             <li key={`c${i}`}>
-              Armies clashed between {tName(map, c.a)} and {tName(map, c.b)} —{' '}
-              {seatName(c.winner)} won the field
+              Armies clashed between {tName(map, c.a)} and {tName(map, c.b)} — {seatName(c.winner)}{' '}
+              won the field
             </li>
           ))}
         </ul>
@@ -83,17 +82,15 @@ export function ReportView({ view, map, report }: Props) {
         <ul className="report-list">
           {report.battles.map((b, i) => (
             <li key={`b${i}`}>
-              <Dot slot={b.winner} /> {seatName(b.winner)}{' '}
-              {b.captured ? 'took' : 'held'} <strong>{tName(map, b.territory)}</strong>
+              <Dot slot={b.winner} /> {seatName(b.winner)} {b.captured ? 'took' : 'held'}{' '}
+              <strong>{tName(map, b.territory)}</strong>
               {b.casualties > 0 ? ` (lost ${b.casualties})` : ''}
             </li>
           ))}
         </ul>
       )}
 
-      {report.quietMoves > 0 && (
-        <p className="muted">{report.quietMoves} quiet moves elsewhere.</p>
-      )}
+      {report.quietMoves > 0 && <p className="muted">{report.quietMoves} quiet moves elsewhere.</p>}
 
       {report.world.length > 0 && (
         <ul className="report-list">

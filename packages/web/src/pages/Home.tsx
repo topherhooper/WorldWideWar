@@ -4,6 +4,7 @@ import type { GameSummaryView } from '@www/server/api-types';
 
 import { api, ApiError } from '../api.js';
 import { formatRemaining } from '../format.js';
+import { useNow } from '../useNow.js';
 
 const TURN_LENGTHS: [label: string, minutes: number][] = [
   ['30 minutes', 30],
@@ -20,6 +21,7 @@ export function Home() {
   const [turnMinutes, setTurnMinutes] = useState(1440);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
+  const now = useNow();
 
   useEffect(() => {
     api
@@ -48,10 +50,7 @@ export function Home() {
         <div className="form-row">
           <label>
             Players{' '}
-            <select
-              value={playerCount}
-              onChange={(e) => setPlayerCount(Number(e.target.value))}
-            >
+            <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))}>
               {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -61,10 +60,7 @@ export function Home() {
           </label>
           <label>
             Turn length{' '}
-            <select
-              value={turnMinutes}
-              onChange={(e) => setTurnMinutes(Number(e.target.value))}
-            >
+            <select value={turnMinutes} onChange={(e) => setTurnMinutes(Number(e.target.value))}>
               {TURN_LENGTHS.map(([label, minutes]) => (
                 <option key={minutes} value={minutes}>
                   {label}
@@ -98,7 +94,7 @@ export function Home() {
                         : `Turn ${g.turn}`}
                   </span>
                   {g.status === 'active' && g.deadlineAt !== null && (
-                    <span className="muted">{formatRemaining(g.deadlineAt)}</span>
+                    <span className="muted">{formatRemaining(g.deadlineAt, now)}</span>
                   )}
                   {g.status === 'active' && !g.myLocked && g.mySlot !== null && (
                     <span className="badge-due">orders due</span>
