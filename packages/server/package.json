@@ -1,0 +1,25 @@
+{
+  "name": "@www/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "exports": {
+    ".": "./dist/main.js",
+    "./api-types": {
+      "types": "./dist/api-types.d.ts",
+      "default": "./dist/api-types.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --force"
+  },
+  "dependencies": {
+    "@www/engine": "workspace:*",
+    "fastify": "^5.6.2",
+    "firebase-admin": "^13.4.0",
+    "google-auth-library": "^10.1.0",
+    "resend": "^4.5.1"
+  }
+}

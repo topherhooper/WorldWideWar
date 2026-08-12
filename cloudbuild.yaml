@@ -1,0 +1,49 @@
+# Deploy pipeline: push to main → server image → Cloud Run → web bundle → Hosting.
+# CI (checks, sweeps, balance gates) stays in GitHub Actions.
+steps:
+  - id: build-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/www/api:$COMMIT_SHA
+      - .
+
+  - id: push-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/www/api:$COMMIT_SHA
+
+  - id: deploy-run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - www-api
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/www/api:$COMMIT_SHA
+      - --region=us-central1
+      - --allow-unauthenticated
+      - --min-instances=0
+      - --max-instances=1
+      - --set-secrets=RESEND_API_KEY=resend-api-key:latest
+      # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
+      # first deploy); --update-env-vars merges and will not clobber it.
+      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=https://$PROJECT_ID.web.app,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@$PROJECT_ID.web.app>
+
+  - id: deploy-hosting
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        corepack enable pnpm
+        pnpm install --frozen-lockfile
+        pnpm exec tsc --build
+        pnpm --filter @www/web build
+        pnpm exec firebase deploy --only hosting --project $PROJECT_ID --non-interactive
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

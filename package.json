@@ -15,8 +15,11 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean",
-    "typecheck": "tsc --build --force",
+    "typecheck": "tsc --build --force && tsc -p packages/web/tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run --no-file-parallelism packages/server\"",
+    "dev:server": "firebase emulators:exec --only firestore,auth --project demo-www \"tsx watch packages/server/src/main.ts\"",
+    "dev:web": "pnpm --filter @www/web dev",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -26,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
+    "firebase-tools": "^15.26.0",
     "@types/node": "^22.20.0",
     "eslint": "^9.39.0",
     "fast-check": "^4.5.0",

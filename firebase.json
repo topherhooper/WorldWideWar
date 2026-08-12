@@ -1,0 +1,15 @@
+{
+  "hosting": {
+    "public": "packages/web/dist",
+    "ignore": ["**/.*"],
+    "rewrites": [
+      { "source": "/api/**", "run": { "serviceId": "www-api", "region": "us-central1" } },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  },
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "auth": { "port": 9099 },
+    "ui": { "enabled": false }
+  }
+}
