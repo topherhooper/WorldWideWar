@@ -1,7 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
 
-import type { CreateGameRequest, SubmitOrdersRequest } from './api-types.js';
+import type {
+  CreateGameRequest,
+  SubmitLobbyListRequest,
+  SubmitOrdersRequest,
+} from './api-types.js';
 import type { Verifiers } from './auth.js';
 import {
   createGame,
@@ -10,6 +14,7 @@ import {
   listGames,
   readReport,
   startGame,
+  submitLobbyList,
   submitOrders,
   HttpError,
   type AuthedUser,
@@ -76,6 +81,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/start', async (req) => {
         const { id } = req.params as { id: string };
         return startGame(db, id, req.user);
+      });
+
+      api.put('/games/:id/lobby-list', async (req) => {
+        const { id } = req.params as { id: string };
+        const { list } = req.body as SubmitLobbyListRequest;
+        return submitLobbyList(db, id, req.user, list);
       });
 
       api.put('/games/:id/orders', async (req) => {
