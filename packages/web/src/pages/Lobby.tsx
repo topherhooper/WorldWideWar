@@ -3,6 +3,7 @@ import type { GameView } from '@www/server/api-types';
 import { TIERS_LIST_SIZE, normalizeTiersList } from '@www/engine';
 
 import { api, ApiError } from '../api.js';
+import { DeleteGame } from '../game/DeleteGame.js';
 import { playerColor } from '../format.js';
 
 const TIER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -117,6 +118,7 @@ export function Lobby({ view, onChanged }: Props) {
             Start now — fill empty seats with bots
           </button>
         )}
+        {view.mySlot === 0 && <DeleteGame gameId={view.id} />}
       </div>
     </main>
   );

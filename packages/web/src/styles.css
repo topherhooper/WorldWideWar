@@ -394,3 +394,13 @@ select {
 .guess-item .spacer {
   flex: 1;
 }
+
+.danger-btn {
+  border-color: #a33;
+  color: #c55;
+}
+.delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}

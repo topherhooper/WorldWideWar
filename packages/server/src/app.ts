@@ -9,6 +9,7 @@ import type {
 import type { Verifiers } from './auth.js';
 import {
   createGame,
+  deleteGame,
   getView,
   joinGame,
   listGames,
@@ -71,6 +72,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.get('/games/:id', async (req) => {
         const { id } = req.params as { id: string };
         return getView(db, id, req.user);
+      });
+
+      api.delete('/games/:id', async (req) => {
+        const { id } = req.params as { id: string };
+        await deleteGame(db, id, req.user);
+        return { ok: true };
       });
 
       api.post('/games/:id/join', async (req) => {

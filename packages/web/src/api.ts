@@ -53,4 +53,5 @@ export const api = {
     apiFetch<SubmitOrdersResponse>('PUT', `/api/games/${id}/orders`, req),
   submitLobbyList: (id: string, list: string[]) =>
     apiFetch<GameView>('PUT', `/api/games/${id}/lobby-list`, { list }),
+  deleteGame: (id: string) => apiFetch<{ ok: boolean }>('DELETE', `/api/games/${id}`),
 };

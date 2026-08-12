@@ -285,6 +285,24 @@ function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] |
   doc.deadlineAt = Timestamp.fromMillis(now.toMillis() + doc.turnMinutes * 60_000);
 }
 
+export async function deleteGame(db: Firestore, gameId: string, user: AuthedUser): Promise<void> {
+  const game = await loadGame(db, gameId);
+  if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can delete');
+
+  // Take the game out of every seated human's list first, so a concurrent
+  // listGames cannot surface a half-deleted id.
+  const uids = new Set(game.seats.flatMap((s) => (s !== null && s.uid !== null ? [s.uid] : [])));
+  await Promise.all(
+    [...uids].map((uid) =>
+      usersCol(db)
+        .doc(uid)
+        .set({ gameIds: FieldValue.arrayRemove(gameId) }, { merge: true }),
+    ),
+  );
+  // Removes the orders and reports subcollections along with the doc.
+  await db.recursiveDelete(games(db).doc(gameId));
+}
+
 export async function joinGame(db: Firestore, gameId: string, user: AuthedUser): Promise<GameView> {
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));

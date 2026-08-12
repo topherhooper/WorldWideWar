@@ -5,6 +5,7 @@ import { games } from './store.js';
 import { LogMailer } from './mailer.js';
 import {
   createGame,
+  deleteGame,
   getView,
   joinGame,
   listGames,
@@ -122,5 +123,24 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     expect((await listGames(db, alice)).map((g) => g.id)).toContain(id);
     expect(await listGames(db, bob)).toEqual([]);
+  });
+
+  it('only the creator deletes a game, and it vanishes for everyone', async () => {
+    const mailer = new LogMailer();
+    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob); // auto-starts; both players now list it
+    await submitOrders(db, mailer, 'http://x', id, alice, {
+      orders: { slot: 0, pledge: null, deploys: [], units: [] },
+      locked: false,
+    });
+
+    await expect(deleteGame(db, id, bob)).rejects.toMatchObject({ statusCode: 403 });
+    await deleteGame(db, id, alice);
+
+    expect((await games(db).doc(id).get()).exists).toBe(false);
+    expect(await listGames(db, alice)).toEqual([]);
+    expect(await listGames(db, bob)).toEqual([]);
+    await expect(getView(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(deleteGame(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
   });
 });

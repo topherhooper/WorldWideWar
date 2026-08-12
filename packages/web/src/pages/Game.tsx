@@ -4,6 +4,7 @@ import { emptyOrders } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
 
 import { MapView } from '../game/MapView.js';
+import { DeleteGame } from '../game/DeleteGame.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
 import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
@@ -165,6 +166,11 @@ function GameInner({ id }: { id: string }) {
                   {showReport ? 'Hide' : 'Show'} last turn&rsquo;s report
                 </button>
                 {showReport && <ReportView view={view} map={view.map} report={view.latestReport} />}
+              </div>
+            )}
+            {mySlot === 0 && (
+              <div className="panel">
+                <DeleteGame gameId={view.id} />
               </div>
             )}
           </>
