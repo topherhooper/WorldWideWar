@@ -103,6 +103,20 @@ select {
   flex-wrap: wrap;
 }
 
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  text-align: left;
+  padding: 0.85rem 1rem;
+}
+
 .muted {
   color: var(--muted);
 }

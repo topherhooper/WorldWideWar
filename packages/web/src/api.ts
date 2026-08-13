@@ -4,6 +4,7 @@ import type {
   GameView,
   SubmitOrdersRequest,
   SubmitOrdersResponse,
+  UpdateConfigRequest,
 } from '@www/server/api-types';
 
 import { auth } from './auth.js';
@@ -49,6 +50,8 @@ export const api = {
   getGame: (id: string) => apiFetch<GameView>('GET', `/api/games/${id}`),
   join: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/join`),
   start: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/start`),
+  updateConfig: (id: string, req: UpdateConfigRequest) =>
+    apiFetch<GameView>('POST', `/api/games/${id}/config`, req),
   resolveNow: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/resolve`),
   submitOrders: (id: string, req: SubmitOrdersRequest) =>
     apiFetch<SubmitOrdersResponse>('PUT', `/api/games/${id}/orders`, req),
