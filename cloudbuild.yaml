@@ -34,7 +34,7 @@ steps:
       # MAIL_FROM must stay on a Resend-verified domain (mail.topherhooper.com).
       # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
       # first deploy); --update-env-vars merges and will not clobber it.
-      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=https://play.topherhooper.com,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>
+      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>
 
   - id: deploy-hosting
     name: node:22
@@ -47,6 +47,12 @@ steps:
         pnpm exec tsc --build
         pnpm --filter @www/web build
         pnpm exec firebase deploy --only hosting --project $PROJECT_ID --non-interactive
+
+substitutions:
+  # Overridable so a deploy can fall back to the .web.app hostname while a new
+  # custom domain's TLS certificate is still provisioning — mail sent in that
+  # window would otherwise carry links that fail to connect.
+  _BASE_URL: https://play.topherhooper.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
