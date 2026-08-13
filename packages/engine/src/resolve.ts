@@ -47,6 +47,7 @@ import type {
   GeneratedMap,
   OrderSet,
   PactResult,
+  PlunderReport,
   ResolveContext,
   RuleConfig,
   Slot,
@@ -425,6 +426,24 @@ export function resolveTurn(
     next.pendingBonusIncome[slot] += contest.bonusIncome[slot];
   }
 
+  // Expansion pays immediately: each captured territory converts to income,
+  // up to the per-turn cap. Counted before the storm so armies spent on a
+  // province the storm then eats were still not spent for nothing.
+  const plunder: PlunderReport[] = [];
+  if (rules.plunderIncome > 0) {
+    const captures = new Array<number>(state.playerCount).fill(0);
+    for (let id = 0; id < next.owner.length; id++) {
+      const owner = next.owner[id];
+      if (owner !== null && owner !== state.owner[id]) captures[owner]++;
+    }
+    for (let slot = 0; slot < state.playerCount; slot++) {
+      if (captures[slot] === 0) continue;
+      const income = Math.min(captures[slot], rules.plunderCap) * rules.plunderIncome;
+      next.pendingBonusIncome[slot] += income;
+      plunder.push({ slot, captures: captures[slot], income });
+    }
+  }
+
   // ── Phase 10 — world tick ────────────────────────────────────────────────
   next.turn = state.turn + 1;
 
@@ -486,6 +505,7 @@ export function resolveTurn(
     revealedTopic: tiers === null ? null : topicForTurn(seed, state.turn - 1).title,
     clashes: clashes.sort((x, y) => y.salience - x.salience),
     battles: battles.sort((x, y) => y.salience - x.salience || x.territory - y.territory),
+    plunder,
     quietMoves,
     world,
     result,

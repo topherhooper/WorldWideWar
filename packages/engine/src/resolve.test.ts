@@ -548,3 +548,47 @@ describe('rules-driven neutral growth', () => {
     expect(frozen.next.armies[1]).toBe(1);
   });
 });
+
+describe('plunder', () => {
+  // Four provinces strike out into empty neutral land; a fifth player-owned
+  // territory sits far away so player 1 stays alive.
+  const plunderMap = () =>
+    makeTestMap({
+      playerCount: 2,
+      territoryCount: 9,
+      edges: [
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [7, 8],
+      ],
+    });
+  const plunderState = (map: GeneratedMap) =>
+    scenario(map, {
+      owner: [0, 0, 0, 0, null, null, null, null, 1],
+      armies: [2, 2, 2, 2, 0, 0, 0, 0, 5],
+    });
+  const raid = [
+    orders(0, [move(0, 4, 1), move(1, 5, 1), move(2, 6, 1), move(3, 7, 1)]),
+    orders(1),
+  ];
+
+  it('captures pay income next turn, capped per turn', () => {
+    const map = plunderMap();
+    const rules = { ...TEST_RULES, plunderIncome: 1, plunderCap: 3 };
+    const { next, report } = resolveTurn(plunderState(map), raid, { seed: 's', map, rules });
+    expect(report.plunder).toEqual([{ slot: 0, captures: 4, income: 3 }]);
+    const baseline = resolveTurn(plunderState(map), raid, { seed: 's', map, rules: TEST_RULES });
+    expect(next.income[0] - baseline.next.income[0]).toBe(3);
+  });
+
+  it('legacy rules produce no plunder entries', () => {
+    const map = plunderMap();
+    const { report } = resolveTurn(plunderState(map), raid, { seed: 's', map, rules: TEST_RULES });
+    expect(report.plunder).toEqual([]);
+  });
+});

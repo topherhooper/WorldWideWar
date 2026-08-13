@@ -297,6 +297,14 @@ export type WorldEvent =
   | { kind: 'order_rejected'; slot: Slot; reason: string }
   | { kind: 'game_over'; result: GameResult };
 
+/** Territory captured this turn converted to next-turn income. */
+export interface PlunderReport {
+  slot: Slot;
+  /** Every territory taken, even past the paying cap. */
+  captures: number;
+  income: number;
+}
+
 export interface TurnReport {
   turn: number;
   headline: string;
@@ -310,6 +318,8 @@ export interface TurnReport {
   battles: BattleReport[];
   /** Uncontested moves, collapsed to a count so the log stays readable. */
   quietMoves: number;
+  /** Expansion pays: capture income granted this turn; empty when plunder is off. */
+  plunder: PlunderReport[];
   world: WorldEvent[];
   result: GameResult | null;
 }
