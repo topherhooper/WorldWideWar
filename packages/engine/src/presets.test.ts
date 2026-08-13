@@ -32,6 +32,10 @@ describe('presets', () => {
       const rules = presetRules(preset, 6, preset.defaultTurnCap);
       expect(rules.warEconomyInterval).toBe(3);
       expect(rules.stormFirstWave).toBe(6); // rulesFor already scales storm to the cap
+      // Hotter than the classics on purpose: a 15-turn clock needs the economy
+      // to reward taking ground, or the cap decides the game instead of a win.
+      expect(rules.neutralGarrisonDelta).toBe(-2);
+      expect(rules.plunderIncome).toBe(2);
     }
   });
 

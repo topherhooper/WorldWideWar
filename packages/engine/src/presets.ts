@@ -7,6 +7,15 @@
  * created before a knob existed, and presetRules is what new games actually
  * get. Every preset applies the anti-turtle economy — growth off, cheap
  * neutrals, plunder — because mechanics that reward doing nothing are not fun.
+ *
+ * The blitz presets run that economy hotter (neutrals at -2, plunder at 2)
+ * because a 15-turn clock is otherwise too short to reach a victory condition:
+ * measured at the classic -1/1, half of six-player pact-blitz games and
+ * two-thirds of tiers-v2 games were decided by the turn cap rather than won.
+ * Note that the lever has to be *asymmetric* — rewarding the player taking
+ * ground. Ramping warEconomyInterval to 2 instead pays attacker and defender
+ * alike and measurably entrenched the stalemate it was meant to break, and
+ * -3 neutrals is indistinguishable from -2 because garrisons floor at 1.
  */
 
 import { rulesFor } from './constants.js';
@@ -24,6 +33,10 @@ export interface GamePreset {
   defaultTurnMinutes: number;
   /** The war economy ramps +1 income every N turns; blitz presets ramp hotter. */
   warEconomyInterval: number;
+  /** Added to each mapgen neutral garrison at setup; blitz makes neutrals cheaper. */
+  neutralGarrisonDelta: number;
+  /** Bonus income next turn per territory captured this turn. */
+  plunderIncome: number;
 }
 
 export const PRESETS: readonly GamePreset[] = [
@@ -36,6 +49,8 @@ export const PRESETS: readonly GamePreset[] = [
     defaultTurnCap: 25,
     defaultTurnMinutes: 1440,
     warEconomyInterval: 5,
+    neutralGarrisonDelta: -1,
+    plunderIncome: 1,
   },
   {
     id: 'tiers',
@@ -46,6 +61,8 @@ export const PRESETS: readonly GamePreset[] = [
     defaultTurnCap: 25,
     defaultTurnMinutes: 1440,
     warEconomyInterval: 5,
+    neutralGarrisonDelta: -1,
+    plunderIncome: 1,
   },
   {
     id: 'pact-blitz',
@@ -56,6 +73,8 @@ export const PRESETS: readonly GamePreset[] = [
     defaultTurnCap: 15,
     defaultTurnMinutes: 60,
     warEconomyInterval: 3,
+    neutralGarrisonDelta: -2,
+    plunderIncome: 2,
   },
   {
     id: 'tiers-v2',
@@ -66,6 +85,8 @@ export const PRESETS: readonly GamePreset[] = [
     defaultTurnCap: 15,
     defaultTurnMinutes: 60,
     warEconomyInterval: 3,
+    neutralGarrisonDelta: -2,
+    plunderIncome: 2,
   },
 ];
 
@@ -83,8 +104,8 @@ export function presetRules(
     ...rulesFor(playerCount, turnCap, preset.contest),
     warEconomyInterval: preset.warEconomyInterval,
     neutralGrowthInterval: 0,
-    neutralGarrisonDelta: -1,
-    plunderIncome: 1,
+    neutralGarrisonDelta: preset.neutralGarrisonDelta,
+    plunderIncome: preset.plunderIncome,
     plunderCap: 3,
     tiersPayout: preset.tiersPayout,
   };

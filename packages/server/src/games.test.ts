@@ -37,7 +37,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     expect(view.presetId).toBe('tiers-v2');
     expect(view.presetName).toBe('Tiers v2');
     expect(view.rules.tiersPayout).toBe('income');
-    expect(view.rules.plunderIncome).toBe(1);
+    expect(view.rules.plunderIncome).toBe(2); // blitz presets run the hotter economy
     expect(view.rules.neutralGrowthInterval).toBe(0);
     const seed = (await games(db).doc(id).get()).get('seed') as string;
     expect(JSON.stringify(view)).not.toContain(seed);
