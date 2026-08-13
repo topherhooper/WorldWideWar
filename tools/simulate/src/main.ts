@@ -10,7 +10,13 @@
  * Exits non-zero on a failed gate so CI can depend on it.
  */
 
-import { playBotGame, type Difficulty, type GameSummary } from '@www/engine';
+import {
+  playBotGame,
+  presetById,
+  presetRules,
+  type Difficulty,
+  type GameSummary,
+} from '@www/engine';
 import { aggregate, formatReport, gatesFor } from './report.js';
 
 interface Options {
@@ -20,6 +26,8 @@ interface Options {
   seedPrefix: string;
   strict: boolean;
   verbose: boolean;
+  /** Preset id to play under; null means the legacy `rulesFor` tuning. */
+  preset: string | null;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -30,6 +38,7 @@ function parseArgs(argv: string[]): Options {
     seedPrefix: 'sim',
     strict: true,
     verbose: false,
+    preset: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -55,6 +64,10 @@ function parseArgs(argv: string[]): Options {
         options.seedPrefix = value;
         i++;
         break;
+      case '--preset':
+        options.preset = value;
+        i++;
+        break;
       case '--no-gates':
         options.strict = false;
         break;
@@ -64,6 +77,7 @@ function parseArgs(argv: string[]): Options {
       case '--help':
         console.log(
           'usage: pnpm sim -- [--games N] [--players 4,6,12] [--difficulty easy|normal|hard]\n' +
+            '                  [--preset pact|tiers|pact-blitz|tiers-v2]\n' +
             '                  [--prefix S] [--no-gates] [--verbose]',
         );
         process.exit(0);
@@ -79,9 +93,20 @@ function main(): void {
   const options = parseArgs(process.argv.slice(2));
   let failures = 0;
 
+  // Without --preset the harness stays on the legacy `rulesFor` tuning the
+  // gates were calibrated against; with it, games get exactly what a new lobby
+  // of that preset would get.
+  const preset = options.preset !== null ? presetById(options.preset) : null;
+  if (options.preset !== null && preset === null) {
+    console.error(`unknown preset: ${options.preset}`);
+    process.exit(2);
+  }
+
   for (const playerCount of options.players) {
     const started = Date.now();
     const summaries: GameSummary[] = [];
+    const rules =
+      preset !== null ? presetRules(preset, playerCount, preset.defaultTurnCap) : undefined;
 
     for (let i = 0; i < options.games; i++) {
       summaries.push(
@@ -89,6 +114,9 @@ function main(): void {
           seed: `${options.seedPrefix}-${playerCount}-${i}`,
           playerCount,
           difficulty: options.difficulty,
+          // Spread rather than pass `undefined`: exactOptionalPropertyTypes
+          // draws a distinction between absent and explicitly undefined.
+          ...(rules !== undefined ? { rules } : {}),
         }),
       );
     }
@@ -98,6 +126,9 @@ function main(): void {
     const gates = gatesFor(stats);
 
     console.log(`\n${'='.repeat(72)}`);
+    if (preset !== null) {
+      console.log(`preset ${preset.id} (turn cap ${preset.defaultTurnCap})`);
+    }
     console.log(formatReport(stats, gates));
     console.log(
       `\n  ${elapsed}ms for ${options.games} games ` +
