@@ -67,6 +67,7 @@ function context(state: ReturnType<typeof stateWithList>): ContestContext {
   return {
     attacked: state.status.map(() => state.status.map(() => false)),
     aliveSlots,
+    rules: { ...TEST_RULES, contest: 'tiers' },
   };
 }
 
@@ -358,5 +359,52 @@ describe('resolveTurn under the tiers contest', () => {
     });
     expect(report.tiers).toEqual([]);
     expect(report.revealedTopic).toBeNull();
+  });
+});
+
+describe('income payout (tiers v2)', () => {
+  const PERFECT = [1, 3, 5, 0, 4, 2]; // inverse of LIST.shuffle — scores 12
+  const incomeContext = (): ContestContext => ({
+    attacked: [
+      [false, false],
+      [false, false],
+    ],
+    aliveSlots: [0, 1],
+    rules: { ...TEST_RULES, contest: 'tiers', tiersPayout: 'income' },
+  });
+  const guessInput = (order: number[]): TiersOrders => ({
+    list: ['u', 'v', 'w', 'x', 'y', 'z'],
+    guesses: [{ target: 0, order }],
+  });
+
+  it('a perfect read pays guesser and author in armies, multipliers stay flat', () => {
+    const outcome = resolveTiers(stateWithList(), [null, guessInput(PERFECT)], incomeContext());
+    expect(outcome.multiplier).toEqual([100, 100]);
+    expect(outcome.bonusIncome[1]).toBe(3); // trunc((12 - 6) / 2)
+    expect(outcome.bonusIncome[0]).toBe(3); // ceil((12 - 6) / 2) author bonus
+    expect(outcome.results.find((r) => r.slot === 1)?.incomeDelta).toBe(3);
+    expect(outcome.results.find((r) => r.slot === 0)?.incomeDelta).toBe(3);
+  });
+
+  it('a bad wager costs armies and the author earns nothing', () => {
+    // Identity order scores 3 against LIST (one exact, one adjacent).
+    const outcome = resolveTiers(stateWithList(), [null, guessInput(IDENTITY)], incomeContext());
+    expect(outcome.multiplier).toEqual([100, 100]);
+    expect(outcome.bonusIncome[1]).toBe(-1); // trunc((3 - 6) / 2)
+    expect(outcome.bonusIncome[0]).toBe(0); // below neutral never pays the author
+  });
+
+  it('multiplier games report incomeDelta 0 and unchanged multipliers', () => {
+    const outcome = resolveTiers(stateWithList(), [null, guessInput(PERFECT)], {
+      attacked: [
+        [false, false],
+        [false, false],
+      ],
+      aliveSlots: [0, 1],
+      rules: { ...TEST_RULES, contest: 'tiers' },
+    });
+    expect(outcome.multiplier[1]).toBe(112); // 100 + (12-6)*2 guess; nobody read slot 1
+    expect(outcome.multiplier[0]).toBe(106); // 100 + author bonus max(0, 12-6)
+    expect(outcome.results.every((r) => r.incomeDelta === 0)).toBe(true);
   });
 });

@@ -29,7 +29,7 @@ function run(
   for (const [a, b] of attacks) attacked[a][b] = true;
 
   const aliveSlots = Array.from({ length: state.playerCount }, (_, i) => i);
-  return resolvePacts(state, pledges, { attacked, aliveSlots });
+  return resolvePacts(state, pledges, { attacked, aliveSlots, rules: TEST_RULES });
 }
 
 function outcomeOf(result: ReturnType<typeof resolvePacts>, slot: Slot): PactOutcome {

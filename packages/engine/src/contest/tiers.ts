@@ -43,6 +43,8 @@ const NEUTRAL_SCORE = 6;
 const GUESS_WEIGHT = 2;
 const MIN_MULTIPLIER = 80;
 const MAX_MULTIPLIER = 140;
+/** Points-to-armies divisor for the income payout ('tiers v2'). */
+const INCOME_DIVISOR = 2;
 
 /**
  * Collapses an entry to its identity: lowercased, accents folded, everything
@@ -118,7 +120,7 @@ export function scoreGuess(list: TiersList, order: readonly number[]): number {
 export function resolveTiers(
   state: GameState,
   inputs: readonly (TiersOrders | null | undefined)[],
-  _context: ContestContext,
+  context: ContestContext,
 ): ContestOutcome<TiersResult> {
   const playerCount = state.playerCount;
 
@@ -167,19 +169,33 @@ export function resolveTiers(
   const bonusIncome: number[] = new Array(playerCount).fill(0);
   const results: TiersResult[] = [];
 
+  const incomeMode = context.rules.tiersPayout === 'income';
+
   for (let slot = 0; slot < playerCount; slot++) {
     if (state.status[slot] !== 'active') continue;
 
-    const guessContribution = guessResults[slot].reduce(
-      (sum, guess) => sum + (guess.score - NEUTRAL_SCORE) * GUESS_WEIGHT,
-      0,
-    );
     // Being read well pays; being read badly costs the author nothing.
     const authorBonus = Math.max(0, (bestRead[slot]?.score ?? 0) - NEUTRAL_SCORE);
-    multiplier[slot] = Math.min(
-      MAX_MULTIPLIER,
-      Math.max(MIN_MULTIPLIER, 100 + guessContribution + authorBonus),
-    );
+    let incomeDelta = 0;
+    if (incomeMode) {
+      // Everyone fights at 1.00; reads are paid (or charged) in armies instead.
+      const guessIncome = guessResults[slot].reduce(
+        (sum, guess) => sum + Math.trunc((guess.score - NEUTRAL_SCORE) / INCOME_DIVISOR),
+        0,
+      );
+      incomeDelta = guessIncome + Math.ceil(authorBonus / INCOME_DIVISOR);
+      bonusIncome[slot] = incomeDelta;
+    } else {
+      const guessContribution = guessResults[slot].reduce(
+        (sum, guess) => sum + (guess.score - NEUTRAL_SCORE) * GUESS_WEIGHT,
+        0,
+      );
+      // Being read well pays; being read badly costs the author nothing.
+      multiplier[slot] = Math.min(
+        MAX_MULTIPLIER,
+        Math.max(MIN_MULTIPLIER, 100 + guessContribution + authorBonus),
+      );
+    }
 
     results.push({
       slot,
@@ -187,6 +203,7 @@ export function resolveTiers(
       guesses: guessResults[slot],
       bestRead: bestRead[slot],
       multiplier: multiplier[slot],
+      incomeDelta,
     });
   }
 

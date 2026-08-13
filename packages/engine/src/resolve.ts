@@ -129,7 +129,7 @@ export function resolveTurn(
   for (let slot = 0; slot < state.playerCount; slot++) {
     if (state.status[slot] === 'active') aliveSlots.push(slot);
   }
-  const contestContext = { attacked, aliveSlots };
+  const contestContext = { attacked, aliveSlots, rules };
   const tiersInputs = orders.map((set) => set.tiers);
   const pact =
     rules.contest === 'tiers'

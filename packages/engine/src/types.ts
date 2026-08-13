@@ -153,6 +153,8 @@ export interface TiersResult {
   bestRead: TiersGuessResult | null;
   /** Combat multiplier, ×100. */
   multiplier: number;
+  /** Armies granted (or forfeited) next turn; 0 in multiplier games. */
+  incomeDelta: number;
 }
 
 // ─── Game state ──────────────────────────────────────────────────────────────
