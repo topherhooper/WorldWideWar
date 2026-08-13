@@ -48,13 +48,13 @@ import type {
   OrderSet,
   PactResult,
   ResolveContext,
+  RuleConfig,
   Slot,
   TerritoryId,
   TiersResult,
   TurnReport,
   WorldEvent,
 } from './types.js';
-import { NEUTRAL_GROWTH_INTERVAL } from './constants.js';
 import { checkVictory, processEliminations, updateVictoryStreaks } from './victory.js';
 
 export interface ResolveResult {
@@ -431,7 +431,7 @@ export function resolveTurn(
   applyStorm(next, map, rules, world);
   relocateFallenCapitals(next, map, world);
   recomputeSupply(next, map);
-  growNeutrals(next);
+  growNeutrals(next, rules);
   processEliminations(next, world);
 
   // The event for the coming turn was announced last tick; draw the one after
@@ -451,7 +451,7 @@ export function resolveTurn(
   for (let slot = 0; slot < next.playerCount; slot++) {
     next.pendingBonusIncome[slot] += mobilizationBonus(next);
   }
-  recomputeIncome(next, map);
+  recomputeIncome(next, map, rules);
 
   const warned = warnedTerritories(map, next.turn, rules);
   if (warned.length > 0) {
@@ -591,8 +591,9 @@ function relocateFallenCapitals(state: GameState, map: GeneratedMap, world: Worl
 }
 
 /** Unclaimed land does not stay cheap: neutral garrisons grow on a schedule. */
-function growNeutrals(state: GameState): void {
-  if (state.turn % NEUTRAL_GROWTH_INTERVAL !== 0) return;
+function growNeutrals(state: GameState, rules: RuleConfig): void {
+  if (rules.neutralGrowthInterval <= 0) return;
+  if (state.turn % rules.neutralGrowthInterval !== 0) return;
   for (let id = 0; id < state.owner.length; id++) {
     if (state.collapsed[id] || state.owner[id] !== null) continue;
     state.armies[id]++;

@@ -4,16 +4,11 @@ import type {
   GameState,
   GeneratedMap,
   OrderSet,
+  RuleConfig,
   TerritoryId,
   UnitOrder,
 } from '@www/engine';
-import {
-  BASE_INCOME,
-  TERRITORIES_PER_INCOME,
-  WAR_ECONOMY_INTERVAL,
-  regionBonusFor,
-  suppliedCount,
-} from '@www/engine';
+import { BASE_INCOME, TERRITORIES_PER_INCOME, regionBonusFor, suppliedCount } from '@www/engine';
 
 import { formatRemaining, playerColor } from '../format.js';
 import { useNow } from '../useNow.js';
@@ -50,7 +45,12 @@ interface Props {
 const name = (map: GeneratedMap, id: number): string => map.territories[id]?.name ?? `#${id}`;
 
 /** Where this turn's reinforcements came from, mirroring the engine's formula. */
-function incomeParts(state: GameState, map: GeneratedMap, slot: number): string[] {
+function incomeParts(
+  state: GameState,
+  map: GeneratedMap,
+  slot: number,
+  rules: RuleConfig,
+): string[] {
   const parts: string[] = [];
   let accounted = 0;
   const push = (amount: number, label: string) => {
@@ -68,7 +68,7 @@ function incomeParts(state: GameState, map: GeneratedMap, slot: number): string[
       Math.floor(supplied / TERRITORIES_PER_INCOME),
       `from ${supplied} supplied ${supplied === 1 ? 'land' : 'lands'}`,
     );
-    push(Math.floor(state.turn / WAR_ECONOMY_INTERVAL), 'war economy');
+    push(Math.floor(state.turn / rules.warEconomyInterval), 'war economy');
   }
   push(regionBonusFor(state, map, slot), 'whole regions');
 
@@ -160,7 +160,7 @@ export function OrdersPanel(props: Props) {
       </p>
       {mode === 'deploy' && (
         <p className="muted hint">
-          Income {state.income[mySlot]}: {incomeParts(state, map, mySlot).join(' + ')}.
+          Income {state.income[mySlot]}: {incomeParts(state, map, mySlot, view.rules).join(' + ')}.
         </p>
       )}
 

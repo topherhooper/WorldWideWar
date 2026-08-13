@@ -532,3 +532,19 @@ describe('illegal orders', () => {
     expect(report.world.some((e) => e.kind === 'order_rejected')).toBe(true);
   });
 });
+
+describe('rules-driven neutral growth', () => {
+  it('grows on the rules interval and 0 disables it', () => {
+    const map = lineMap(4, 2);
+    const state = scenario(map, { owner: [0, null, null, 1], armies: [3, 1, 1, 3], turn: 2 });
+    // next.turn is 3 — divisible by the legacy interval of 3.
+    const grown = resolveTurn(state, [orders(0), orders(1)], { seed: 's', map, rules: TEST_RULES });
+    expect(grown.next.armies[1]).toBe(2);
+    const frozen = resolveTurn(state, [orders(0), orders(1)], {
+      seed: 's',
+      map,
+      rules: { ...TEST_RULES, neutralGrowthInterval: 0 },
+    });
+    expect(frozen.next.armies[1]).toBe(1);
+  });
+});

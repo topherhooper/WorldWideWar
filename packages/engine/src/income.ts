@@ -5,16 +5,16 @@
  * see supply.ts for why that matters more than any other economic rule here.
  */
 
-import {
-  BASE_INCOME,
-  CAPTURED_CAPITAL_INCOME,
-  TERRITORIES_PER_INCOME,
-  WAR_ECONOMY_INTERVAL,
-} from './constants.js';
+import { BASE_INCOME, CAPTURED_CAPITAL_INCOME, TERRITORIES_PER_INCOME } from './constants.js';
 import { suppliedCount } from './supply.js';
-import type { GameState, GeneratedMap, Slot } from './types.js';
+import type { GameState, GeneratedMap, RuleConfig, Slot } from './types.js';
 
-export function computeIncome(state: GameState, map: GeneratedMap, slot: Slot): number {
+export function computeIncome(
+  state: GameState,
+  map: GeneratedMap,
+  slot: Slot,
+  rules: RuleConfig,
+): number {
   if (state.status[slot] !== 'active') return 0;
 
   // Cold Snap: the war economy seizes up and only held regions still pay out.
@@ -25,7 +25,7 @@ export function computeIncome(state: GameState, map: GeneratedMap, slot: Slot): 
   if (!coldSnap) {
     income += Math.floor(suppliedCount(state, slot) / TERRITORIES_PER_INCOME);
     // The war economy ramps for everyone, which shortens the late game.
-    income += Math.floor(state.turn / WAR_ECONOMY_INTERVAL);
+    income += Math.floor(state.turn / rules.warEconomyInterval);
   }
 
   income += regionBonusFor(state, map, slot);
@@ -70,9 +70,9 @@ export function regionBonusFor(state: GameState, map: GeneratedMap, slot: Slot):
 }
 
 /** Recomputes every player's income for the turn about to open. */
-export function recomputeIncome(state: GameState, map: GeneratedMap): void {
+export function recomputeIncome(state: GameState, map: GeneratedMap, rules: RuleConfig): void {
   for (let slot = 0; slot < state.playerCount; slot++) {
-    state.income[slot] = computeIncome(state, map, slot);
+    state.income[slot] = computeIncome(state, map, slot, rules);
   }
   state.pendingBonusIncome.fill(0);
 }
