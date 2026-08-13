@@ -43,7 +43,10 @@ export function Home() {
   const create = async () => {
     setCreating(true);
     try {
-      const { id } = await api.createGame({ playerCount, turnMinutes, contest, turnCap });
+      // TODO(Task 9/10): swap this lobby form for a preset picker; presetId
+      // replaces playerCount/turnMinutes/contest/turnCap at creation time —
+      // those now come from a follow-up POST /api/games/:id/config.
+      const { id } = await api.createGame({ presetId: 'pact' });
       await navigate(`/g/${id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'failed to create game');

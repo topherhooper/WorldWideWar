@@ -30,10 +30,18 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
       method: 'POST',
       url: '/api/games',
       headers: H('tok-a'),
-      payload: { playerCount: 2, turnMinutes: 60 },
+      payload: { presetId: 'pact' },
     });
     expect(create.statusCode).toBe(200);
     const { id } = create.json<{ id: string }>();
+
+    const config = await app.inject({
+      method: 'POST',
+      url: `/api/games/${id}/config`,
+      headers: H('tok-a'),
+      payload: { playerCount: 2, turnMinutes: 60 },
+    });
+    expect(config.statusCode).toBe(200);
 
     const join = await app.inject({
       method: 'POST',
@@ -85,7 +93,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
       method: 'POST',
       url: '/api/games',
       headers: H('tok-a'),
-      payload: { playerCount: 4, turnMinutes: 60 },
+      payload: { presetId: 'pact' },
     });
     const { id } = create.json<{ id: string }>();
     const config = await app.inject({

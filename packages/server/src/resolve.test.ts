@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { emulatorDb, clearFirestore } from './testing.js';
+import { emulatorDb, clearFirestore, createTestGame } from './testing.js';
 import { LogMailer } from './mailer.js';
-import { createGame, getView, startGame, type AuthedUser } from './games.js';
+import { getView, startGame, type AuthedUser } from './games.js';
 import { resolveGameTurn } from './resolve.js';
 
 const alice: AuthedUser = { uid: 'u-alice', name: 'Alice', email: 'alice@test.dev' };
@@ -16,7 +16,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('turn resolution', () => {
   });
 
   async function activeGame(playerCount: number): Promise<string> {
-    const id = await createGame(db, alice, { playerCount, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount, turnMinutes: 60 });
     await startGame(db, id, alice);
     return id;
   }

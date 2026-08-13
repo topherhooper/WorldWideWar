@@ -46,6 +46,9 @@ export interface GameView {
    * which drifts as balance tuning changes.
    */
   rules: RuleConfig;
+  /** Null on games created before presets existed. */
+  presetId: string | null;
+  presetName: string;
   /** Topic for the list being written now (lobby list in lobby); null in pact games. */
   tiersTopic: string | null;
   /** Seats that have submitted their lobby list; [] outside a tiers lobby. */
@@ -62,12 +65,8 @@ export interface GameView {
 }
 
 export interface CreateGameRequest {
-  playerCount: number;
-  turnMinutes: number;
-  /** Which social contest runs; defaults to 'pact'. */
-  contest?: ContestKind;
-  /** Game length in turns; defaults to 25. */
-  turnCap?: number;
+  /** One of the engine's PRESETS ids; the preset is immutable after creation. */
+  presetId: string;
 }
 
 export interface UpdateConfigRequest {

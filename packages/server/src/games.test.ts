@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { emulatorDb, clearFirestore } from './testing.js';
+import { emulatorDb, clearFirestore, createTestGame } from './testing.js';
 import { games } from './store.js';
 import { LogMailer } from './mailer.js';
 import {
@@ -25,29 +25,30 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
   const db = emulatorDb();
   beforeEach(clearFirestore);
 
-  it('creates a lobby game with creator in seat 0', async () => {
-    const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+  it('creates a lobby game from a preset', async () => {
+    const id = await createGame(db, alice, { presetId: 'tiers-v2' });
     const view = await getView(db, id, alice);
     expect(view.status).toBe('lobby');
     expect(view.mySlot).toBe(0);
-    expect(view.seats.filter((s) => s.taken)).toHaveLength(1);
-    expect(view.state).toBeNull();
-    expect(view.map.playerCount).toBe(4);
+    expect(view.playerCount).toBe(4);
+    expect(view.turnMinutes).toBe(60);
+    expect(view.turnCap).toBe(15);
+    expect(view.contest).toBe('tiers');
+    expect(view.presetId).toBe('tiers-v2');
+    expect(view.presetName).toBe('Tiers v2');
+    expect(view.rules.tiersPayout).toBe('income');
+    expect(view.rules.plunderIncome).toBe(1);
+    expect(view.rules.neutralGrowthInterval).toBe(0);
     const seed = (await games(db).doc(id).get()).get('seed') as string;
     expect(JSON.stringify(view)).not.toContain(seed);
   });
 
-  it('rejects bad player counts', async () => {
-    await expect(createGame(db, alice, { playerCount: 1, turnMinutes: 60 })).rejects.toThrow(
-      HttpError,
-    );
-    await expect(createGame(db, alice, { playerCount: 4, turnMinutes: 0 })).rejects.toThrow(
-      HttpError,
-    );
+  it('rejects unknown presets', async () => {
+    await expect(createGame(db, alice, { presetId: 'ranked' })).rejects.toThrow(HttpError);
   });
 
   it('auto-starts when the last seat fills', async () => {
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     const view = await joinGame(db, id, bob);
     expect(view.status).toBe('active');
     expect(view.state).not.toBeNull();
@@ -56,12 +57,12 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
   });
 
   it('rejects joining twice', async () => {
-    const id = await createGame(db, alice, { playerCount: 3, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 3, turnMinutes: 60 });
     await expect(joinGame(db, id, alice)).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('creator starts early; empty seats become bots', async () => {
-    const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     await joinGame(db, id, bob);
     const view = await startGame(db, id, alice);
     expect(view.status).toBe('active');
@@ -70,14 +71,14 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
   });
 
   it('only the creator starts', async () => {
-    const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     await joinGame(db, id, bob);
     await expect(startGame(db, id, bob)).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('stores draft orders and reports warnings without blocking', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     const bad = { slot: 0, pledge: null, deploys: [{ to: 9999, count: 1 }], units: [] };
     const res = await submitOrders(db, mailer, 'http://x', id, alice, {
@@ -92,7 +93,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   it('resolves early when the last human locks', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     const a = await submitOrders(db, mailer, 'http://x', id, alice, {
       orders: { slot: 0, pledge: null, deploys: [], units: [] },
@@ -111,7 +112,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   it('a locked player can unlock and edit until the turn resolves', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     const orders = { slot: 0, pledge: null, deploys: [], units: [] };
     const lockedRes = await submitOrders(db, mailer, 'http://x', id, alice, {
@@ -141,7 +142,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   it('creator resolves the turn early; unlocked drafts still count', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     await submitOrders(db, mailer, 'http://x', id, alice, {
       orders: { slot: 0, pledge: null, deploys: [], units: [] },
@@ -154,7 +155,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   it('only the creator resolves early, and only while active', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await expect(resolveNow(db, mailer, 'http://x', id, alice)).rejects.toMatchObject({
       statusCode: 409,
     });
@@ -166,7 +167,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   it('rejects orders from non-players', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     const carol: AuthedUser = { uid: 'u-carol', name: 'Carol', email: null };
     await expect(
@@ -178,14 +179,14 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
   });
 
   it('lists my games', async () => {
-    const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     expect((await listGames(db, alice)).map((g) => g.id)).toContain(id);
     expect(await listGames(db, bob)).toEqual([]);
   });
 
   it('only the creator deletes a game, and it vanishes for everyone', async () => {
     const mailer = new LogMailer();
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob); // auto-starts; both players now list it
     await submitOrders(db, mailer, 'http://x', id, alice, {
       orders: { slot: 0, pledge: null, deploys: [], units: [] },
@@ -204,7 +205,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
 
   describe('updateConfig', () => {
     it('creator retunes players, turn length and cap; rules and map follow', async () => {
-      const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+      const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
       const view = await updateConfig(db, id, alice, {
         playerCount: 6,
         turnMinutes: 45,
@@ -220,7 +221,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     });
 
     it('rejects non-creators, non-lobby games, and out-of-bounds values', async () => {
-      const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+      const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
       await expect(updateConfig(db, id, bob, { turnCap: 15 })).rejects.toThrow(HttpError);
       await expect(updateConfig(db, id, alice, { playerCount: 1 })).rejects.toThrow(HttpError);
       await expect(updateConfig(db, id, alice, { playerCount: 13 })).rejects.toThrow(HttpError);
@@ -232,7 +233,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     });
 
     it('never unseats anyone: shrinking below an occupied index is refused', async () => {
-      const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+      const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
       await joinGame(db, id, bob); // seat 1
       await joinGame(db, id, carol); // seat 2
       await expect(updateConfig(db, id, alice, { playerCount: 2 })).rejects.toThrow(HttpError);

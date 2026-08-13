@@ -15,7 +15,6 @@ import {
   presetById,
   presetRules,
   redact,
-  rulesFor,
   substream,
   tiersWarnings,
   topicForTurn,
@@ -67,34 +66,16 @@ export class HttpError extends Error {
 
 const MIN_TURN_MINUTES = 5;
 const MAX_TURN_MINUTES = 10_080; // one week
+const LOBBY_START_PLAYERS = 4;
 
 export async function createGame(
   db: Firestore,
   user: AuthedUser,
   req: CreateGameRequest,
 ): Promise<string> {
-  const { playerCount, turnMinutes } = req;
-  if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
-    throw new HttpError(400, `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`);
-  }
-  if (
-    !Number.isInteger(turnMinutes) ||
-    turnMinutes < MIN_TURN_MINUTES ||
-    turnMinutes > MAX_TURN_MINUTES
-  ) {
-    throw new HttpError(
-      400,
-      `turnMinutes must be an integer in [${MIN_TURN_MINUTES}, ${MAX_TURN_MINUTES}]`,
-    );
-  }
-  const contest = req.contest ?? 'pact';
-  if (contest !== 'pact' && contest !== 'tiers') {
-    throw new HttpError(400, "contest must be 'pact' or 'tiers'");
-  }
-  const turnCap = req.turnCap ?? 25;
-  if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
-    throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
-  }
+  const preset = presetById(typeof req.presetId === 'string' ? req.presetId : '');
+  if (preset === null) throw new HttpError(400, 'unknown preset');
+  const playerCount = LOBBY_START_PLAYERS;
 
   // The map ships to clients (and embeds its own seed), so it must not share
   // the combat seed — that one stays server-side and decides battle rolls.
@@ -111,10 +92,11 @@ export async function createGame(
     seats,
     turn: 1,
     deadlineAt: null,
-    turnMinutes,
+    turnMinutes: preset.defaultTurnMinutes,
     remindedTurn: 0,
     seed,
-    rules: rulesFor(playerCount, turnCap, contest),
+    presetId: preset.id,
+    rules: presetRules(preset, playerCount, preset.defaultTurnCap),
     stateJson: null,
     mapJson: serializeMap(map),
   };
@@ -192,6 +174,7 @@ export async function getView(
 
   const contest = game.rules.contest ?? 'pact';
   const rules = effectiveRules(game);
+  const preset = presetById(game.presetId ?? contest);
   let tiersTopic: string | null = null;
   let lobbyListSlots: number[] = [];
   if (contest === 'tiers') {
@@ -217,6 +200,8 @@ export async function getView(
     contest,
     turnCap: rules.turnCap,
     rules,
+    presetId: game.presetId ?? null,
+    presetName: preset?.name ?? (contest === 'tiers' ? 'Tiers' : 'Pact'),
     tiersTopic,
     lobbyListSlots,
     map: parseMap(game),
