@@ -130,6 +130,12 @@ export const DEFAULT_RULES: RuleConfig = {
   stormFirstWave: 10,
   stormInterval: 2,
   eventInterval: 3,
+  warEconomyInterval: 5,
+  neutralGrowthInterval: 3,
+  neutralGarrisonDelta: 0,
+  plunderIncome: 0,
+  plunderCap: 3,
+  tiersPayout: 'multiplier',
 };
 
 /**

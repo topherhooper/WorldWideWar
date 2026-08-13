@@ -319,6 +319,9 @@ export interface TurnReport {
 /** Which social contest drives combat multipliers. */
 export type ContestKind = 'pact' | 'tiers';
 
+/** How tiers scores land on the game. */
+export type TiersPayout = 'multiplier' | 'income';
+
 export interface RuleConfig {
   /** Which social contest drives combat multipliers. */
   contest: ContestKind;
@@ -353,6 +356,18 @@ export interface RuleConfig {
   stormInterval: number;
   /** Global events fire every N turns. */
   eventInterval: number;
+  /** The war economy ramps: +1 income every N turns, for everyone. */
+  warEconomyInterval: number;
+  /** Neutral garrisons grow every N turns; 0 disables growth. */
+  neutralGrowthInterval: number;
+  /** Added to each mapgen neutral garrison at setup, floored at 1. */
+  neutralGarrisonDelta: number;
+  /** Bonus income next turn per territory captured this turn; 0 disables plunder. */
+  plunderIncome: number;
+  /** Most captures that pay plunder in one turn. */
+  plunderCap: number;
+  /** Whether tiers scores set a combat multiplier (v1) or pay income (v2). */
+  tiersPayout: TiersPayout;
 }
 
 export interface ResolveContext {
