@@ -28,9 +28,13 @@ steps:
       - --min-instances=0
       - --max-instances=1
       - --set-secrets=RESEND_API_KEY=resend-api-key:latest,UNSUBSCRIBE_SECRET=unsubscribe-secret:latest
+      # BASE_URL builds every link inside outgoing mail, so it must be the
+      # public hostname, not the .web.app one — a mismatch between sender
+      # domain and link domain is what spam filters score against.
+      # MAIL_FROM must stay on a Resend-verified domain (mail.topherhooper.com).
       # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
       # first deploy); --update-env-vars merges and will not clobber it.
-      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=https://$PROJECT_ID.web.app,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@$PROJECT_ID.web.app>
+      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=https://play.topherhooper.com,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>
 
   - id: deploy-hosting
     name: node:22
