@@ -13,6 +13,7 @@ import type { OrderSet, TurnReport } from '@www/engine';
 
 import type { Mailer } from './mailer.js';
 import {
+  effectiveRules,
   games,
   humanSlots,
   ordersCol,
@@ -103,7 +104,7 @@ export async function resolveGameTurn(
     const { next, report } = resolveTurn(state, submissions, {
       seed: game.seed,
       map,
-      rules: game.rules,
+      rules: effectiveRules(game),
     });
     const finished = report.result !== null;
 

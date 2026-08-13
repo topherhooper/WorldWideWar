@@ -31,6 +31,7 @@ import type {
 import type { Mailer } from './mailer.js';
 import { resolveGameTurn } from './resolve.js';
 import {
+  effectiveRules,
   games,
   humanSlots,
   liveHumanSlots,
@@ -187,9 +188,7 @@ export async function getView(
   const result: GameResult | null = latestReport?.result ?? null;
 
   const contest = game.rules.contest ?? 'pact';
-  // Stored rules win; rulesFor only fills fields that games predating them
-  // never stored. New games get exactly the rules resolution uses.
-  const rules = { ...rulesFor(game.playerCount, game.rules.turnCap, contest), ...game.rules };
+  const rules = effectiveRules(game);
   let tiersTopic: string | null = null;
   let lobbyListSlots: number[] = [];
   if (contest === 'tiers') {
@@ -276,7 +275,7 @@ function canActivate(game: GameDoc, lobbyLists: readonly (string[] | null)[]): b
 function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] | null)[]): void {
   doc.status = 'active';
   const map = parseMap(doc);
-  const state = createInitialState(map, doc.rules);
+  const state = createInitialState(map, effectiveRules(doc));
   if ((doc.rules.contest ?? 'pact') === 'tiers') {
     for (let slot = 0; slot < doc.playerCount; slot++) {
       const raw = doc.seats[slot]?.isBot

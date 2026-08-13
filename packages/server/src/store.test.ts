@@ -9,6 +9,7 @@ import {
   serializeMap,
   parseState,
   parseMap,
+  effectiveRules,
   type GameDoc,
 } from './store.js';
 
@@ -40,5 +41,21 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
     expect(parseMap(got)).toEqual(map);
     expect(got.seats).toEqual(doc.seats);
     expect(got.rules).toEqual(doc.rules);
+  });
+});
+
+describe('effectiveRules', () => {
+  it('backfills fields legacy docs never stored, and stored fields win', () => {
+    const doc = {
+      playerCount: 4,
+      rules: { contest: 'pact', turnCap: 25, dominationShare: 0.7 },
+    } as unknown as GameDoc;
+    const rules = effectiveRules(doc);
+    expect(rules.warEconomyInterval).toBe(5);
+    expect(rules.neutralGrowthInterval).toBe(3);
+    expect(rules.neutralGarrisonDelta).toBe(0);
+    expect(rules.plunderIncome).toBe(0);
+    expect(rules.tiersPayout).toBe('multiplier');
+    expect(rules.dominationShare).toBe(0.7); // stored rules always win
   });
 });
