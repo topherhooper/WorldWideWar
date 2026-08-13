@@ -103,6 +103,10 @@ select {
   flex-wrap: wrap;
 }
 
+.game-setup {
+  margin: 1rem 0;
+}
+
 .preset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));

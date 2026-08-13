@@ -4,6 +4,7 @@ import { TIERS_LIST_SIZE, normalizeTiersList } from '@www/engine';
 
 import { api, ApiError } from '../api.js';
 import { DeleteGame } from '../game/DeleteGame.js';
+import { GameSetup } from '../game/GameSetup.js';
 import { playerColor } from '../format.js';
 
 const TIER_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -44,6 +45,7 @@ export function Lobby({ view, onChanged }: Props) {
       <h2>
         Lobby — {view.playerCount - openSeats}/{view.playerCount} seated
       </h2>
+      <GameSetup view={view} onChanged={onChanged} />
       <ul className="seat-list">
         {view.seats.map((seat) => (
           <li key={seat.slot} className="seat">
