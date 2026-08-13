@@ -91,6 +91,12 @@ export function ReportView({ view, map, report }: Props) {
                     {t.bestRead.score}/12
                   </div>
                 )}
+                {view.rules.tiersPayout === 'income' && (t.incomeDelta ?? 0) !== 0 && (
+                  <div className={(t.incomeDelta ?? 0) > 0 ? 'concord' : 'betrayal'}>
+                    {(t.incomeDelta ?? 0) > 0 ? '+' : ''}
+                    {t.incomeDelta ?? 0} armies from the tiers
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -115,6 +121,18 @@ export function ReportView({ view, map, report }: Props) {
               <Dot slot={b.winner} /> {seatName(b.winner)} {b.captured ? 'took' : 'held'}{' '}
               <strong>{tName(map, b.territory)}</strong>
               {b.casualties > 0 ? ` (lost ${b.casualties})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(report.plunder ?? []).length > 0 && (
+        <ul className="report-list">
+          {(report.plunder ?? []).map((p) => (
+            <li key={`pl${p.slot}`}>
+              <Dot slot={p.slot} /> {seatName(p.slot)} plundered {p.captures}{' '}
+              {p.captures === 1 ? 'province' : 'provinces'} (+{p.income}{' '}
+              {p.income === 1 ? 'army' : 'armies'} next turn)
             </li>
           ))}
         </ul>

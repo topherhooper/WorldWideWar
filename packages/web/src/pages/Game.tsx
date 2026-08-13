@@ -136,7 +136,11 @@ function GameInner({ id }: { id: string }) {
           you cannot march across.
         </p>
         <HowToWin view={view} state={state} map={view.map} />
-        <HowCombatWorks contest={view.contest} />
+        <HowCombatWorks
+          contest={view.contest}
+          tiersPayout={view.rules.tiersPayout}
+          plunderIncome={view.rules.plunderIncome}
+        />
         {error !== null && <p className="error">{error}</p>}
       </div>
 
