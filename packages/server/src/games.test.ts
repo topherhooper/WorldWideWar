@@ -12,12 +12,14 @@ import {
   resolveNow,
   startGame,
   submitOrders,
+  updateConfig,
   HttpError,
   type AuthedUser,
 } from './games.js';
 
 const alice: AuthedUser = { uid: 'u-alice', name: 'Alice', email: 'alice@test.dev' };
 const bob: AuthedUser = { uid: 'u-bob', name: 'Bob', email: 'bob@test.dev' };
+const carol: AuthedUser = { uid: 'u-carol', name: 'Carol', email: null };
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
   const db = emulatorDb();
@@ -198,5 +200,44 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     expect(await listGames(db, bob)).toEqual([]);
     await expect(getView(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
     await expect(deleteGame(db, id, alice)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  describe('updateConfig', () => {
+    it('creator retunes players, turn length and cap; rules and map follow', async () => {
+      const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+      const view = await updateConfig(db, id, alice, {
+        playerCount: 6,
+        turnMinutes: 45,
+        turnCap: 15,
+      });
+      expect(view.playerCount).toBe(6);
+      expect(view.turnMinutes).toBe(45);
+      expect(view.turnCap).toBe(15);
+      expect(view.rules.stormFirstWave).toBe(6); // rebuilt for the new cap
+      expect(view.map.playerCount).toBe(6); // map regenerated
+      expect(view.seats).toHaveLength(6);
+      expect(view.seats[0].taken).toBe(true); // creator kept their seat
+    });
+
+    it('rejects non-creators, non-lobby games, and out-of-bounds values', async () => {
+      const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+      await expect(updateConfig(db, id, bob, { turnCap: 15 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { playerCount: 1 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { playerCount: 13 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { turnMinutes: 4 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { turnCap: 9 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { turnCap: 51 })).rejects.toThrow(HttpError);
+      await joinGame(db, id, bob); // fills the last seat — game activates
+      await expect(updateConfig(db, id, alice, { turnCap: 15 })).rejects.toThrow(HttpError);
+    });
+
+    it('never unseats anyone: shrinking below an occupied index is refused', async () => {
+      const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+      await joinGame(db, id, bob); // seat 1
+      await joinGame(db, id, carol); // seat 2
+      await expect(updateConfig(db, id, alice, { playerCount: 2 })).rejects.toThrow(HttpError);
+      const view = await updateConfig(db, id, alice, { playerCount: 3 });
+      expect(view.seats.map((s) => s.taken)).toEqual([true, true, true]);
+    });
   });
 });

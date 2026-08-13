@@ -80,6 +80,34 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
     expect(missing.statusCode).toBe(404);
   });
 
+  it('exposes lobby config over HTTP', async () => {
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/games',
+      headers: H('tok-a'),
+      payload: { playerCount: 4, turnMinutes: 60 },
+    });
+    const { id } = create.json<{ id: string }>();
+    const config = await app.inject({
+      method: 'POST',
+      url: `/api/games/${id}/config`,
+      headers: H('tok-a'),
+      payload: { turnCap: 15, turnMinutes: 30 },
+    });
+    expect(config.statusCode).toBe(200);
+    expect(config.json<{ turnCap: number; turnMinutes: number }>()).toMatchObject({
+      turnCap: 15,
+      turnMinutes: 30,
+    });
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/api/games/${id}/config`,
+      headers: H('tok-b'),
+      payload: { turnCap: 20 },
+    });
+    expect(denied.statusCode).toBe(403);
+  });
+
   it('rejects unauthenticated requests', async () => {
     expect((await app.inject({ method: 'GET', url: '/api/games' })).statusCode).toBe(401);
   });

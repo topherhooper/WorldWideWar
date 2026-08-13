@@ -70,6 +70,12 @@ export interface CreateGameRequest {
   turnCap?: number;
 }
 
+export interface UpdateConfigRequest {
+  playerCount?: number;
+  turnMinutes?: number;
+  turnCap?: number;
+}
+
 export interface SubmitLobbyListRequest {
   list: string[];
 }

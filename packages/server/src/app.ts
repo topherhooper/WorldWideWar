@@ -5,6 +5,7 @@ import type {
   CreateGameRequest,
   SubmitLobbyListRequest,
   SubmitOrdersRequest,
+  UpdateConfigRequest,
 } from './api-types.js';
 import type { Verifiers } from './auth.js';
 import {
@@ -18,6 +19,7 @@ import {
   startGame,
   submitLobbyList,
   submitOrders,
+  updateConfig,
   HttpError,
   type AuthedUser,
 } from './games.js';
@@ -89,6 +91,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/start', async (req) => {
         const { id } = req.params as { id: string };
         return startGame(db, id, req.user);
+      });
+
+      api.post('/games/:id/config', async (req) => {
+        const { id } = req.params as { id: string };
+        return updateConfig(db, id, req.user, req.body as UpdateConfigRequest);
       });
 
       api.post('/games/:id/resolve', async (req) => {
