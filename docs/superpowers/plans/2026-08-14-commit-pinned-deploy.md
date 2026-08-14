@@ -202,8 +202,15 @@ file stands in for it.
 21 is on this machine and the emulator suite passed 80/80. The spec's hedge is left as
 written rather than retconned.
 
-**One runtime assumption is unverified: that `gcloud builds submit` accepts a
-`COMMIT_SHA=` substitution.** `COMMIT_SHA` is a Cloud Build _built-in_, normally populated
+**Resolved after the fact: `gcloud builds submit` does accept `COMMIT_SHA=`.** The gcloud
+reference for `builds submit` states that "only the following built-in variables can be
+specified with the `--substitutions` flag: REPO_NAME, BRANCH_NAME, TAG_NAME, REVISION_ID,
+COMMIT_SHA, SHORT_SHA" — so the key is explicitly permitted on a manual build, and the
+underscore-prefix rule applies only to user-defined substitutions. The original note is
+kept below for the record; the `_COMMIT_SHA` fallback it describes is not needed.
+
+**~~One runtime assumption is unverified: that `gcloud builds submit` accepts a
+`COMMIT_SHA=` substitution.~~** `COMMIT_SHA` is a Cloud Build _built-in_, normally populated
 only for trigger-fired builds, and gcloud restricts user-defined substitution keys to a
 leading underscore. The repo's own runbook has documented `--substitutions COMMIT_SHA=manual-N`
 as a working manual deploy since the deploy plan landed, which is the evidence this rests
