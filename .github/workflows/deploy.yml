@@ -1,0 +1,75 @@
+# Manual production deploy, pinned to a commit.
+#
+# The pathway this replaces was `gcloud builds submit --substitutions COMMIT_SHA=manual-N .`
+# run from a laptop: it uploaded the working tree, so uncommitted edits shipped, and it
+# tagged the image with a hand-typed counter that traced back to no commit at all.
+#
+# Here the checkout is the source of truth. `ref` may be a branch, tag or SHA; the full
+# SHA is read back out of the checkout rather than trusted from the input, so dispatching
+# `main` records the commit that was actually built instead of a moving branch name.
+#
+# Deploy logic itself stays in cloudbuild.yaml, shared with the push-to-main trigger.
+# Rollback is not a feature: dispatch an older SHA.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or commit SHA to deploy'
+        required: true
+        default: main
+
+# Two builds racing to `gcloud run deploy` can interleave revisions on a service pinned
+# to max 1 instance. Queue instead of cancelling — a cancelled `builds submit` leaves the
+# Cloud Build running server-side, so cancellation would report a lie.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: fluted-citizen-269819
+
+jobs:
+  deploy:
+    name: Build and deploy ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Resolve ref to a full commit SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # The same command the runbook documents, with a real SHA in place of `manual-N`
+      # and a clean checkout in place of a working tree.
+      - name: Submit build
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --project "$GCP_PROJECT" \
+            --substitutions COMMIT_SHA=${{ steps.sha.outputs.sha }} \
+            .
+
+      - name: Summarise
+        run: |
+          {
+            echo "### Deployed"
+            echo
+            echo "- **Ref dispatched:** \`${{ inputs.ref }}\`"
+            echo "- **Commit:** \`${{ steps.sha.outputs.sha }}\`"
+            echo "- **Image:** \`us-central1-docker.pkg.dev/$GCP_PROJECT/www/api:${{ steps.sha.outputs.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

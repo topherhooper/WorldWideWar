@@ -48,7 +48,7 @@ Create: `.github/workflows/deploy.yml` (~60 lines)
 Consumes: `vars.GCP_WORKLOAD_IDENTITY_PROVIDER`, `vars.GCP_DEPLOY_SERVICE_ACCOUNT`, `cloudbuild.yaml`
 Produces: a Cloud Build run tagging `us-central1-docker.pkg.dev/fluted-citizen-269819/www/api:<full-sha>`
 
-- [ ] Write `.github/workflows/deploy.yml`:
+- [x] Write `.github/workflows/deploy.yml`:
 
 ```yaml
 # Manual production deploy, pinned to a commit.
@@ -128,11 +128,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 ```
 
-- [ ] Confirm the file parses as YAML and Prettier accepts it:
+- [x] Confirm the file parses as YAML and Prettier accepts it:
       `pnpm exec prettier --check --end-of-line auto .github/workflows/deploy.yml`
-- [ ] Confirm the trigger list contains no `push` or `pull_request` key.
-- [ ] Run the gate: `pnpm lint && pnpm typecheck && pnpm test`
-- [ ] Commit: `ci(deploy): dispatch a commit-pinned production deploy`
+- [x] Confirm the trigger list contains no `push` or `pull_request` key.
+- [x] Run the gate: `pnpm lint && pnpm typecheck && pnpm test`
+- [x] Commit: `ci(deploy): dispatch a commit-pinned production deploy`
 
 ---
 
