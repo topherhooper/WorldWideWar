@@ -76,6 +76,16 @@ two sweeps that can fail on changes which pass locally: a 300-seed mapgen sweep,
 800-game balance run across 2/4/6/8/12 players that exits non-zero on a fairness gate.
 Engine changes should expect both.
 
+**`pnpm format:check` is unreliable locally.** With `core.autocrlf=true` and no
+`.gitattributes`, it fails all ~100 files on CRLF and buries the handful that are
+genuinely misformatted — which is how ten bad files reached CI on #6. Use
+
+```bash
+pnpm exec prettier --check --end-of-line auto .
+```
+
+`pnpm format` (write, not check) is unaffected, so the gate above still stands.
+
 ## Commit and push cadence
 
 Open the draft PR **before** implementation starts — as soon as the spec and plan are
