@@ -29,6 +29,11 @@ concurrency:
 
 env:
   GCP_PROJECT: fluted-citizen-269819
+  # The build runs as the same service account the push-to-main trigger uses. Left
+  # unset, `builds submit` falls back to the Compute Engine default SA, which does not
+  # hold firebasehosting.admin — the hosting step would then fail at the very end of an
+  # otherwise successful build, after Cloud Run had already been updated.
+  GCP_BUILD_SERVICE_ACCOUNT: cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com
 
 jobs:
   deploy:
@@ -61,6 +66,7 @@ jobs:
           gcloud builds submit \
             --config cloudbuild.yaml \
             --project "$GCP_PROJECT" \
+            --service-account "projects/$GCP_PROJECT/serviceAccounts/$GCP_BUILD_SERVICE_ACCOUNT" \
             --substitutions COMMIT_SHA=${{ steps.sha.outputs.sha }} \
             .
 
