@@ -51,7 +51,7 @@ The preset validator has to check the same bound the server enforces, and the en
 
 **Steps:**
 
-- [ ] Add to `packages/engine/src/constants.ts`, immediately below `MAX_TURN_CAP`:
+- [x] Add to `packages/engine/src/constants.ts`, immediately below `MAX_TURN_CAP`:
 
   ```ts
   /** Creation-time bounds on the configurable turn length, in minutes. */
@@ -59,9 +59,9 @@ The preset validator has to check the same bound the server enforces, and the en
   export const MAX_TURN_MINUTES = 10_080; // one week
   ```
 
-- [ ] Delete the two `const MIN_TURN_MINUTES` / `MAX_TURN_MINUTES` declarations from `packages/server/src/games.ts` (~line 67) and add both names to the existing `@www/engine` import block, alphabetically after `MAX_TURN_CAP` and `MIN_TURN_CAP` respectively.
-- [ ] Run `pnpm typecheck && pnpm exec vitest run packages/engine` — green; the server's bound checks and their error strings are unchanged.
-- [ ] Commit: `refactor(engine): move the turn-length bounds into constants`
+- [x] Delete the two `const MIN_TURN_MINUTES` / `MAX_TURN_MINUTES` declarations from `packages/server/src/games.ts` (~line 67) and add both names to the existing `@www/engine` import block, alphabetically after `MAX_TURN_CAP` and `MIN_TURN_CAP` respectively.
+- [x] Run `pnpm typecheck && pnpm exec vitest run packages/engine` — green; the server's bound checks and their error strings are unchanged.
+- [x] Commit: `refactor(engine): move the turn-length bounds into constants`
 
 ---
 

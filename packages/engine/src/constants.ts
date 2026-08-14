@@ -59,6 +59,10 @@ export const CAPTURED_CAPITAL_INCOME = 1;
 export const MIN_TURN_CAP = 10;
 export const MAX_TURN_CAP = 50;
 
+/** Creation-time bounds on the configurable turn length, in minutes. */
+export const MIN_TURN_MINUTES = 5;
+export const MAX_TURN_MINUTES = 10_080; // one week
+
 export const DEFAULT_RULES: RuleConfig = {
   contest: 'pact',
   turnCap: 25,
