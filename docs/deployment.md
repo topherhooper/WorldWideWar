@@ -26,11 +26,31 @@ Documentation-only pushes do not deploy. The trigger carries an `ignoredFiles` f
 every path in a push matches it, Cloud Build never queues a build at all. The globs are the
 same ones CI treats as documentation, printed by the classifier so the two cannot drift:
 
+The filter is already applied. To change it, edit the trigger through export/import —
+`gcloud builds triggers update github` rejects a partial update with `INVALID_ARGUMENT`,
+and passing the flags it does want risks clearing `serviceAccount` or the branch pattern:
+
 ```bash
-pnpm exec tsx tools/ci/src/main.ts --ignored-files
-gcloud builds triggers update github Sample \
-  --region=us-central1 --project=fluted-citizen-269819 \
-  --ignored-files='docs/**,*.md,**/*.md,.claude/**'
+pnpm exec tsx tools/ci/src/main.ts --ignored-files   # source of truth for the globs
+
+gcloud beta builds triggers export Sample \
+  --region=us-central1 --project=fluted-citizen-269819 --destination=trigger.yaml
+# append, quoting the globs that start with '*' so YAML does not read them as aliases:
+#   ignoredFiles:
+#   - docs/**
+#   - '*.md'
+#   - '**/*.md'
+#   - .claude/**
+gcloud beta builds triggers import \
+  --source=trigger.yaml --region=us-central1 --project=fluted-citizen-269819
+```
+
+Afterwards confirm `serviceAccount` and `push.branch` survived, because import replaces
+the whole definition rather than merging into it:
+
+```bash
+gcloud builds triggers describe Sample --region=us-central1 \
+  --project=fluted-citizen-269819 --format=yaml
 ```
 
 One non-documentation file in the push and the whole build runs — the filter is a union
