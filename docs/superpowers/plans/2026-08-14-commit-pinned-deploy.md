@@ -190,3 +190,23 @@ Those hunks are 40+ lines away from the Pipeline section this plan edits. They a
 aside as a patch, restored after Task 2's commit, and must not appear in the diff. Check
 `git show --stat` on the docs commit before pushing: it should touch the Pipeline section
 only.
+
+Done, and verified: the committed docs change is 14 insertions and 2 deletions confined to
+the Pipeline section, and the restored working-tree diff is byte-identical to the patch that
+was set aside. The full-repo `pnpm format` in the gate was deliberately **not** run as a
+write — it would have reformatted the un-Prettier-clean table in those uncommitted hunks,
+silently editing work that is not this PR's to touch. `prettier --check` on each committed
+file stands in for it.
+
+**`pnpm test:server` did run**, contrary to the spec's expectation that it might not — Java
+21 is on this machine and the emulator suite passed 80/80. The spec's hedge is left as
+written rather than retconned.
+
+**One runtime assumption is unverified: that `gcloud builds submit` accepts a
+`COMMIT_SHA=` substitution.** `COMMIT_SHA` is a Cloud Build _built-in_, normally populated
+only for trigger-fired builds, and gcloud restricts user-defined substitution keys to a
+leading underscore. The repo's own runbook has documented `--substitutions COMMIT_SHA=manual-N`
+as a working manual deploy since the deploy plan landed, which is the evidence this rests
+on — but no build has been submitted from this branch to confirm it. If it turns out gcloud
+rejects the key, the fix is a `_COMMIT_SHA` substitution in `cloudbuild.yaml` defaulting to
+`$COMMIT_SHA`, which is a one-line change to a file this plan otherwise leaves alone.
