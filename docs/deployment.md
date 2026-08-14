@@ -60,6 +60,20 @@ What is in place now:
 `github-provider` pinned to `topherhooper/razzle-dazzle`. Adding a sibling provider is
 correct; editing that one would silently break the other repository's deploys.
 
+**Do not remove `--gcs-source-staging-dir` from the workflow.** It is the difference
+between a working deploy and five identical 403s. Left to itself, `gcloud builds submit`
+resolves the default `<project>_cloudbuild` bucket by listing — and `storage.buckets.list`
+is a **project-level** permission that cannot be granted on a single bucket. No amount of
+bucket-scoped IAM fixes it; the documented workarounds are Project Viewer or Storage
+Admin, both of which hand a GitHub-assumable credential broad read over the whole project,
+Firestore included. Naming the staging directory skips the resolution step entirely and
+keeps `gha-deploy@` scoped to one bucket. This was established the hard way — the error
+text blames `serviceusage.services.use`, which is a red herring.
+
+**The role set below is what is provisioned, not a minimized set.** `serviceUsageConsumer`
+and `legacyBucketReader` were added while chasing the 403 above and may not be load-bearing
+now that the staging directory is explicit. Nobody has tried removing them.
+
 **The workflow file must be on `main` before step 8 works.** GitHub only offers
 `workflow_dispatch` for workflows present on the default branch, so a `deploy.yml` that
 exists solely on a feature branch is invisible to both the Actions tab and
@@ -89,16 +103,23 @@ gcloud services enable \
 gcloud iam service-accounts create "$SA_NAME" \
   --display-name="GitHub Actions deploy" --project "$PROJECT"
 
-# 3. Roles to submit a build and read its logs.
+# 3. Roles to submit a build and read its logs. Note what is NOT here: no project-wide
+#    roles/viewer and no roles/storage.admin. Both are widely recommended for this and
+#    both are unnecessary — see the --gcs-source-staging-dir note above.
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/cloudbuild.builds.editor" --condition=None
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/logging.viewer" --condition=None
+# Added while debugging; possibly redundant. See the note above before copying it.
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${SA}" --role="roles/serviceusage.serviceUsageConsumer" --condition=None
 
-# 4. Write access to the source-upload bucket, scoped to that bucket rather than
-#    granting project-wide storage.admin.
+# 4. Bucket access, scoped to the one bucket. objectAdmin uploads the source tarball;
+#    legacyBucketReader was added while debugging and may be redundant.
 gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
   --member="serviceAccount:${SA}" --role="roles/storage.objectAdmin"
+gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
+  --member="serviceAccount:${SA}" --role="roles/storage.legacyBucketReader"
 
 # 5. Permission to hand the build to the SA it runs as. That SA is `cloudbuilder@`, not
 #    the Cloud Build default: this project has no legacy PROJECT_NUMBER@cloudbuild SA,
