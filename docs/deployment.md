@@ -162,9 +162,81 @@ so rotate only if the key leaks.
 The `VITE_FIREBASE_*` values in `packages/web/.env.production` are public identifiers,
 not secrets — the browser key ships in the bundle to every visitor by design. It is
 additionally restricted (API key `29962844-…`) to `identitytoolkit.googleapis.com` +
-`securetoken.googleapis.com`, callable only from the `web.app`/`firebaseapp.com`
-referrers, so it is useless for any other API or origin. Nothing else needs configuring: Cloud Run gets the secret via
-`--set-secrets`, CI uses only emulators, and GitHub holds no repository secrets.
+`securetoken.googleapis.com`, and to the referrers listed under "Sign-in origins"
+below, so it is useless for any other API or origin. Nothing else needs configuring:
+Cloud Run gets the secret via `--set-secrets`, CI uses only emulators, and GitHub holds
+no repository secrets.
+
+### Sign-in origins
+
+Every origin the app is served from has to be listed in **three independent places**, or
+Google sign-in fails. They are enforced by different systems and none implies the
+others, so adding a hosting domain and stopping there is the standing trap — it is what
+broke `play.topherhooper.com` on 2026-08-13.
+
+| Place                             | Enforced by      | Failure if missing                                      |
+| --------------------------------- | ---------------- | ------------------------------------------------------- |
+| API key `29962844-…` referrers    | API Keys         | `auth/requests-from-referer-<origin>-are-blocked` (403) |
+| Firebase Auth `authorizedDomains` | Identity Toolkit | `auth/unauthorized-domain`                              |
+| OAuth client redirect URIs        | Google OAuth     | `Error 400: redirect_uri_mismatch`                      |
+
+The third only applies to whichever origin `VITE_FIREBASE_AUTH_DOMAIN` names, since that
+is the domain whose `/__/auth/handler` Google redirects back to. Point it at the domain
+the site is actually served from: a cross-origin `authDomain` still works for
+`signInWithPopup`, but browser third-party-storage partitioning breaks the
+`signInWithRedirect` fallback that `auth.tsx` uses on mobile and behind popup blockers —
+sign-in then fails only on phones, which desktop testing never reveals. Hosting serves
+the real `/__/auth/handler` on every domain attached to the project, and `firebase.json`'s
+catch-all rewrite does not shadow the reserved `/__/` namespace, so no rewrite is needed.
+
+All three currently hold `play.topherhooper.com` alongside the
+`web.app`/`firebaseapp.com` defaults. To add another origin:
+
+```bash
+# 1. API key referrers. This flag REPLACES the list, so restate every origin — and
+#    restate --api-target too, or the API restriction is dropped and the key widens
+#    to every enabled API in the project.
+gcloud services api-keys update projects/614936797883/locations/global/keys/29962844-cd3c-4761-9395-6e4a6d612afe \
+  --project fluted-citizen-269819 \
+  --allowed-referrers="https://play.topherhooper.com/*,https://fluted-citizen-269819.web.app/*,https://fluted-citizen-269819.firebaseapp.com/*" \
+  --api-target=service=identitytoolkit.googleapis.com \
+  --api-target=service=securetoken.googleapis.com
+
+# 2. Firebase Auth authorized domains — also a full replacement, bare hostnames.
+curl -X PATCH \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "x-goog-user-project: fluted-citizen-269819" \
+  -H "Content-Type: application/json" \
+  --data '{"authorizedDomains":["localhost","fluted-citizen-269819.firebaseapp.com","fluted-citizen-269819.web.app","play.topherhooper.com"]}' \
+  "https://identitytoolkit.googleapis.com/admin/v2/projects/fluted-citizen-269819/config?updateMask=authorizedDomains"
+```
+
+Step 3 is console-only — there is no gcloud surface for a non-IAP OAuth client. Add
+`https://<origin>/__/auth/handler` under **Authorized redirect URIs** on client
+`614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7`:
+
+```
+https://console.cloud.google.com/apis/credentials/oauthclient/614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com?project=fluted-citizen-269819
+```
+
+Verify all three without a browser. Each probe isolates one layer, and each takes a few
+minutes to propagate after a change — an immediate retest looks like failure.
+
+```bash
+# 1 + 2. The call the SDK makes first, so it reproduces the referrer block on its own.
+# Blocked origin → API_KEY_HTTP_REFERRER_BLOCKED. Allowed → a sessionId.
+curl -s -X POST -H "Referer: https://play.topherhooper.com/" -H "Content-Type: application/json" \
+  --data '{"identifier":"probe@example.com","continueUri":"https://play.topherhooper.com/"}' \
+  "https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=AIzaSyDsG81Moo9f3vgnYiWfdZDHT7QrBFuL0Sc"
+
+# 3. Unregistered redirect URIs come back as redirect_uri_mismatch; registered ones
+#    reach the sign-in page. Check an origin you did NOT register too — if that also
+#    passes, the probe is broken, not the config.
+curl -s -L "https://accounts.google.com/o/oauth2/v2/auth\
+?client_id=614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com\
+&response_type=code&scope=email\
+&redirect_uri=https://play.topherhooper.com/__/auth/handler" | grep -c redirect_uri_mismatch
+```
 
 ## DNS
 
@@ -200,6 +272,22 @@ correctness anyway.
   domains and answers before the app. The route works locally and for port probes;
   don't chase 404s on it in prod.
 - **Secrets from Windows**: see the BOM note above.
+- **A new custom domain shows "Not Secure" for a few hours.** DNS starts resolving to
+  Firebase the moment the CNAME lands, but the managed certificate is issued later —
+  `play.topherhooper.com` pointed at Hosting from 2026-08-13T00:47Z and its cert only
+  became valid at 08:43Z. In that window the domain serves a certificate that does not
+  match, and browsers say "Not Secure". Nothing to fix; it clears itself. Check state
+  rather than guessing — wait for `CERT_ACTIVE` and `DOMAIN_ACTIVE`:
+
+  ```bash
+  curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+    -H "x-goog-user-project: fluted-citizen-269819" \
+    "https://firebasehosting.googleapis.com/v1beta1/sites/fluted-citizen-269819/domains"
+  ```
+
+  This is also why `_BASE_URL` in `cloudbuild.yaml` is overridable — mail sent during
+  that window would otherwise carry links browsers refuse to open.
+
 - **Firestore forbids nested arrays**, so `stateJson`/`mapJson` are canonical-JSON
   strings, with queryable fields (`turn`, `status`, `deadlineAt`) mirrored top-level.
 - The **combat seed never leaves the server** and is distinct from the map seed —
