@@ -42,8 +42,23 @@ commit. Reach for it only when Actions itself is down.
 
 ### First-time setup for the deploy workflow
 
-Done once. Everything below is idempotent enough to re-run except the `create` calls,
-which fail with `ALREADY_EXISTS` — that failure is fine to ignore.
+**This is already provisioned** — it ran on 2026-08-14 and the two repository variables
+are set. What follows is the record of what exists, and the procedure to rebuild it in a
+fresh project. Everything is idempotent to re-run except the `create` calls, which fail
+with `ALREADY_EXISTS`.
+
+What is in place now:
+
+| Resource            | Value                                                          |
+| ------------------- | -------------------------------------------------------------- |
+| Federation pool     | `github-pool` (pre-existing — also serves `razzle-dazzle`)     |
+| OIDC provider       | `worldwidewar`, conditioned to `topherhooper/WorldWideWar`     |
+| Submitting identity | `gha-deploy@fluted-citizen-269819.iam.gserviceaccount.com`     |
+| Building identity   | `cloudbuilder@…` — the same SA the push-to-`main` trigger uses |
+
+**The pool is shared, and its providers are not.** `github-pool` already carried a
+`github-provider` pinned to `topherhooper/razzle-dazzle`. Adding a sibling provider is
+correct; editing that one would silently break the other repository's deploys.
 
 **The workflow file must be on `main` before step 8 works.** GitHub only offers
 `workflow_dispatch` for workflows present on the default branch, so a `deploy.yml` that
@@ -56,7 +71,7 @@ Run steps 1–7 from bash with an account that can administer IAM on the project
 # 0. Everything below reads these.
 PROJECT=fluted-citizen-269819
 REPO=topherhooper/WorldWideWar
-POOL=github
+POOL=github-pool          # reused; a fresh project would create this
 PROVIDER=worldwidewar
 SA_NAME=gha-deploy
 SA=${SA_NAME}@${PROJECT}.iam.gserviceaccount.com
@@ -85,15 +100,18 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
   --member="serviceAccount:${SA}" --role="roles/storage.objectAdmin"
 
-# 5. Permission to hand the build to the Cloud Build service account it runs as.
+# 5. Permission to hand the build to the SA it runs as. That SA is `cloudbuilder@`, not
+#    the Cloud Build default: this project has no legacy PROJECT_NUMBER@cloudbuild SA,
+#    so an unqualified `builds submit` would fall back to the Compute Engine default,
+#    which lacks firebasehosting.admin. The workflow passes --service-account to pin it.
 gcloud iam service-accounts add-iam-policy-binding \
-  "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+  "cloudbuilder@${PROJECT}.iam.gserviceaccount.com" \
   --member="serviceAccount:${SA}" --role="roles/iam.serviceAccountUser" \
   --project "$PROJECT"
 
 # 6. The federation pool and its GitHub OIDC provider. The attribute condition is the
 #    security boundary — without it, any repository on GitHub could mint tokens for
-#    this provider.
+#    this provider. The pool already existed here, so this create was skipped.
 gcloud iam workload-identity-pools create "$POOL" \
   --project="$PROJECT" --location=global --display-name="GitHub Actions"
 
@@ -127,13 +145,14 @@ gh run watch --repo topherhooper/WorldWideWar
 
 Failures worth recognising on the first run:
 
-| Symptom                                                           | Cause                                                                                  |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `Workflow does not have 'workflow_dispatch' trigger` / not listed | `deploy.yml` is not on `main` yet                                                      |
-| `Permission denied on resource ... workloadIdentityPools`         | Step 7's binding missing, or the repo name in it is wrong                              |
-| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step | Attribute condition in step 6 does not match `$REPO`                                   |
-| Auth passes, `builds submit` 403s                                 | Step 3, 4 or 5 skipped                                                                 |
-| Build runs, `firebase deploy` fails on permissions                | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA` |
+| Symptom                                                           | Cause                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Workflow does not have 'workflow_dispatch' trigger` / not listed | `deploy.yml` is not on `main` yet                                                       |
+| `Permission denied on resource ... workloadIdentityPools`         | Step 7's binding missing, or the repo name in it is wrong                               |
+| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step | Attribute condition in step 6 does not match `$REPO`                                    |
+| Auth passes, `builds submit` 403s                                 | Step 3, 4 or 5 skipped                                                                  |
+| `builds submit` rejects `--service-account`                       | The build config must set `logging: CLOUD_LOGGING_ONLY`; `cloudbuild.yaml` already does |
+| Build runs, `firebase deploy` fails on permissions                | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA`  |
 
 ## Secrets
 
