@@ -86,12 +86,40 @@ trailing `Tests:` line, then `### Task N:` blocks separated by `---`. Each task:
 
 Code blocks are complete and paste-ready, not sketches.
 
-### 4. Implement
+### 4. Open the draft PR — before writing any code
 
-Use `superpowers:subagent-driven-development`, one task at a time, TDD throughout,
-committing after every task exactly as the plan specifies.
+Commit the spec and plan, push, and open the **draft** PR now, with the plan's task list
+mirrored into the body as an unchecked progress checklist. Subscribe to it.
 
-### 5. Verify
+```bash
+git add docs/superpowers && git commit -m "docs: spec and plan for <slug>"
+git push -u origin <branch>
+```
+
+This is deliberately early. The PR is the durable record of the run — if this context
+dies mid-implementation, a fresh one recovers by reading the branch and the checklist
+rather than starting over. An unopened PR at the end of a three-hour run is a run you
+cannot resume.
+
+### 5. Implement
+
+Use `superpowers:subagent-driven-development`, one task at a time, TDD throughout.
+
+**After every task, without exception:**
+
+1. Commit with the message the plan specifies.
+2. Tick that task's `- [ ]` → `- [x]` in the plan file and amend it into the commit.
+3. `git push`.
+
+The pushed plan file is the resume point. A restarted context reads it, finds the first
+unchecked task, and continues from there — no re-derivation, no guessing what landed.
+Never batch several tasks into one push; the window where work exists only in this
+container is the window where it can be lost.
+
+Update the PR body's checklist as you go. Do not post a comment per task — the checklist
+is the status, and a stream of progress comments is noise.
+
+### 6. Verify
 
 ```bash
 pnpm format && pnpm lint && pnpm typecheck && pnpm test
@@ -104,15 +132,19 @@ not get. CI (`.github/workflows/ci.yml`) runs `format:check` first, plus a 300-s
 mapgen sweep and an 800-game balance sweep, so engine changes can fail CI on a gate
 that passes locally.
 
-### 6. Ship
+### 7. Finish
 
-Commit, `git push -u origin <branch>`, open a **draft** PR, subscribe to it, stop.
-PR body follows the repo convention: `## Summary` naming the spec and plan paths
-explicitly, then `## Design highlights` as bolded-lead bullets.
+Push the last commit, then bring the PR body to its final state and stop.
+
+**The PR description becomes the squash commit message** — this repo squash-merges and
+takes the commit message from the PR title and body. So the body is permanent history,
+not a note to a reviewer. Write it accordingly: `## Summary` naming the spec and plan
+paths explicitly, then `## Design highlights` as bolded-lead bullets. Drop the
+in-progress checklist once every box is ticked; it is scaffolding, not history.
 
 ## The no-bloat gate
 
-Run this against your own diff before step 6. It is the difference between a one-shot
+Run this against your own diff before step 7. It is the difference between a one-shot
 and a sprawl.
 
 - **No new dependencies.** If you believe one is required, that is a load-bearing

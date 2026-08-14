@@ -68,14 +68,42 @@ two sweeps that can fail on changes which pass locally: a 300-seed mapgen sweep,
 800-game balance run across 2/4/6/8/12 players that exits non-zero on a fairness gate.
 Engine changes should expect both.
 
+## Commit and push cadence
+
+Open the draft PR **before** implementation starts — as soon as the spec and plan are
+written — then commit, tick the plan's checkbox, and push after **every task**.
+
+The pushed plan file is the resume point. If a session dies mid-run, the next one reads
+the plan from the branch, finds the first unchecked `- [ ]`, and continues from there.
+Batching several tasks into one push widens the window where work exists only in a
+container that can be reclaimed. An unopened PR at the end of a long run is a run
+nobody can resume.
+
+Track progress by keeping the PR body's checklist current, not by posting a comment per
+task.
+
+## Merging
+
+**This repo squash-merges, and the squash commit message is taken from the PR title and
+body.** The PR description is therefore permanent history on `main`, not a note to a
+reviewer — write it to be read a year later by someone running `git log`.
+
+That is a repository setting: Settings → General → Pull Requests → allow squash merging
+only, with the default commit message set to "Pull request title and description."
+
 ## Conventions
 
 - Branches: `claude/<kebab-topic>-<suffix>` off `main`. Idea branches: `idea/<slug>`.
 - Commits within a branch: conventional commits scoped by package — `feat(engine):`,
-  `fix(web):`, `docs(server):`. Commit after every task, not at the end.
+  `fix(web):`, `docs(server):`. These are working history; the squash message is what
+  lands on `main`.
 - PR bodies: `## Summary` naming the spec and plan paths explicitly, then
-  `## Design highlights` as bolded-lead bullets.
+  `## Design highlights` as bolded-lead bullets. Merge subjects end up as
+  `<prose subject> (#N)`.
 - Prose in docs is hard-wrapped near 95 columns and argues _why_, not just _what_.
 - Backlog lives in each spec's `## Out of scope for v1`, and in
   `docs/superpowers/ideas/` for anything not yet specced. This project does not use
   GitHub issues.
+- `docs/**` is force-included in `.gitignore`. Several build-output patterns there are
+  unanchored, so a doc folder named `out/`, `data/` or `build/` would otherwise be
+  ignored silently.

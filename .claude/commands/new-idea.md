@@ -1,7 +1,7 @@
 ---
 description: Capture a raw context dump as a structured idea doc. Organizes only — never implements.
 argument-hint: <paste anything — a chat thread, a complaint, a half-formed feature idea>
-allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git rev-parse:*), Bash(date:*), Write, Read, Glob, Grep
+allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git rev-parse:*), Bash(date:*), Write, Read, Glob, Grep
 ---
 
 # New idea
@@ -27,7 +27,12 @@ $ARGUMENTS
 2. **Write `docs/superpowers/ideas/<YYYY-MM-DD>-<slug>.md`** using the template below.
    Use today's real date from `date +%Y-%m-%d`.
 
-3. **Commit that one file.** Message: `docs(ideas): capture <slug>`. Do not push.
+3. **Commit that one file** — message `docs(ideas): capture <slug>` — then
+   `git push -u origin idea/<slug>`.
+
+   Push, but do **not** open a PR. A capture that exists only in a container is lost
+   when that container is reclaimed, which defeats the point of capturing it. A pushed
+   branch with no PR is durable and claims nothing.
 
 4. **Print the file path and stop.** One or two sentences, no summary of the contents —
    the user just wrote them.

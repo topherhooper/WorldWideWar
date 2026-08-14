@@ -26,3 +26,8 @@ tools/mapviz/out/
 *.log
 
 .claude/settings.local.json
+
+# Documentation is never generated output. The build-output patterns above are
+# unanchored, so a doc directory that happens to be named out/, data/ or build/
+# would otherwise vanish silently.
+!docs/**
