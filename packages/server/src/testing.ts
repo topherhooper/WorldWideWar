@@ -5,7 +5,10 @@ import type { PresetId } from '@www/engine';
 
 import type { Verifiers } from './auth.js';
 import { createGame, HttpError, updateConfig, type AuthedUser } from './games.js';
+import type { Mailer } from './mailer.js';
+import type { NotifyDeps } from './notify.js';
 import { initFirestore } from './store.js';
+import { unsubSigner } from './unsub.js';
 
 const EMULATOR_PROJECT = 'demo-www';
 
@@ -21,6 +24,16 @@ export async function clearFirestore(): Promise<void> {
   );
   if (!res.ok) throw new Error(`failed to clear firestore emulator: ${res.status}`);
 }
+
+export const TEST_UNSUB_SECRET = 'test-unsub-secret';
+
+/** The deps every mail-sending path takes, wired for tests. */
+export const testDeps = (db: Firestore, mailer: Mailer): NotifyDeps => ({
+  db,
+  mailer,
+  signer: unsubSigner(TEST_UNSUB_SECRET),
+  baseUrl: 'http://x',
+});
 
 /** Sign up a throwaway user in the Auth emulator and return their ID token. */
 export async function emulatorToken(email: string, name: string): Promise<string> {

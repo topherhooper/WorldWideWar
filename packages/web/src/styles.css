@@ -138,6 +138,20 @@ select {
   gap: 0.5rem;
 }
 
+.pref-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.pref-list p {
+  margin: 0.15rem 0 0 1.6rem;
+  font-size: 0.9rem;
+}
+
 .game-card {
   display: flex;
   align-items: center;

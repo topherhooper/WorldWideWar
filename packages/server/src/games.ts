@@ -30,7 +30,7 @@ import type {
   SubmitOrdersResponse,
   UpdateConfigRequest,
 } from './api-types.js';
-import type { Mailer } from './mailer.js';
+import type { NotifyDeps } from './notify.js';
 import { resolveGameTurn } from './resolve.js';
 import {
   effectiveRules,
@@ -408,16 +408,15 @@ export async function updateConfig(
  * draft they last autosaved, exactly as if the deadline had passed.
  */
 export async function resolveNow(
-  db: Firestore,
-  mailer: Mailer,
-  baseUrl: string,
+  deps: NotifyDeps,
   gameId: string,
   user: AuthedUser,
 ): Promise<GameView> {
+  const { db } = deps;
   const game = await loadGame(db, gameId);
   if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can end the turn');
   if (game.status !== 'active') throw new HttpError(409, 'game is not active');
-  await resolveGameTurn(db, mailer, baseUrl, gameId, game.turn);
+  await resolveGameTurn(deps, gameId, game.turn);
   return getView(db, gameId, user);
 }
 
@@ -467,13 +466,12 @@ export async function submitLobbyList(
 }
 
 export async function submitOrders(
-  db: Firestore,
-  mailer: Mailer,
-  baseUrl: string,
+  deps: NotifyDeps,
   gameId: string,
   user: AuthedUser,
   req: SubmitOrdersRequest,
 ): Promise<SubmitOrdersResponse> {
+  const { db } = deps;
   const { turn, allLocked, warnings } = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
@@ -515,7 +513,7 @@ export async function submitOrders(
 
   let resolved = false;
   if (allLocked) {
-    resolved = (await resolveGameTurn(db, mailer, baseUrl, gameId, turn)).resolved;
+    resolved = (await resolveGameTurn(deps, gameId, turn)).resolved;
   }
   return { warnings, resolved, view: await getView(db, gameId, user) };
 }

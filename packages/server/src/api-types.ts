@@ -12,6 +12,13 @@ import type {
 
 export type GameStatus = 'lobby' | 'active' | 'finished';
 
+/** Which emails a player wants. Every kind defaults to on. */
+export type NotifyKind = 'turnResolved' | 'gameOver' | 'reminder';
+
+export type NotifyPrefs = Record<NotifyKind, boolean>;
+
+export type UpdatePrefsRequest = Partial<NotifyPrefs>;
+
 export interface SeatView {
   slot: number;
   name: string;

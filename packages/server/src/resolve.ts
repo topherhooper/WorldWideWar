@@ -1,4 +1,4 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import {
   canonicalJson,
   decideOrders,
@@ -11,7 +11,7 @@ import {
 } from '@www/engine';
 import type { OrderSet, TurnReport } from '@www/engine';
 
-import type { Mailer } from './mailer.js';
+import { notify, type NotifyDeps } from './notify.js';
 import {
   effectiveRules,
   games,
@@ -40,12 +40,11 @@ const NOT_RESOLVED: ResolutionOutcome = { resolved: false, report: null, finishe
  * transaction makes double resolution structurally impossible.
  */
 export async function resolveGameTurn(
-  db: Firestore,
-  mailer: Mailer,
-  baseUrl: string,
+  deps: NotifyDeps,
   gameId: string,
   expectedTurn: number,
 ): Promise<ResolutionOutcome> {
+  const { db } = deps;
   const committed = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) return null;
@@ -123,14 +122,16 @@ export async function resolveGameTurn(
   if (committed === null) return NOT_RESOLVED;
   const { report, finished, game } = committed;
 
-  const subject = finished
-    ? `[WWW] Game over — ${report.result?.detail ?? report.result?.kind}`
-    : `[WWW] Turn ${expectedTurn} resolved — ${report.headline}`;
-  const text = `${report.headline}\n\nSee the full report: ${baseUrl}/g/${gameId}`;
-  for (const seat of game.seats) {
-    if (seat !== null && !seat.isBot && seat.email !== null) {
-      await mailer.send({ to: seat.email, subject, text });
-    }
-  }
+  await notify(
+    deps,
+    finished ? 'gameOver' : 'turnResolved',
+    game.seats.flatMap((seat) => (seat !== null && !seat.isBot ? [seat] : [])),
+    {
+      subject: finished
+        ? `[WWW] Game over — ${report.result?.detail ?? report.result?.kind}`
+        : `[WWW] Turn ${expectedTurn} resolved — ${report.headline}`,
+      text: `${report.headline}\n\nSee the full report: ${deps.baseUrl}/g/${gameId}`,
+    },
+  );
   return { resolved: true, report, finished };
 }
