@@ -150,7 +150,7 @@ it keeps getting used. Replace the "Manual deploy of the working tree" paragraph
 dispatch instructions, and state the prerequisites so a reader who hits an auth failure
 knows whether the pool exists.
 
-- [ ] Replace the manual-deploy paragraph in the "Pipeline" section with:
+- [x] Replace the manual-deploy paragraph in the "Pipeline" section with:
 
 ````markdown
 Manual deploy, pinned to a commit — **Actions → Deploy → Run workflow**, or:
@@ -169,8 +169,8 @@ uncommitted edits included, and tags the image with a counter that traces back t
 commit. Don't.
 ````
 
-- [ ] `pnpm exec prettier --check --end-of-line auto docs/deployment.md`
-- [ ] Commit: `docs(deploy): document the commit-pinned dispatch pathway`
+- [x] `pnpm exec prettier --check --end-of-line auto docs/deployment.md`
+- [x] Commit: `docs(deploy): document the commit-pinned dispatch pathway`
 
 ---
 

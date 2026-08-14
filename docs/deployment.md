@@ -22,11 +22,23 @@ The trigger runs as `cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com`
 (roles: run.admin, artifactregistry.writer, firebasehosting.admin, logging.logWriter,
 serviceAccountUser on the compute SA). CI checks stay in GitHub Actions and do not deploy.
 
-Manual deploy of the working tree, no trigger needed:
+Manual deploy, pinned to a commit — **Actions → Deploy → Run workflow**, or:
 
 ```
-gcloud builds submit --config cloudbuild.yaml --project fluted-citizen-269819 --substitutions COMMIT_SHA=manual-N .
+gh workflow run deploy.yml -f ref=<branch|tag|sha>
 ```
+
+`ref` defaults to `main`. The workflow (`.github/workflows/deploy.yml`) checks the ref
+out, resolves it to a full SHA, tags the image with that SHA, and runs the same
+`cloudbuild.yaml` as the trigger. Rolling back is dispatching an older SHA. It needs two
+repository variables — `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`
+— plus a Workload Identity pool bound to this repo; see the prerequisites in
+`docs/superpowers/specs/2026-08-14-commit-pinned-deploy-design.md`.
+
+Deploying from a laptop with `gcloud builds submit … COMMIT_SHA=manual-N .` still works,
+and is still the wrong thing: the trailing `.` uploads your working tree, uncommitted
+edits included, and `manual-N` tags the image with a counter that traces back to no
+commit. Reach for it only when Actions itself is down.
 
 ## Secrets
 
