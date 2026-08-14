@@ -73,7 +73,13 @@ export async function createGame(
   user: AuthedUser,
   req: CreateGameRequest,
 ): Promise<string> {
-  const preset = presetById(typeof req.presetId === 'string' ? req.presetId : '');
+  // Cloud Run updates before Firebase Hosting, and an open tab keeps its old
+  // bundle until someone reloads, so the API must still accept the pre-preset
+  // payload: a `contest` and no presetId. Absent means legacy, and legacy maps
+  // onto the preset of the same name; an id that was actually asked for and is
+  // not a preset stays a 400.
+  const requested = typeof req.presetId === 'string' ? req.presetId : (req.contest ?? 'pact');
+  const preset = presetById(requested);
   if (preset === null) throw new HttpError(400, 'unknown preset');
   const playerCount = LOBBY_START_PLAYERS;
 

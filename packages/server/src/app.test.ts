@@ -27,6 +27,23 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
     });
   });
 
+  // Verbatim the body the pre-preset bundle posts, extra fields and all. That
+  // client stays live in loaded tabs across a deploy, and the route casts the
+  // body rather than validating it — this fails the day someone adds a schema
+  // that rejects unknown keys, which is exactly when we would want to know.
+  it('creates a game from a pre-preset client body', async () => {
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/games',
+      headers: H('tok-a'),
+      payload: { playerCount: 4, contest: 'tiers', turnCap: 25 },
+    });
+    expect(create.statusCode).toBe(200);
+    const { id } = create.json<{ id: string }>();
+    const view = await app.inject({ method: 'GET', url: `/api/games/${id}`, headers: H('tok-a') });
+    expect(view.json<{ presetId: string }>().presetId).toBe('tiers');
+  });
+
   it('plays a full lifecycle over HTTP', async () => {
     const create = await app.inject({
       method: 'POST',

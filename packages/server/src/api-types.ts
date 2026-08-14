@@ -73,7 +73,12 @@ export interface GameView {
 
 export interface CreateGameRequest {
   /** One of the engine's PRESETS ids; the preset is immutable after creation. */
-  presetId: string;
+  presetId?: string;
+  /**
+   * Pre-preset clients sent a contest instead. Optional only so a web bundle
+   * cached across a deploy can still create a game — new clients send presetId.
+   */
+  contest?: ContestKind;
 }
 
 export interface UpdateConfigRequest {

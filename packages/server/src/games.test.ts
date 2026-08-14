@@ -47,6 +47,23 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     await expect(createGame(db, alice, { presetId: 'ranked' })).rejects.toThrow(HttpError);
   });
 
+  // The API deploys ahead of the web bundle, and a loaded tab keeps its old
+  // JS until someone reloads. A client from before presets sends `contest`
+  // and no presetId, so rejecting that payload would break "create game" for
+  // every player who had not reloaded yet.
+  it('accepts a pre-preset client payload, mapping contest to its preset', async () => {
+    const id = await createGame(db, alice, { contest: 'tiers' });
+    const view = await getView(db, id, alice);
+    expect(view.presetId).toBe('tiers');
+    expect(view.contest).toBe('tiers');
+  });
+
+  it('defaults a payload with neither presetId nor contest to pact', async () => {
+    const id = await createGame(db, alice, {});
+    const view = await getView(db, id, alice);
+    expect(view.presetId).toBe('pact');
+  });
+
   it('auto-starts when the last seat fills', async () => {
     const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     const view = await joinGame(db, id, bob);
