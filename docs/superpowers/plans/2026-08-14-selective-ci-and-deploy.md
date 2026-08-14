@@ -299,7 +299,7 @@ Run: `pnpm install` (registers the workspace member and updates `pnpm-lock.yaml`
 No unit test: this file is `git` plumbing and `$GITHUB_OUTPUT` formatting, and the honest
 test of it is the first pull request that runs the workflow. Verify it by hand instead.
 
-- [ ] **Step 1: Implement** — `tools/ci/src/main.ts` (new file):
+- [x] **Step 1: Implement** — `tools/ci/src/main.ts` (new file):
 
 ```ts
 /**
@@ -358,7 +358,7 @@ function main(): void {
 main();
 ```
 
-- [ ] **Step 2: Verify by hand**
+- [x] **Step 2: Verify by hand**
 
 ```bash
 pnpm exec tsx tools/ci/src/main.ts --ignored-files          # docs/**,*.md,**/*.md,.claude/**
@@ -367,7 +367,7 @@ pnpm exec tsx tools/ci/src/main.ts ''                       # base commit unknow
 pnpm typecheck && pnpm lint
 ```
 
-- [ ] **Step 3: Commit** — `feat(ci): publish the job selection to $GITHUB_OUTPUT`
+- [x] **Step 3: Commit** — `feat(ci): publish the job selection to $GITHUB_OUTPUT`
 
 ---
 
