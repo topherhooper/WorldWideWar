@@ -59,8 +59,37 @@ commit. Reach for it only when Actions itself is down.
 
 ### First-time setup for the deploy workflow
 
-Done once. Everything below is idempotent enough to re-run except the `create` calls,
-which fail with `ALREADY_EXISTS` — that failure is fine to ignore.
+**This is already provisioned** — it ran on 2026-08-14 and the two repository variables
+are set. What follows is the record of what exists, and the procedure to rebuild it in a
+fresh project. Everything is idempotent to re-run except the `create` calls, which fail
+with `ALREADY_EXISTS`.
+
+What is in place now:
+
+| Resource            | Value                                                          |
+| ------------------- | -------------------------------------------------------------- |
+| Federation pool     | `github-pool` (pre-existing — also serves `razzle-dazzle`)     |
+| OIDC provider       | `worldwidewar`, conditioned to `topherhooper/WorldWideWar`     |
+| Submitting identity | `gha-deploy@fluted-citizen-269819.iam.gserviceaccount.com`     |
+| Building identity   | `cloudbuilder@…` — the same SA the push-to-`main` trigger uses |
+
+**The pool is shared, and its providers are not.** `github-pool` already carried a
+`github-provider` pinned to `topherhooper/razzle-dazzle`. Adding a sibling provider is
+correct; editing that one would silently break the other repository's deploys.
+
+**Do not remove `--gcs-source-staging-dir` from the workflow.** It is the difference
+between a working deploy and five identical 403s. Left to itself, `gcloud builds submit`
+resolves the default `<project>_cloudbuild` bucket by listing — and `storage.buckets.list`
+is a **project-level** permission that cannot be granted on a single bucket. No amount of
+bucket-scoped IAM fixes it; the documented workarounds are Project Viewer or Storage
+Admin, both of which hand a GitHub-assumable credential broad read over the whole project,
+Firestore included. Naming the staging directory skips the resolution step entirely and
+keeps `gha-deploy@` scoped to one bucket. This was established the hard way — the error
+text blames `serviceusage.services.use`, which is a red herring.
+
+**The role set below is what is provisioned, not a minimized set.** `serviceUsageConsumer`
+and `legacyBucketReader` were added while chasing the 403 above and may not be load-bearing
+now that the staging directory is explicit. Nobody has tried removing them.
 
 **The workflow file must be on `main` before step 8 works.** GitHub only offers
 `workflow_dispatch` for workflows present on the default branch, so a `deploy.yml` that
@@ -73,7 +102,7 @@ Run steps 1–7 from bash with an account that can administer IAM on the project
 # 0. Everything below reads these.
 PROJECT=fluted-citizen-269819
 REPO=topherhooper/WorldWideWar
-POOL=github
+POOL=github-pool          # reused; a fresh project would create this
 PROVIDER=worldwidewar
 SA_NAME=gha-deploy
 SA=${SA_NAME}@${PROJECT}.iam.gserviceaccount.com
@@ -91,26 +120,36 @@ gcloud services enable \
 gcloud iam service-accounts create "$SA_NAME" \
   --display-name="GitHub Actions deploy" --project "$PROJECT"
 
-# 3. Roles to submit a build and read its logs.
+# 3. Roles to submit a build and read its logs. Note what is NOT here: no project-wide
+#    roles/viewer and no roles/storage.admin. Both are widely recommended for this and
+#    both are unnecessary — see the --gcs-source-staging-dir note above.
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/cloudbuild.builds.editor" --condition=None
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA}" --role="roles/logging.viewer" --condition=None
+# Added while debugging; possibly redundant. See the note above before copying it.
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${SA}" --role="roles/serviceusage.serviceUsageConsumer" --condition=None
 
-# 4. Write access to the source-upload bucket, scoped to that bucket rather than
-#    granting project-wide storage.admin.
+# 4. Bucket access, scoped to the one bucket. objectAdmin uploads the source tarball;
+#    legacyBucketReader was added while debugging and may be redundant.
 gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
   --member="serviceAccount:${SA}" --role="roles/storage.objectAdmin"
+gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
+  --member="serviceAccount:${SA}" --role="roles/storage.legacyBucketReader"
 
-# 5. Permission to hand the build to the Cloud Build service account it runs as.
+# 5. Permission to hand the build to the SA it runs as. That SA is `cloudbuilder@`, not
+#    the Cloud Build default: this project has no legacy PROJECT_NUMBER@cloudbuild SA,
+#    so an unqualified `builds submit` would fall back to the Compute Engine default,
+#    which lacks firebasehosting.admin. The workflow passes --service-account to pin it.
 gcloud iam service-accounts add-iam-policy-binding \
-  "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+  "cloudbuilder@${PROJECT}.iam.gserviceaccount.com" \
   --member="serviceAccount:${SA}" --role="roles/iam.serviceAccountUser" \
   --project "$PROJECT"
 
 # 6. The federation pool and its GitHub OIDC provider. The attribute condition is the
 #    security boundary — without it, any repository on GitHub could mint tokens for
-#    this provider.
+#    this provider. The pool already existed here, so this create was skipped.
 gcloud iam workload-identity-pools create "$POOL" \
   --project="$PROJECT" --location=global --display-name="GitHub Actions"
 
@@ -144,13 +183,14 @@ gh run watch --repo topherhooper/WorldWideWar
 
 Failures worth recognising on the first run:
 
-| Symptom                                                           | Cause                                                                                  |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `Workflow does not have 'workflow_dispatch' trigger` / not listed | `deploy.yml` is not on `main` yet                                                      |
-| `Permission denied on resource ... workloadIdentityPools`         | Step 7's binding missing, or the repo name in it is wrong                              |
-| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step | Attribute condition in step 6 does not match `$REPO`                                   |
-| Auth passes, `builds submit` 403s                                 | Step 3, 4 or 5 skipped                                                                 |
-| Build runs, `firebase deploy` fails on permissions                | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA` |
+| Symptom                                                           | Cause                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Workflow does not have 'workflow_dispatch' trigger` / not listed | `deploy.yml` is not on `main` yet                                                       |
+| `Permission denied on resource ... workloadIdentityPools`         | Step 7's binding missing, or the repo name in it is wrong                               |
+| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step | Attribute condition in step 6 does not match `$REPO`                                    |
+| Auth passes, `builds submit` 403s                                 | Step 3, 4 or 5 skipped                                                                  |
+| `builds submit` rejects `--service-account`                       | The build config must set `logging: CLOUD_LOGGING_ONLY`; `cloudbuild.yaml` already does |
+| Build runs, `firebase deploy` fails on permissions                | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA`  |
 
 ## Secrets
 
@@ -179,9 +219,81 @@ so rotate only if the key leaks.
 The `VITE_FIREBASE_*` values in `packages/web/.env.production` are public identifiers,
 not secrets — the browser key ships in the bundle to every visitor by design. It is
 additionally restricted (API key `29962844-…`) to `identitytoolkit.googleapis.com` +
-`securetoken.googleapis.com`, callable only from the `web.app`/`firebaseapp.com`
-referrers, so it is useless for any other API or origin. Nothing else needs configuring: Cloud Run gets the secret via
-`--set-secrets`, CI uses only emulators, and GitHub holds no repository secrets.
+`securetoken.googleapis.com`, and to the referrers listed under "Sign-in origins"
+below, so it is useless for any other API or origin. Nothing else needs configuring:
+Cloud Run gets the secret via `--set-secrets`, CI uses only emulators, and GitHub holds
+no repository secrets.
+
+### Sign-in origins
+
+Every origin the app is served from has to be listed in **three independent places**, or
+Google sign-in fails. They are enforced by different systems and none implies the
+others, so adding a hosting domain and stopping there is the standing trap — it is what
+broke `play.topherhooper.com` on 2026-08-13.
+
+| Place                             | Enforced by      | Failure if missing                                      |
+| --------------------------------- | ---------------- | ------------------------------------------------------- |
+| API key `29962844-…` referrers    | API Keys         | `auth/requests-from-referer-<origin>-are-blocked` (403) |
+| Firebase Auth `authorizedDomains` | Identity Toolkit | `auth/unauthorized-domain`                              |
+| OAuth client redirect URIs        | Google OAuth     | `Error 400: redirect_uri_mismatch`                      |
+
+The third only applies to whichever origin `VITE_FIREBASE_AUTH_DOMAIN` names, since that
+is the domain whose `/__/auth/handler` Google redirects back to. Point it at the domain
+the site is actually served from: a cross-origin `authDomain` still works for
+`signInWithPopup`, but browser third-party-storage partitioning breaks the
+`signInWithRedirect` fallback that `auth.tsx` uses on mobile and behind popup blockers —
+sign-in then fails only on phones, which desktop testing never reveals. Hosting serves
+the real `/__/auth/handler` on every domain attached to the project, and `firebase.json`'s
+catch-all rewrite does not shadow the reserved `/__/` namespace, so no rewrite is needed.
+
+All three currently hold `play.topherhooper.com` alongside the
+`web.app`/`firebaseapp.com` defaults. To add another origin:
+
+```bash
+# 1. API key referrers. This flag REPLACES the list, so restate every origin — and
+#    restate --api-target too, or the API restriction is dropped and the key widens
+#    to every enabled API in the project.
+gcloud services api-keys update projects/614936797883/locations/global/keys/29962844-cd3c-4761-9395-6e4a6d612afe \
+  --project fluted-citizen-269819 \
+  --allowed-referrers="https://play.topherhooper.com/*,https://fluted-citizen-269819.web.app/*,https://fluted-citizen-269819.firebaseapp.com/*" \
+  --api-target=service=identitytoolkit.googleapis.com \
+  --api-target=service=securetoken.googleapis.com
+
+# 2. Firebase Auth authorized domains — also a full replacement, bare hostnames.
+curl -X PATCH \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "x-goog-user-project: fluted-citizen-269819" \
+  -H "Content-Type: application/json" \
+  --data '{"authorizedDomains":["localhost","fluted-citizen-269819.firebaseapp.com","fluted-citizen-269819.web.app","play.topherhooper.com"]}' \
+  "https://identitytoolkit.googleapis.com/admin/v2/projects/fluted-citizen-269819/config?updateMask=authorizedDomains"
+```
+
+Step 3 is console-only — there is no gcloud surface for a non-IAP OAuth client. Add
+`https://<origin>/__/auth/handler` under **Authorized redirect URIs** on client
+`614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7`:
+
+```
+https://console.cloud.google.com/apis/credentials/oauthclient/614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com?project=fluted-citizen-269819
+```
+
+Verify all three without a browser. Each probe isolates one layer, and each takes a few
+minutes to propagate after a change — an immediate retest looks like failure.
+
+```bash
+# 1 + 2. The call the SDK makes first, so it reproduces the referrer block on its own.
+# Blocked origin → API_KEY_HTTP_REFERRER_BLOCKED. Allowed → a sessionId.
+curl -s -X POST -H "Referer: https://play.topherhooper.com/" -H "Content-Type: application/json" \
+  --data '{"identifier":"probe@example.com","continueUri":"https://play.topherhooper.com/"}' \
+  "https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=AIzaSyDsG81Moo9f3vgnYiWfdZDHT7QrBFuL0Sc"
+
+# 3. Unregistered redirect URIs come back as redirect_uri_mismatch; registered ones
+#    reach the sign-in page. Check an origin you did NOT register too — if that also
+#    passes, the probe is broken, not the config.
+curl -s -L "https://accounts.google.com/o/oauth2/v2/auth\
+?client_id=614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com\
+&response_type=code&scope=email\
+&redirect_uri=https://play.topherhooper.com/__/auth/handler" | grep -c redirect_uri_mismatch
+```
 
 ## DNS
 
@@ -217,6 +329,22 @@ correctness anyway.
   domains and answers before the app. The route works locally and for port probes;
   don't chase 404s on it in prod.
 - **Secrets from Windows**: see the BOM note above.
+- **A new custom domain shows "Not Secure" for a few hours.** DNS starts resolving to
+  Firebase the moment the CNAME lands, but the managed certificate is issued later —
+  `play.topherhooper.com` pointed at Hosting from 2026-08-13T00:47Z and its cert only
+  became valid at 08:43Z. In that window the domain serves a certificate that does not
+  match, and browsers say "Not Secure". Nothing to fix; it clears itself. Check state
+  rather than guessing — wait for `CERT_ACTIVE` and `DOMAIN_ACTIVE`:
+
+  ```bash
+  curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+    -H "x-goog-user-project: fluted-citizen-269819" \
+    "https://firebasehosting.googleapis.com/v1beta1/sites/fluted-citizen-269819/domains"
+  ```
+
+  This is also why `_BASE_URL` in `cloudbuild.yaml` is overridable — mail sent during
+  that window would otherwise carry links browsers refuse to open.
+
 - **Firestore forbids nested arrays**, so `stateJson`/`mapJson` are canonical-JSON
   strings, with queryable fields (`turn`, `status`, `deadlineAt`) mirrored top-level.
 - The **combat seed never leaves the server** and is distinct from the map seed —

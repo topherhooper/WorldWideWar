@@ -29,6 +29,11 @@ concurrency:
 
 env:
   GCP_PROJECT: fluted-citizen-269819
+  # The build runs as the same service account the push-to-main trigger uses. Left
+  # unset, `builds submit` falls back to the Compute Engine default SA, which does not
+  # hold firebasehosting.admin — the hosting step would then fail at the very end of an
+  # otherwise successful build, after Cloud Run had already been updated.
+  GCP_BUILD_SERVICE_ACCOUNT: cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com
 
 jobs:
   deploy:
@@ -61,6 +66,14 @@ jobs:
           gcloud builds submit \
             --config cloudbuild.yaml \
             --project "$GCP_PROJECT" \
+            --service-account "projects/$GCP_PROJECT/serviceAccounts/$GCP_BUILD_SERVICE_ACCOUNT" \
+            # Name the staging bucket explicitly. Left to itself, gcloud resolves the
+            # default `<project>_cloudbuild` bucket by listing/creating it, and
+            # `storage.buckets.list` is a project-level permission that cannot be granted
+            # on one bucket — so the SA 403s with "forbidden from accessing the bucket"
+            # no matter how much bucket-scoped access it holds. Naming the directory
+            # skips that resolution step, which is why this needs no project-wide role.
+            --gcs-source-staging-dir "gs://${GCP_PROJECT}_cloudbuild/gha-source" \
             --substitutions COMMIT_SHA=${{ steps.sha.outputs.sha }} \
             .
 
