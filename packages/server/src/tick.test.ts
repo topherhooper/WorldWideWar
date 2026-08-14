@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 
-import { emulatorDb, clearFirestore, testDeps } from './testing.js';
+import { emulatorDb, clearFirestore, createTestGame, testDeps } from './testing.js';
 import { games } from './store.js';
 import { LogMailer } from './mailer.js';
-import { createGame, getView, joinGame, submitOrders, type AuthedUser } from './games.js';
+import { getView, joinGame, submitOrders, type AuthedUser } from './games.js';
 import { runTick } from './tick.js';
 import { writePrefs } from './notify.js';
 
@@ -20,7 +20,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tick', () => {
   });
 
   async function twoPlayerGame(): Promise<string> {
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await joinGame(db, id, bob);
     return id;
   }

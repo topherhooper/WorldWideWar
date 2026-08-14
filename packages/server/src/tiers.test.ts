@@ -2,17 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { TurnReport } from '@www/engine';
 
-import { emulatorDb, clearFirestore, testDeps } from './testing.js';
+import { emulatorDb, clearFirestore, createTestGame, testDeps } from './testing.js';
 import { games, reportsCol } from './store.js';
 import { LogMailer } from './mailer.js';
 import {
-  createGame,
   getView,
   joinGame,
   startGame,
   submitLobbyList,
   submitOrders,
-  HttpError,
   type AuthedUser,
 } from './games.js';
 
@@ -27,10 +25,10 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers game creation', () 
   beforeEach(clearFirestore);
 
   it('creates a tiers game with a custom cap and shows the lobby topic', async () => {
-    const id = await createGame(db, alice, {
+    const id = await createTestGame(db, alice, {
+      presetId: 'tiers',
       playerCount: 4,
       turnMinutes: 60,
-      contest: 'tiers',
       turnCap: 15,
     });
     const view = await getView(db, id, alice);
@@ -43,28 +41,18 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers game creation', () 
   });
 
   it('defaults to pact at 25 turns', async () => {
-    const id = await createGame(db, alice, { playerCount: 4, turnMinutes: 60 });
+    const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     const view = await getView(db, id, alice);
     expect(view.contest).toBe('pact');
     expect(view.turnCap).toBe(25);
     expect(view.tiersTopic).toBeNull();
   });
 
-  it('rejects bad caps and contests', async () => {
-    await expect(
-      createGame(db, alice, { playerCount: 4, turnMinutes: 60, turnCap: 9 }),
-    ).rejects.toThrow(HttpError);
-    await expect(
-      createGame(db, alice, { playerCount: 4, turnMinutes: 60, turnCap: 51 }),
-    ).rejects.toThrow(HttpError);
-    await expect(
-      createGame(db, alice, {
-        playerCount: 4,
-        turnMinutes: 60,
-        contest: 'dice' as never,
-      }),
-    ).rejects.toThrow(HttpError);
-  });
+  // Bad turnCap and bad contest ids are no longer creation-time concerns: the
+  // preset fixes the contest (see games.test.ts "rejects unknown presets"),
+  // and the cap is lobby-editable via updateConfig (see games.test.ts
+  // "updateConfig > rejects non-creators, non-lobby games, and out-of-bounds
+  // values", which already exercises turnCap 9 and 51).
 });
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () => {
@@ -72,7 +60,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () =>
   beforeEach(clearFirestore);
 
   const makeGame = () =>
-    createGame(db, alice, { playerCount: 2, turnMinutes: 60, contest: 'tiers' });
+    createTestGame(db, alice, { presetId: 'tiers', playerCount: 2, turnMinutes: 60 });
 
   it('a full table does not start until every human list is in', async () => {
     const id = await makeGame();
@@ -90,7 +78,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () =>
   });
 
   it('start-with-bots fills bot lists but insists on human lists', async () => {
-    const id = await createGame(db, alice, { playerCount: 3, turnMinutes: 60, contest: 'tiers' });
+    const id = await createTestGame(db, alice, {
+      presetId: 'tiers',
+      playerCount: 3,
+      turnMinutes: 60,
+    });
     await expect(startGame(db, id, alice)).rejects.toMatchObject({ statusCode: 409 });
     await submitLobbyList(db, id, alice, LIST);
     const view = await startGame(db, id, alice);
@@ -103,7 +95,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers lobby lists', () =>
     await expect(
       submitLobbyList(db, id, alice, ['only', 'five', 'items', 'in', 'list']),
     ).rejects.toMatchObject({ statusCode: 400 });
-    const pactId = await createGame(db, alice, { playerCount: 2, turnMinutes: 60 });
+    const pactId = await createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 });
     await expect(submitLobbyList(db, pactId, alice, LIST)).rejects.toMatchObject({
       statusCode: 409,
     });
@@ -117,7 +109,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', (
   beforeEach(clearFirestore);
 
   it('resolves a human-vs-bot tiers turn with scored guesses in the report', async () => {
-    const id = await createGame(db, alice, { playerCount: 2, turnMinutes: 60, contest: 'tiers' });
+    const id = await createTestGame(db, alice, {
+      presetId: 'tiers',
+      playerCount: 2,
+      turnMinutes: 60,
+    });
     await submitLobbyList(db, id, alice, LIST);
     const view = await startGame(db, id, alice);
     expect(view.status).toBe('active');
@@ -147,7 +143,11 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', (
   });
 
   it('warns on a locked submission with a broken tier list', async () => {
-    const id = await createGame(db, alice, { playerCount: 3, turnMinutes: 60, contest: 'tiers' });
+    const id = await createTestGame(db, alice, {
+      presetId: 'tiers',
+      playerCount: 3,
+      turnMinutes: 60,
+    });
     await submitLobbyList(db, id, alice, LIST);
     await startGame(db, id, alice);
     const res = await submitOrders(testDeps(db, mailer), id, alice, {

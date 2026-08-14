@@ -1,9 +1,10 @@
 /** Emulator helpers for integration tests. Never imported by production code. */
 
 import type { Firestore } from 'firebase-admin/firestore';
+import type { PresetId } from '@www/engine';
 
 import type { Verifiers } from './auth.js';
-import { HttpError, type AuthedUser } from './games.js';
+import { createGame, HttpError, updateConfig, type AuthedUser } from './games.js';
 import type { Mailer } from './mailer.js';
 import type { NotifyDeps } from './notify.js';
 import { initFirestore } from './store.js';
@@ -52,6 +53,27 @@ export async function emulatorToken(email: string, name: string): Promise<string
   );
   if (!res.ok) throw new Error(`auth emulator signUp failed: ${res.status}`);
   return ((await res.json()) as { idToken: string }).idToken;
+}
+
+/** Create-and-configure in one call; most tests want a small, fast table. */
+export async function createTestGame(
+  db: Firestore,
+  user: AuthedUser,
+  opts: { presetId?: PresetId; playerCount?: number; turnMinutes?: number; turnCap?: number } = {},
+): Promise<string> {
+  const id = await createGame(db, user, { presetId: opts.presetId ?? 'pact' });
+  if (
+    opts.playerCount !== undefined ||
+    opts.turnMinutes !== undefined ||
+    opts.turnCap !== undefined
+  ) {
+    await updateConfig(db, id, user, {
+      ...(opts.playerCount !== undefined && { playerCount: opts.playerCount }),
+      ...(opts.turnMinutes !== undefined && { turnMinutes: opts.turnMinutes }),
+      ...(opts.turnCap !== undefined && { turnCap: opts.turnCap }),
+    });
+  }
+  return id;
 }
 
 /** Token-string-keyed verifiers for route tests; 'tick-ok' authorizes the tick. */

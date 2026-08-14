@@ -47,14 +47,15 @@ import type {
   GeneratedMap,
   OrderSet,
   PactResult,
+  PlunderReport,
   ResolveContext,
+  RuleConfig,
   Slot,
   TerritoryId,
   TiersResult,
   TurnReport,
   WorldEvent,
 } from './types.js';
-import { NEUTRAL_GROWTH_INTERVAL } from './constants.js';
 import { checkVictory, processEliminations, updateVictoryStreaks } from './victory.js';
 
 export interface ResolveResult {
@@ -128,7 +129,7 @@ export function resolveTurn(
   for (let slot = 0; slot < state.playerCount; slot++) {
     if (state.status[slot] === 'active') aliveSlots.push(slot);
   }
-  const contestContext = { attacked, aliveSlots };
+  const contestContext = { attacked, aliveSlots, rules };
   const tiersInputs = orders.map((set) => set.tiers);
   const pact =
     rules.contest === 'tiers'
@@ -425,13 +426,31 @@ export function resolveTurn(
     next.pendingBonusIncome[slot] += contest.bonusIncome[slot];
   }
 
+  // Expansion pays immediately: each captured territory converts to income,
+  // up to the per-turn cap. Counted before the storm so armies spent on a
+  // province the storm then eats were still not spent for nothing.
+  const plunder: PlunderReport[] = [];
+  if (rules.plunderIncome > 0) {
+    const captures = new Array<number>(state.playerCount).fill(0);
+    for (let id = 0; id < next.owner.length; id++) {
+      const owner = next.owner[id];
+      if (owner !== null && owner !== state.owner[id]) captures[owner]++;
+    }
+    for (let slot = 0; slot < state.playerCount; slot++) {
+      if (captures[slot] === 0) continue;
+      const income = Math.min(captures[slot], rules.plunderCap) * rules.plunderIncome;
+      next.pendingBonusIncome[slot] += income;
+      plunder.push({ slot, captures: captures[slot], income });
+    }
+  }
+
   // ── Phase 10 — world tick ────────────────────────────────────────────────
   next.turn = state.turn + 1;
 
   applyStorm(next, map, rules, world);
   relocateFallenCapitals(next, map, world);
   recomputeSupply(next, map);
-  growNeutrals(next);
+  growNeutrals(next, rules);
   processEliminations(next, world);
 
   // The event for the coming turn was announced last tick; draw the one after
@@ -451,7 +470,7 @@ export function resolveTurn(
   for (let slot = 0; slot < next.playerCount; slot++) {
     next.pendingBonusIncome[slot] += mobilizationBonus(next);
   }
-  recomputeIncome(next, map);
+  recomputeIncome(next, map, rules);
 
   const warned = warnedTerritories(map, next.turn, rules);
   if (warned.length > 0) {
@@ -486,6 +505,7 @@ export function resolveTurn(
     revealedTopic: tiers === null ? null : topicForTurn(seed, state.turn - 1).title,
     clashes: clashes.sort((x, y) => y.salience - x.salience),
     battles: battles.sort((x, y) => y.salience - x.salience || x.territory - y.territory),
+    plunder,
     quietMoves,
     world,
     result,
@@ -591,8 +611,9 @@ function relocateFallenCapitals(state: GameState, map: GeneratedMap, world: Worl
 }
 
 /** Unclaimed land does not stay cheap: neutral garrisons grow on a schedule. */
-function growNeutrals(state: GameState): void {
-  if (state.turn % NEUTRAL_GROWTH_INTERVAL !== 0) return;
+function growNeutrals(state: GameState, rules: RuleConfig): void {
+  if (rules.neutralGrowthInterval <= 0) return;
+  if (state.turn % rules.neutralGrowthInterval !== 0) return;
   for (let id = 0; id < state.owner.length; id++) {
     if (state.collapsed[id] || state.owner[id] !== null) continue;
     state.armies[id]++;

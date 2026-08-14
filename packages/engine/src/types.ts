@@ -153,6 +153,8 @@ export interface TiersResult {
   bestRead: TiersGuessResult | null;
   /** Combat multiplier, ×100. */
   multiplier: number;
+  /** Armies granted (or forfeited) next turn; 0 in multiplier games. */
+  incomeDelta: number;
 }
 
 // ─── Game state ──────────────────────────────────────────────────────────────
@@ -297,6 +299,14 @@ export type WorldEvent =
   | { kind: 'order_rejected'; slot: Slot; reason: string }
   | { kind: 'game_over'; result: GameResult };
 
+/** Territory captured this turn converted to next-turn income. */
+export interface PlunderReport {
+  slot: Slot;
+  /** Every territory taken, even past the paying cap. */
+  captures: number;
+  income: number;
+}
+
 export interface TurnReport {
   turn: number;
   headline: string;
@@ -310,6 +320,8 @@ export interface TurnReport {
   battles: BattleReport[];
   /** Uncontested moves, collapsed to a count so the log stays readable. */
   quietMoves: number;
+  /** Expansion pays: capture income granted this turn; empty when plunder is off. */
+  plunder: PlunderReport[];
   world: WorldEvent[];
   result: GameResult | null;
 }
@@ -318,6 +330,9 @@ export interface TurnReport {
 
 /** Which social contest drives combat multipliers. */
 export type ContestKind = 'pact' | 'tiers';
+
+/** How tiers scores land on the game. */
+export type TiersPayout = 'multiplier' | 'income';
 
 export interface RuleConfig {
   /** Which social contest drives combat multipliers. */
@@ -353,6 +368,18 @@ export interface RuleConfig {
   stormInterval: number;
   /** Global events fire every N turns. */
   eventInterval: number;
+  /** The war economy ramps: +1 income every N turns, for everyone. */
+  warEconomyInterval: number;
+  /** Neutral garrisons grow every N turns; 0 disables growth. */
+  neutralGrowthInterval: number;
+  /** Added to each mapgen neutral garrison at setup, floored at 1. */
+  neutralGarrisonDelta: number;
+  /** Bonus income next turn per territory captured this turn; 0 disables plunder. */
+  plunderIncome: number;
+  /** Most captures that pay plunder in one turn. */
+  plunderCap: number;
+  /** Whether tiers scores set a combat multiplier (v1) or pay income (v2). */
+  tiersPayout: TiersPayout;
 }
 
 export interface ResolveContext {

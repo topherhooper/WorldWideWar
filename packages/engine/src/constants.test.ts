@@ -44,3 +44,23 @@ describe('rulesFor with a turn cap', () => {
     expect(MAX_TURN_CAP).toBe(50);
   });
 });
+
+describe('economy and payout rule fields', () => {
+  it('legacy defaults reproduce the old constants exactly', () => {
+    expect(DEFAULT_RULES.warEconomyInterval).toBe(5);
+    expect(DEFAULT_RULES.neutralGrowthInterval).toBe(3);
+    expect(DEFAULT_RULES.neutralGarrisonDelta).toBe(0);
+    expect(DEFAULT_RULES.plunderIncome).toBe(0);
+    expect(DEFAULT_RULES.plunderCap).toBe(3);
+    expect(DEFAULT_RULES.tiersPayout).toBe('multiplier');
+  });
+
+  it('rulesFor passes the legacy defaults through untouched', () => {
+    const rules = rulesFor(6, 25, 'tiers');
+    expect(rules.warEconomyInterval).toBe(5);
+    expect(rules.neutralGrowthInterval).toBe(3);
+    expect(rules.neutralGarrisonDelta).toBe(0);
+    expect(rules.plunderIncome).toBe(0);
+    expect(rules.tiersPayout).toBe('multiplier');
+  });
+});

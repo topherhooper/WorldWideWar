@@ -7,7 +7,7 @@ import type { GameState, GeneratedMap, RuleConfig, TiersList } from './types.js'
 
 export function createInitialState(
   map: GeneratedMap,
-  _rules: RuleConfig = DEFAULT_RULES,
+  rules: RuleConfig = DEFAULT_RULES,
 ): GameState {
   const territoryCount = map.territories.length;
   const playerCount = map.playerCount;
@@ -59,11 +59,13 @@ export function createInitialState(
 
   for (const [id, garrison] of Object.entries(map.neutralGarrisons)) {
     const territory = Number(id);
-    if (state.owner[territory] === null) state.armies[territory] = garrison;
+    if (state.owner[territory] === null) {
+      state.armies[territory] = Math.max(1, garrison + rules.neutralGarrisonDelta);
+    }
   }
 
   recomputeSupply(state, map);
-  recomputeIncome(state, map);
+  recomputeIncome(state, map, rules);
 
   return state;
 }

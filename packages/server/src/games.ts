@@ -12,8 +12,9 @@ import {
   makeTiersList,
   normalizeOrders,
   normalizeTiersList,
+  presetById,
+  presetRules,
   redact,
-  rulesFor,
   substream,
   tiersWarnings,
   topicForTurn,
@@ -27,10 +28,12 @@ import type {
   SeatView,
   SubmitOrdersRequest,
   SubmitOrdersResponse,
+  UpdateConfigRequest,
 } from './api-types.js';
 import type { NotifyDeps } from './notify.js';
 import { resolveGameTurn } from './resolve.js';
 import {
+  effectiveRules,
   games,
   humanSlots,
   liveHumanSlots,
@@ -63,34 +66,22 @@ export class HttpError extends Error {
 
 const MIN_TURN_MINUTES = 5;
 const MAX_TURN_MINUTES = 10_080; // one week
+const LOBBY_START_PLAYERS = 4;
 
 export async function createGame(
   db: Firestore,
   user: AuthedUser,
   req: CreateGameRequest,
 ): Promise<string> {
-  const { playerCount, turnMinutes } = req;
-  if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
-    throw new HttpError(400, `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`);
-  }
-  if (
-    !Number.isInteger(turnMinutes) ||
-    turnMinutes < MIN_TURN_MINUTES ||
-    turnMinutes > MAX_TURN_MINUTES
-  ) {
-    throw new HttpError(
-      400,
-      `turnMinutes must be an integer in [${MIN_TURN_MINUTES}, ${MAX_TURN_MINUTES}]`,
-    );
-  }
-  const contest = req.contest ?? 'pact';
-  if (contest !== 'pact' && contest !== 'tiers') {
-    throw new HttpError(400, "contest must be 'pact' or 'tiers'");
-  }
-  const turnCap = req.turnCap ?? 25;
-  if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
-    throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
-  }
+  // Cloud Run updates before Firebase Hosting, and an open tab keeps its old
+  // bundle until someone reloads, so the API must still accept the pre-preset
+  // payload: a `contest` and no presetId. Absent means legacy, and legacy maps
+  // onto the preset of the same name; an id that was actually asked for and is
+  // not a preset stays a 400.
+  const requested = typeof req.presetId === 'string' ? req.presetId : (req.contest ?? 'pact');
+  const preset = presetById(requested);
+  if (preset === null) throw new HttpError(400, 'unknown preset');
+  const playerCount = LOBBY_START_PLAYERS;
 
   // The map ships to clients (and embeds its own seed), so it must not share
   // the combat seed — that one stays server-side and decides battle rolls.
@@ -107,10 +98,11 @@ export async function createGame(
     seats,
     turn: 1,
     deadlineAt: null,
-    turnMinutes,
+    turnMinutes: preset.defaultTurnMinutes,
     remindedTurn: 0,
     seed,
-    rules: rulesFor(playerCount, turnCap, contest),
+    presetId: preset.id,
+    rules: presetRules(preset, playerCount, preset.defaultTurnCap),
     stateJson: null,
     mapJson: serializeMap(map),
   };
@@ -187,9 +179,8 @@ export async function getView(
   const result: GameResult | null = latestReport?.result ?? null;
 
   const contest = game.rules.contest ?? 'pact';
-  // Stored rules win; rulesFor only fills fields that games predating them
-  // never stored. New games get exactly the rules resolution uses.
-  const rules = { ...rulesFor(game.playerCount, game.rules.turnCap, contest), ...game.rules };
+  const rules = effectiveRules(game);
+  const preset = presetById(game.presetId ?? contest);
   let tiersTopic: string | null = null;
   let lobbyListSlots: number[] = [];
   if (contest === 'tiers') {
@@ -215,6 +206,8 @@ export async function getView(
     contest,
     turnCap: rules.turnCap,
     rules,
+    presetId: game.presetId ?? null,
+    presetName: preset?.name ?? (contest === 'tiers' ? 'Tiers' : 'Pact'),
     tiersTopic,
     lobbyListSlots,
     map: parseMap(game),
@@ -276,7 +269,7 @@ function canActivate(game: GameDoc, lobbyLists: readonly (string[] | null)[]): b
 function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] | null)[]): void {
   doc.status = 'active';
   const map = parseMap(doc);
-  const state = createInitialState(map, doc.rules);
+  const state = createInitialState(map, effectiveRules(doc));
   if ((doc.rules.contest ?? 'pact') === 'tiers') {
     for (let slot = 0; slot < doc.playerCount; slot++) {
       const raw = doc.seats[slot]?.isBot
@@ -350,6 +343,68 @@ export async function startGame(
       throw new HttpError(409, 'waiting for tier lists from seated players');
     }
     activate(game, Timestamp.now(), lobbyLists);
+    tx.set(games(db).doc(gameId), game);
+    return game;
+  });
+  return getView(db, gameId, user, doc);
+}
+
+/**
+ * Creator-only lobby tuning. The preset is the game's identity and immutable;
+ * everything else — table size, clock, length — is negotiable until start.
+ */
+export async function updateConfig(
+  db: Firestore,
+  gameId: string,
+  user: AuthedUser,
+  req: UpdateConfigRequest,
+): Promise<GameView> {
+  const doc = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(games(db).doc(gameId));
+    if (!snap.exists) throw new HttpError(404, 'game not found');
+    const game = snap.data() as GameDoc;
+    if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can configure');
+    if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
+
+    const playerCount = req.playerCount ?? game.playerCount;
+    const turnMinutes = req.turnMinutes ?? game.turnMinutes;
+    const turnCap = req.turnCap ?? effectiveRules(game).turnCap;
+    if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+      throw new HttpError(
+        400,
+        `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`,
+      );
+    }
+    if (
+      !Number.isInteger(turnMinutes) ||
+      turnMinutes < MIN_TURN_MINUTES ||
+      turnMinutes > MAX_TURN_MINUTES
+    ) {
+      throw new HttpError(
+        400,
+        `turnMinutes must be an integer in [${MIN_TURN_MINUTES}, ${MAX_TURN_MINUTES}]`,
+      );
+    }
+    if (!Number.isInteger(turnCap) || turnCap < MIN_TURN_CAP || turnCap > MAX_TURN_CAP) {
+      throw new HttpError(400, `turnCap must be an integer in [${MIN_TURN_CAP}, ${MAX_TURN_CAP}]`);
+    }
+
+    // Classic preset ids equal the contest kinds, so a legacy lobby without a
+    // presetId still resolves to the preset matching its contest.
+    const preset = presetById(game.presetId ?? game.rules.contest ?? 'pact');
+    if (preset === null) throw new HttpError(500, 'game has no recognisable preset');
+
+    if (playerCount !== game.playerCount) {
+      if (game.seats.slice(playerCount).some((seat) => seat !== null)) {
+        throw new HttpError(409, 'players are already seated beyond that count');
+      }
+      game.mapJson = serializeMap(generateMap(randomUUID(), playerCount));
+      game.seats = Array.from({ length: playerCount }, (_, slot) => game.seats[slot] ?? null);
+      game.playerCount = playerCount;
+    }
+    game.turnMinutes = turnMinutes;
+    game.rules = presetRules(preset, playerCount, turnCap);
+
     tx.set(games(db).doc(gameId), game);
     return game;
   });

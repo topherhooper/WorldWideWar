@@ -1,9 +1,18 @@
-import type { ContestKind } from '@www/engine';
+import type { ContestKind, TiersPayout } from '@www/engine';
 
 /** The combat maths, in player language — mirrors packages/engine/src/combat.ts. */
-export function HowCombatWorks({ contest }: { contest: ContestKind }) {
+export function HowCombatWorks({
+  contest,
+  tiersPayout,
+  plunderIncome,
+}: {
+  contest: ContestKind;
+  tiersPayout: TiersPayout;
+  plunderIncome: number;
+}) {
   const contestSource =
     contest === 'tiers' ? 'your tier-list reads' : 'how your pact pledges played out';
+  const incomeMode = contest === 'tiers' && tiersPayout === 'income';
 
   return (
     <details className="panel how-to-win">
@@ -18,11 +27,19 @@ export function HowCombatWorks({ contest }: { contest: ContestKind }) {
           standing in it defends at +2. A territory that sent support defends at half — its garrison
           is facing outward. Supporting neighbours add half their garrison and take no casualties.
         </li>
-        <li>
-          <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is the
-          biggest lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a die is
-          rolled. Neutral garrisons always fight at ×1.00.
-        </li>
+        {incomeMode ? (
+          <li>
+            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00; your
+            tier-list reads pay (or cost) armies directly instead. Only the dice separate two equal
+            stacks.
+          </li>
+        ) : (
+          <li>
+            <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is the
+            biggest lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a die is
+            rolled. Neutral garrisons always fight at ×1.00.
+          </li>
+        )}
         <li>
           <strong>Dice</strong> — one d6 per side, worth ×0.88 to ×1.12. Luck can steal a close
           fight, never a lopsided one.
@@ -39,6 +56,12 @@ export function HowCombatWorks({ contest }: { contest: ContestKind }) {
           <strong>Losing</strong> — a beaten attacking stack limps home with a third of what it
           committed. Defenders who lose their ground are wiped out.
         </li>
+        {plunderIncome > 0 && (
+          <li>
+            <strong>Plunder</strong> — every territory you capture pays +1 army next turn (up to +3
+            a turn). Expansion pays for itself; sitting still does not.
+          </li>
+        )}
       </ul>
       <p className="muted hint">
         The odds shown when you commit an attack account for all of this — including the range that

@@ -15,7 +15,7 @@
  * 2. **Deterministic given (state, inputs, rng).** Replays depend on it.
  */
 
-import type { GameState, Slot } from '../types.js';
+import type { GameState, RuleConfig, Slot } from '../types.js';
 
 export interface ContestOutcome<Result> {
   /** Combat multiplier per slot, ×100. */
@@ -39,4 +39,6 @@ export interface ContestContext {
   /** `attacked[a][b]` — did slot a order an attack on slot b this turn? */
   attacked: boolean[][];
   aliveSlots: Slot[];
+  /** The game's stored rules; contests read payout knobs from here. */
+  rules: RuleConfig;
 }

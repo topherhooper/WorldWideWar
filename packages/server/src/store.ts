@@ -1,7 +1,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type CollectionReference, type Firestore } from 'firebase-admin/firestore';
 import type { Timestamp } from 'firebase-admin/firestore';
-import { canonicalJson } from '@www/engine';
+import { canonicalJson, rulesFor } from '@www/engine';
 import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
 
 import type { GameStatus, NotifyKind } from './api-types.js';
@@ -33,6 +33,7 @@ export interface GameDoc {
   remindedTurn: number;
   /** Drives combat RNG; never leaves the server. */
   seed: string;
+  presetId?: string;
   rules: RuleConfig;
   /** Canonical JSON; null until the game starts. */
   stateJson: string | null;
@@ -78,3 +79,15 @@ export const parseState = (doc: GameDoc): GameState | null => {
   return state;
 };
 export const parseMap = (doc: GameDoc): GeneratedMap => JSON.parse(doc.mapJson) as GeneratedMap;
+
+/**
+ * The rules a game actually plays under. Stored rules win; rulesFor only
+ * fills fields that games predating them never stored — the legacy-defaults
+ * layer that keeps active games resolving exactly as they always did.
+ */
+export function effectiveRules(doc: GameDoc): RuleConfig {
+  return {
+    ...rulesFor(doc.playerCount, doc.rules.turnCap, doc.rules.contest ?? 'pact'),
+    ...doc.rules,
+  };
+}

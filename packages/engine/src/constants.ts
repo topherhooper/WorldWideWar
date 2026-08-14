@@ -54,11 +54,6 @@ export const TERRITORY_START_ARMIES = 3;
 export const BASE_INCOME = 3;
 export const TERRITORIES_PER_INCOME = 3;
 export const CAPTURED_CAPITAL_INCOME = 1;
-/** The war economy ramps: +1 income every N turns, for everyone. */
-export const WAR_ECONOMY_INTERVAL = 5;
-
-/** Neutral garrisons grow every N turns, so unclaimed land does not stay free. */
-export const NEUTRAL_GROWTH_INTERVAL = 3;
 
 /** Creation-time bounds on the configurable game length. */
 export const MIN_TURN_CAP = 10;
@@ -130,6 +125,14 @@ export const DEFAULT_RULES: RuleConfig = {
   stormFirstWave: 10,
   stormInterval: 2,
   eventInterval: 3,
+  // The war economy ramps: +1 income every N turns, for everyone.
+  warEconomyInterval: 5,
+  // Neutral garrisons grow every N turns, so unclaimed land does not stay free.
+  neutralGrowthInterval: 3,
+  neutralGarrisonDelta: 0,
+  plunderIncome: 0,
+  plunderCap: 3,
+  tiersPayout: 'multiplier',
 };
 
 /**

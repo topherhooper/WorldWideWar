@@ -169,7 +169,7 @@ export function scenario(map: GeneratedMap, options: ScenarioOptions): GameState
   }
 
   recomputeSupply(state, map);
-  if (!options.income) recomputeIncome(state, map);
+  if (!options.income) recomputeIncome(state, map, DEFAULT_RULES);
   return state;
 }
 
