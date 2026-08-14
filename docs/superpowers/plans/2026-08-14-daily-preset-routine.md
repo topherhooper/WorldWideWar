@@ -288,7 +288,7 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
 
 **Steps:**
 
-- [ ] In `Home.test.tsx`, add a case asserting the evergreen cards render and that a card carrying `featuredOn` shows the pill, driven off the catalogue rather than a hard-coded id:
+- [x] In `Home.test.tsx`, add a case asserting the evergreen cards render and that a card carrying `featuredOn` shows the pill, driven off the catalogue rather than a hard-coded id:
 
   ```ts
   it('features the daily preset for today', () => {
@@ -306,8 +306,8 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
   });
   ```
 
-- [ ] Run `pnpm exec vitest run packages/web/src/pages/Home.test.tsx` — fails; every preset still renders.
-- [ ] In `Home.tsx`, replace the `PRESETS` import with `presetsForDate`, and inside the component:
+- [x] Run `pnpm exec vitest run packages/web/src/pages/Home.test.tsx` — fails; every preset still renders.
+- [x] In `Home.tsx`, replace the `PRESETS` import with `presetsForDate`, and inside the component:
 
   ```tsx
   // UTC on both ends: the routine stamps a UTC date, so the preset of the day
@@ -323,7 +323,7 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
   }
   ```
 
-- [ ] Add to `styles.css`, after `.preset-card`:
+- [x] Add to `styles.css`, after `.preset-card`:
 
   ```css
   .preset-badge {
@@ -336,8 +336,8 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
   }
   ```
 
-- [ ] Run `pnpm exec vitest run packages/web && pnpm typecheck` — green.
-- [ ] Commit: `feat(web): feature one preset of the day on the home page`
+- [x] Run `pnpm exec vitest run packages/web && pnpm typecheck` — green.
+- [x] Commit: `feat(web): feature one preset of the day on the home page`
 
 ---
 
