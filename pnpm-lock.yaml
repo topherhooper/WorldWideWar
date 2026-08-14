@@ -107,6 +107,8 @@ importers:
         specifier: ^7.3.4
         version: 7.3.6(@types/node@22.20.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  tools/ci: {}
+
   tools/mapviz:
     dependencies:
       '@www/engine':
