@@ -13,8 +13,49 @@ env:
   NODE_VERSION: '22'
 
 jobs:
+  # Which of the jobs below a changeset can plausibly break. A cached install to
+  # gate up to twenty minutes of sweeps; a separate job rather than an output of
+  # `check`, because making the sweeps wait on the server suite would trade the
+  # saving straight back for latency.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      test: ${{ steps.select.outputs.test }}
+      serverTest: ${{ steps.select.outputs.serverTest }}
+      mapgen: ${{ steps.select.outputs.mapgen }}
+      balance: ${{ steps.select.outputs.balance }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The classifier diffs against a base commit, which a shallow clone
+          # does not have. Without this it fails open and runs everything.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: select
+        run: pnpm exec tsx tools/ci/src/main.ts "$BASE_SHA"
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
+            github.event.before }}
+
   check:
     name: Typecheck, lint and test
+    needs: changes
+    # Every guard below reads `!= 'false'`, not `== 'true'`, and every job that
+    # needs `changes` runs even when it did not succeed. A broken classifier must
+    # over-test, never turn three required checks into three green skips.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,20 +73,28 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      # `format:check`, `lint` and `typecheck` above stay unconditional — Prettier
+      # formats Markdown too, and misformatted docs are a failure this repo has
+      # actually shipped.
+      - if: needs.changes.outputs.test != 'false'
+        run: pnpm test
 
       # Integration tests against the Firestore + Auth emulators. Serialized:
       # the suites share one emulator and each wipes it between tests.
       # firebase-tools 15 requires Java 21+; the runner's default is 17.
       - uses: actions/setup-java@v4
+        if: needs.changes.outputs.serverTest != 'false'
         with:
           distribution: temurin
           java-version: '21'
       - name: Server integration tests
+        if: needs.changes.outputs.serverTest != 'false'
         run: pnpm test:server
 
   mapgen:
     name: Map generator sweep
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.mapgen != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +122,8 @@ jobs:
 
   balance:
     name: Balance and social gates
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.balance != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

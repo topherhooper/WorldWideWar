@@ -382,7 +382,7 @@ pnpm typecheck && pnpm lint
 - Consumes: the `$GITHUB_OUTPUT` keys from Task 2.
 - Produces: `needs.changes.outputs.{test,serverTest,mapgen,balance}`.
 
-- [ ] **Step 1: Add the `changes` job** — insert as the first entry under `jobs:`:
+- [x] **Step 1: Add the `changes` job** — insert as the first entry under `jobs:`:
 
 ```yaml
 # Which of the jobs below a changeset can plausibly break. A cached install to
@@ -421,7 +421,12 @@ changes:
         BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
 ```
 
-- [ ] **Step 2: Guard the three existing jobs**
+- [x] **Step 2: Guard the three existing jobs**
+
+Every guard reads `!= 'false'`, not `== 'true'`, and every job that `needs: changes` runs
+even when `changes` did not succeed. `needs` on a failed job skips its dependents, and a
+skipped job satisfies branch protection — so the obvious spelling would turn a broken
+classifier into three green skips. `!= 'false'` on an absent output means "run it".
 
 `check` keeps running unconditionally — `format:check`, `lint` and `typecheck` cover
 Markdown too — but gains `needs` and two step guards:
@@ -430,12 +435,13 @@ Markdown too — but gains `needs` and two step guards:
 check:
   name: Typecheck, lint and test
   needs: changes
+  if: ${{ !cancelled() }}
   runs-on: ubuntu-latest
 ```
 
 ```yaml
 - run: pnpm typecheck
-- if: needs.changes.outputs.test == 'true'
+- if: needs.changes.outputs.test != 'false'
   run: pnpm test
 ```
 
@@ -443,12 +449,12 @@ and, on the emulator tail, so a docs-or-web-only change does not boot Java:
 
 ```yaml
 - uses: actions/setup-java@v4
-  if: needs.changes.outputs.serverTest == 'true'
+  if: needs.changes.outputs.serverTest != 'false'
   with:
     distribution: temurin
     java-version: '21'
 - name: Server integration tests
-  if: needs.changes.outputs.serverTest == 'true'
+  if: needs.changes.outputs.serverTest != 'false'
   run: pnpm test:server
 ```
 
@@ -459,7 +465,7 @@ protection on `main` matches them by name, and a job skipped by `if:` still repo
 mapgen:
   name: Map generator sweep
   needs: changes
-  if: needs.changes.outputs.mapgen == 'true'
+  if: ${{ !cancelled() && needs.changes.outputs.mapgen != 'false' }}
   runs-on: ubuntu-latest
 ```
 
@@ -467,13 +473,13 @@ mapgen:
 balance:
   name: Balance and social gates
   needs: changes
-  if: needs.changes.outputs.balance == 'true'
+  if: ${{ !cancelled() && needs.changes.outputs.balance != 'false' }}
   runs-on: ubuntu-latest
 ```
 
-- [ ] **Step 3: Verify** — `pnpm exec prettier --check --end-of-line auto .github/workflows/ci.yml`, and re-read the diff for the two invariants: job names unchanged, and no `paths:` filter anywhere.
+- [x] **Step 3: Verify** — `pnpm exec prettier --check --end-of-line auto .github/workflows/ci.yml`, and re-read the diff for the two invariants: job names unchanged, and no `paths:` filter anywhere.
 
-- [ ] **Step 4: Commit** — `ci: gate the sweeps and the server suite on changed areas`
+- [x] **Step 4: Commit** — `ci: gate the sweeps and the server suite on changed areas`
 
 ---
 

@@ -136,6 +136,12 @@ Job names stay byte-identical so branch protection keeps matching them. A job sk
 `if:` reports a `skipped` conclusion, which branch protection accepts; that is precisely
 why the guards are `if:` and not a `paths:` filter on the workflow.
 
+That same acceptance is a hazard from the other direction, so the guards fail open twice
+over. They test `!= 'false'` rather than `== 'true'`, and each gated job runs whenever the
+workflow was not cancelled, `changes` succeeded or not. Otherwise a `changes` job that
+died on a bad install would skip its three dependents, and three skipped required checks
+read as a green pull request.
+
 ## Deployment
 
 The trigger, not the build config, is where the filter belongs. Cloud Build triggers
