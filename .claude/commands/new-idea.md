@@ -1,7 +1,7 @@
 ---
 description: Capture a raw context dump as a structured idea doc. Organizes only — never implements.
 argument-hint: <paste anything — a chat thread, a complaint, a half-formed feature idea>
-allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git rev-parse:*), Bash(date:*), Write, Read, Glob, Grep
+allowed-tools: Bash(git fetch:*), Bash(git checkout:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git rev-parse:*), Bash(date:*), Bash(pnpm exec prettier:*), Write, Read, Glob, Grep
 ---
 
 # New idea
@@ -27,8 +27,18 @@ $ARGUMENTS
 2. **Write `docs/superpowers/ideas/<YYYY-MM-DD>-<slug>.md`** using the template below.
    Use today's real date from `date +%Y-%m-%d`.
 
-3. **Commit that one file** — message `docs(ideas): capture <slug>` — then
-   `git push -u origin idea/<slug>`.
+3. **Format, commit, push.**
+
+   ```bash
+   pnpm exec prettier --write docs/superpowers/ideas/<YYYY-MM-DD>-<slug>.md
+   git add docs/superpowers/ideas/<YYYY-MM-DD>-<slug>.md
+   git commit -m "docs(ideas): capture <slug>"
+   git push -u origin idea/<slug>
+   ```
+
+   Prettier runs on **that one file only**. CI checks `format:check` first, so an
+   unformatted doc turns CI red later for whoever picks this idea up — in a file they
+   did not write. Formatting your own output is not evaluating the codebase.
 
    Push, but do **not** open a PR. A capture that exists only in a container is lost
    when that container is reclaimed, which defeats the point of capturing it. A pushed
@@ -42,8 +52,11 @@ $ARGUMENTS
 These are the point of this command. Breaking them defeats it.
 
 - **Do not write, modify, or delete any code.** Not a fix, not a one-liner, not a typo.
-- **Do not run tests, builds, linters, or the app.**
-- **Do not create GitHub issues, PRs, comments, or push anything.**
+- **Do not run tests, builds, or the app.** The one exception is formatting your own
+  output — see step 3. You are not permitted to lint or evaluate the codebase.
+- **Do not create GitHub issues, PRs, or comments.** Pushing a branch is fine and
+  expected; it makes the capture durable without claiming anyone's attention. Opening a
+  PR claims attention, and nobody asked for that yet.
 - **Do not launch research subagents.** No Task/Agent calls, no deep investigation.
 - **Do not answer questions raised in the dump.** Record them under `## Open questions`.
   If the dump asks "how does X work?", that is an open question, not an assignment.

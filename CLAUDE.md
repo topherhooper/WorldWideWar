@@ -14,7 +14,15 @@ Features move through four artifacts, each one the input to the next:
 | **Plan**       | `superpowers:writing-plans`               | `docs/superpowers/plans/`        |
 | **Implement**  | `superpowers:subagent-driven-development` | code + tests, committed per task |
 
-`/one-shot <idea-doc>` runs the whole chain autonomously and stops at a draft PR.
+`/one-shot <idea-doc>` runs the whole chain autonomously: it opens a draft PR as soon as
+the plan is written, then implements against it task by task.
+
+**One branch per idea, carried the whole way.** `/new-idea` cuts `idea/<slug>` from
+`main` and pushes the doc there; `/one-shot` checks that same branch out, rebases it on
+`main`, and adds the spec, plan and code to it. That branch is the PR's head, so the PR
+diff tells the whole story from capture to implementation. Nothing branches from `main`
+a second time — an idea branch is never merged to `main` before its own PR, so cutting
+fresh would lose the doc.
 
 Naming is `YYYY-MM-DD-<kebab-slug>.md` at every stage. Specs add a `-design` suffix;
 the plan reuses the spec's slug without it. One spec may fan out into several plans,
@@ -93,7 +101,8 @@ only, with the default commit message set to "Pull request title and description
 
 ## Conventions
 
-- Branches: `claude/<kebab-topic>-<suffix>` off `main`. Idea branches: `idea/<slug>`.
+- Branches: `idea/<slug>` off `main`, created at capture and carried through to the PR.
+  `claude/<kebab-topic>-<suffix>` for work that did not start from an idea doc.
 - Commits within a branch: conventional commits scoped by package — `feat(engine):`,
   `fix(web):`, `docs(server):`. These are working history; the squash message is what
   lands on `main`.

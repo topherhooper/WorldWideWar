@@ -30,15 +30,27 @@ Work that requires a human (credentials, a Cloud Build trigger, a DNS record) go
 
 ### 1. Read the idea doc
 
-Read it fully, including `## Raw dump` — the summary sections are lossy. Then branch:
+Read it fully, including `## Raw dump` — the summary sections are lossy.
+
+**Continue on the idea's own branch. Do not cut a new one from `main`.**
 
 ```bash
-git fetch origin main
-git checkout -B claude/<slug> origin/main
+git fetch origin
+git checkout idea/<slug>     # already local? just switch to it
+git rebase origin/main       # pick up whatever landed since capture
 ```
 
-If you are already on a working branch for this idea (e.g. `idea/<slug>` from
-`/new-idea`), stay on it and rebase onto `origin/main` instead of branching again.
+`/new-idea` wrote the doc on `idea/<slug>` and pushed it there; that branch was never
+merged to `main`. Branching fresh from `main` lands you in a tree where the idea doc
+does not exist — and the "newest file in `docs/superpowers/ideas/`" default then finds
+nothing, or worse, some older idea.
+
+One branch per idea, carried the whole way: `idea/<slug>` accumulates idea → spec →
+plan → code and becomes the PR's head branch, so the PR diff tells the whole story from
+capture to implementation.
+
+If you were handed a doc that has no branch of its own (e.g. one already on `main`),
+then cut `idea/<slug>` from `origin/main` and carry on the same way.
 
 ### 2. Brainstorm → spec
 
@@ -107,8 +119,9 @@ Use `superpowers:subagent-driven-development`, one task at a time, TDD throughou
 
 **After every task, without exception:**
 
-1. Commit with the message the plan specifies.
-2. Tick that task's `- [ ]` → `- [x]` in the plan file and amend it into the commit.
+1. Tick that task's `- [ ]` → `- [x]` in the plan file **first**, so it lands in the
+   same commit as the work it describes. Do not commit and then amend.
+2. Commit with the message the plan specifies.
 3. `git push`.
 
 The pushed plan file is the resume point. A restarted context reads it, finds the first
