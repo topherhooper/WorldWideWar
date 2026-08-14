@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../api.js', () => ({
@@ -14,6 +14,9 @@ vi.mock('../api.js', () => ({
 const { api } = await import('../api.js');
 const { PRESETS } = await import('@www/engine');
 const { Home } = await import('./Home.js');
+
+// Vitest runs without `globals`, so testing-library never registers its own.
+afterEach(cleanup);
 
 describe('Home', () => {
   it('creates a game from a preset card', async () => {

@@ -377,11 +377,11 @@ The acceptance test for everything above: follow `/daily-preset` by hand and lan
 
 **Steps:**
 
-- [ ] Compose today's preset per the command, appended to `PRESETS` with `featuredOn: '<today, UTC>'`. It must survive `problemsWith` — in particular the tuning-tuple check, so it cannot be a rename of an existing preset.
-- [ ] Run `pnpm sim -- --preset <id> --games 200 --players 6`. Record the gate results. If a gate fails, retune within the validator's bounds and re-run; do not widen a bound to accommodate the preset.
-- [ ] Run `pnpm exec vitest run packages/engine packages/web` — the validator accepts it, the home page features it, and no case needed editing to make that true. Any test that had to change is a sign the groundwork is wrong, not the preset.
-- [ ] Run the full gate: `pnpm format && pnpm lint && pnpm typecheck && pnpm test`.
-- [ ] Commit: `feat(engine): preset of the day — <name>`
+- [x] Compose today's preset per the command, appended to `PRESETS` with `featuredOn: '<today, UTC>'`. It must survive `problemsWith` — in particular the tuning-tuple check, so it cannot be a rename of an existing preset.
+- [x] Run `pnpm build && pnpm sim -- --preset <id> --games 200 --players 6`. Record the gate results. If a gate fails, retune within the validator's bounds and re-run; do not widen a bound to accommodate the preset.
+- [x] Run `pnpm exec vitest run packages/engine packages/web` — the validator accepts it, the home page features it, and no case needed editing to make that true. Any test that had to change is a sign the groundwork is wrong, not the preset.
+- [x] Run the full gate: `pnpm format && pnpm lint && pnpm typecheck && pnpm test`.
+- [x] Commit: `feat(engine): preset of the day — <name>`
 
 ---
 
@@ -390,3 +390,14 @@ The acceptance test for everything above: follow `/daily-preset` by hand and lan
 - **The turn-length bounds moved packages** (Task 1), which is adjacent code this plan otherwise had no business touching. The alternative was the engine's validator hard-coding `10_080` next to a comment saying "keep in step with `games.ts`", which is the duplication that goes stale first. The move is two constants and one import block; the server's validation and its error strings are byte-identical.
 - **Task 6 ships a preset**, which is content rather than groundwork. Without it `featuredOn`, `presetsForDate`'s daily branch and the pill have no caller in this diff, and the command's instructions would ship unexecuted.
 - **`problemsWith` stays inside the test file.** It is tempting to export it so the `/daily-preset` command can call it directly, but the command runs `pnpm test`, which runs it already. An exported validator with one caller in the same package is an abstraction the spec did not ask for.
+
+## What running the routine turned up
+
+Task 6 was the acceptance test for the five tasks before it, and it found two things the plan had not.
+
+- **`pnpm sim` reads the built engine, not the source.** The harness imports `@www/engine` as a package, so it resolves to `dist`; the first run of a brand-new preset fails with `unknown preset: lean-years` until `pnpm build` has run. Step 4 of `.claude/commands/daily-preset.md` now says so, because the failure mode is indistinguishable from a typo in the id and would cost the routine a morning.
+- **`Home.test.tsx` had no cleanup between renders.** Vitest runs without `globals`, so `@testing-library/react` never registers its own `afterEach(cleanup)`, and the file's single existing test had never needed one. Adding a second render surfaced it as `Found multiple elements by: [data-testid="preset-lean-years"]` — the component was correct and the test was stacking DOMs. Fixed with an explicit `afterEach(cleanup)` in that file; the other web test files still render once each and are unaffected.
+
+Both new tests were then checked for bite rather than assumed: appending a deliberately malformed preset to `PRESETS` makes the validator report seven complaints and turns the suite red, and reverting `Home.tsx` to map every preset while dating the daily to yesterday fails the featured-card case. Neither guard is vacuously green.
+
+`lean-years` cleared all five balance gates on the first attempt at 200 games and 6 players — no retuning, which is a smaller sample of the routine's real loop than it looks. A preset that needs two or three passes is the case the command is actually written for.

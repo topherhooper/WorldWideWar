@@ -54,8 +54,12 @@ ignores it and is good beats a preset that honours it and is not.
 4. **Simulate it.**
 
    ```bash
-   pnpm sim -- --preset <id> --games 200 --players 6
+   pnpm build && pnpm sim -- --preset <id> --games 200 --players 6
    ```
+
+   The build is not optional: the harness imports `@www/engine` as a package, which
+   resolves to `dist`, so without it the run fails with `unknown preset: <id>` and you
+   spend ten minutes doubting the id.
 
    The harness exits non-zero on a failed gate. A failure is a fact about the preset, not an
    obstacle: retune within the ranges above and run it again. Two or three attempts is

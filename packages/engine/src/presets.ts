@@ -100,6 +100,19 @@ export const PRESETS: readonly GamePreset[] = [
     neutralGarrisonDelta: -2,
     plunderIncome: 2,
   },
+  {
+    id: 'lean-years',
+    name: 'Lean Years',
+    tagline: 'No rising tide — you eat only what you take.',
+    contest: 'pact',
+    tiersPayout: 'multiplier',
+    defaultTurnCap: 30,
+    defaultTurnMinutes: 1440,
+    warEconomyInterval: 10,
+    neutralGarrisonDelta: -1,
+    plunderIncome: 3,
+    featuredOn: '2026-08-14',
+  },
 ];
 
 export function presetById(id: string): GamePreset | null {
