@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { GameSummaryView } from '@www/server/api-types';
-import { PRESETS } from '@www/engine';
+import { presetsForDate } from '@www/engine';
 
 import { api, ApiError } from '../api.js';
 import { formatRemaining } from '../format.js';
@@ -20,6 +20,9 @@ export function Home() {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const now = useNow();
+  // UTC on both ends: the daily routine stamps a UTC date, so the preset of the
+  // day rolls over at the same instant for everyone.
+  const presets = presetsForDate(new Date(now).toISOString().slice(0, 10));
 
   useEffect(() => {
     api
@@ -49,7 +52,7 @@ export function Home() {
           Pick a mode — players, turn length and game length are set in the lobby.
         </p>
         <div className="preset-grid">
-          {PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset.id}
               data-testid={`preset-${preset.id}`}
@@ -57,6 +60,9 @@ export function Home() {
               disabled={creating}
               onClick={() => void create(preset.id)}
             >
+              {preset.featuredOn !== undefined && (
+                <span className="preset-badge">Preset of the day</span>
+              )}
               <strong>{preset.name}</strong>
               <span>{preset.tagline}</span>
               <span className="muted">

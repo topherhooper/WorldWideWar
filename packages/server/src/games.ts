@@ -4,8 +4,10 @@ import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore'
 import {
   MAX_PLAYERS,
   MAX_TURN_CAP,
+  MAX_TURN_MINUTES,
   MIN_PLAYERS,
   MIN_TURN_CAP,
+  MIN_TURN_MINUTES,
   createInitialState,
   decideTiersList,
   generateMap,
@@ -64,8 +66,6 @@ export class HttpError extends Error {
   }
 }
 
-const MIN_TURN_MINUTES = 5;
-const MAX_TURN_MINUTES = 10_080; // one week
 const LOBBY_START_PLAYERS = 4;
 
 export async function createGame(
