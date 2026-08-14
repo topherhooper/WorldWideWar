@@ -162,7 +162,7 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
 
 **Steps:**
 
-- [ ] Replace the `'ships exactly four presets…'` case with the validator and its cases:
+- [x] Replace the `'ships exactly four presets…'` case with the validator and its cases:
 
   ```ts
   /** Every rule a preset must satisfy, as a list of complaints. Empty means valid. */
@@ -267,9 +267,9 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
   });
   ```
 
-- [ ] Run `pnpm exec vitest run packages/engine/src/presets.test.ts` — the catalogue cases and the validator-itself cases must both be green. If a validator-itself case passes vacuously (the complaint string never appears), the guard is not live; fix it before moving on.
-- [ ] Run `pnpm lint && pnpm typecheck` — green.
-- [ ] Commit: `test(engine): validate every preset instead of listing four`
+- [x] Run `pnpm exec vitest run packages/engine/src/presets.test.ts` — the catalogue cases and the validator-itself cases must both be green. If a validator-itself case passes vacuously (the complaint string never appears), the guard is not live; fix it before moving on.
+- [x] Run `pnpm lint && pnpm typecheck` — green.
+- [x] Commit: `test(engine): validate every preset instead of listing four`
 
 ---
 
