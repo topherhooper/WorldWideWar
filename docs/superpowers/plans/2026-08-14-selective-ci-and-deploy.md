@@ -65,7 +65,7 @@ deploys. Nothing else in this plan depends on it.
 - Consumes: nothing.
 - Produces: `CiSelection`, `RUN_EVERYTHING`, `DOC_GLOBS`, `isDocPath`, `selectCiJobs` from `tools/ci/src/changed-areas.ts`. Task 2 and the workflow depend on these exact names, and on the field names `test` / `serverTest` / `mapgen` / `balance` becoming `$GITHUB_OUTPUT` keys verbatim.
 
-- [ ] **Step 1: Write the failing test** — `tools/ci/src/changed-areas.test.ts` (new file):
+- [x] **Step 1: Write the failing test** — `tools/ci/src/changed-areas.test.ts` (new file):
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -158,12 +158,12 @@ describe('the safety net', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec vitest run tools/ci`
 Expected: FAIL — `Cannot find module './changed-areas.js'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `tools/ci/package.json`:
 
@@ -276,12 +276,12 @@ In the root `tsconfig.json`, add the reference so `pnpm typecheck` covers the ne
     { "path": "./tools/ci" },
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pnpm install` (registers the workspace member and updates `pnpm-lock.yaml`), then
 `pnpm exec vitest run tools/ci && pnpm typecheck && pnpm lint`.
 
-- [ ] **Step 5: Commit** — `feat(ci): classify changed paths into a CI job selection`
+- [x] **Step 5: Commit** — `feat(ci): classify changed paths into a CI job selection`
 
 ---
 
