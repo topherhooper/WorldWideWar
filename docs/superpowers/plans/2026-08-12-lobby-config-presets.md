@@ -25,11 +25,13 @@
 ### Task 1: RuleConfig economy & payout fields with legacy defaults
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (RuleConfig, ~line 322)
 - Modify: `packages/engine/src/constants.ts` (DEFAULT_RULES, ~line 67)
 - Test: `packages/engine/src/constants.test.ts`
 
 **Interfaces:**
+
 - Produces: `RuleConfig` gains `warEconomyInterval: number`, `neutralGrowthInterval: number`, `neutralGarrisonDelta: number`, `plunderIncome: number`, `plunderCap: number`, `tiersPayout: TiersPayout`; new exported type `TiersPayout = 'multiplier' | 'income'` in `types.ts`. All later tasks rely on these exact names.
 - Consumes: nothing new.
 
@@ -72,18 +74,18 @@ export type TiersPayout = 'multiplier' | 'income';
 and inside `RuleConfig` (after `eventInterval`):
 
 ```ts
-  /** The war economy ramps: +1 income every N turns, for everyone. */
-  warEconomyInterval: number;
-  /** Neutral garrisons grow every N turns; 0 disables growth. */
-  neutralGrowthInterval: number;
-  /** Added to each mapgen neutral garrison at setup, floored at 1. */
-  neutralGarrisonDelta: number;
-  /** Bonus income next turn per territory captured this turn; 0 disables plunder. */
-  plunderIncome: number;
-  /** Most captures that pay plunder in one turn. */
-  plunderCap: number;
-  /** Whether tiers scores set a combat multiplier (v1) or pay income (v2). */
-  tiersPayout: TiersPayout;
+/** The war economy ramps: +1 income every N turns, for everyone. */
+warEconomyInterval: number;
+/** Neutral garrisons grow every N turns; 0 disables growth. */
+neutralGrowthInterval: number;
+/** Added to each mapgen neutral garrison at setup, floored at 1. */
+neutralGarrisonDelta: number;
+/** Bonus income next turn per territory captured this turn; 0 disables plunder. */
+plunderIncome: number;
+/** Most captures that pay plunder in one turn. */
+plunderCap: number;
+/** Whether tiers scores set a combat multiplier (v1) or pay income (v2). */
+tiersPayout: TiersPayout;
 ```
 
 In `constants.ts` add to `DEFAULT_RULES` (values are the legacy-compat layer — see Global Constraints):
@@ -108,6 +110,7 @@ In `constants.ts` add to `DEFAULT_RULES` (values are the legacy-compat layer —
 ### Task 2: Rules-driven war economy, neutral growth and garrison delta
 
 **Files:**
+
 - Modify: `packages/engine/src/income.ts` (whole file is 79 lines)
 - Modify: `packages/engine/src/resolve.ts:36,54,434,454,572-579`
 - Modify: `packages/engine/src/setup.ts:3,8-11,59-63,64-66`
@@ -116,6 +119,7 @@ In `constants.ts` add to `DEFAULT_RULES` (values are the legacy-compat layer —
 - Test: `packages/engine/src/income.test.ts` (new), `packages/engine/src/setup.test.ts` (new), `packages/engine/src/resolve.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: Task 1's `RuleConfig` fields.
 - Produces: `computeIncome(state, map, slot, rules: RuleConfig): number` and `recomputeIncome(state, map, rules: RuleConfig): void` — the new 4th/3rd parameter is required; `createInitialState(map, rules)` now actually uses `rules` (parameter renamed from `_rules`); private `growNeutrals(state, rules)` in resolve.ts.
 
@@ -230,18 +234,20 @@ export function recomputeIncome(state: GameState, map: GeneratedMap, rules: Rule
 ```
 
 Callers:
+
 - `setup.ts`: rename `_rules` → `rules`; apply the delta in the garrison loop:
 
 ```ts
-  for (const [id, garrison] of Object.entries(map.neutralGarrisons)) {
-    const territory = Number(id);
-    if (state.owner[territory] === null) {
-      state.armies[territory] = Math.max(1, garrison + rules.neutralGarrisonDelta);
-    }
+for (const [id, garrison] of Object.entries(map.neutralGarrisons)) {
+  const territory = Number(id);
+  if (state.owner[territory] === null) {
+    state.armies[territory] = Math.max(1, garrison + rules.neutralGarrisonDelta);
   }
+}
 ```
 
-  and `recomputeIncome(state, map, rules);`.
+and `recomputeIncome(state, map, rules);`.
+
 - `resolve.ts:454`: `recomputeIncome(next, map, rules);`
 - `testing.ts:172`: `if (!options.income) recomputeIncome(state, map, DEFAULT_RULES);`
 - `resolve.ts` `growNeutrals`:
@@ -254,7 +260,8 @@ function growNeutrals(state: GameState, rules: RuleConfig): void {
   ...
 ```
 
-  call site (line 434): `growNeutrals(next, rules);`; drop the `NEUTRAL_GROWTH_INTERVAL` import.
+call site (line 434): `growNeutrals(next, rules);`; drop the `NEUTRAL_GROWTH_INTERVAL` import.
+
 - `constants.ts`: delete `WAR_ECONOMY_INTERVAL` and `NEUTRAL_GROWTH_INTERVAL` (now expressed only as `DEFAULT_RULES` values — keep their explanatory comments on the fields).
 
 - [ ] **Step 4: Run the full engine suite and typecheck**
@@ -269,11 +276,13 @@ Expected: PASS (typecheck catches any missed `computeIncome`/`recomputeIncome` c
 ### Task 3: Plunder on capture
 
 **Files:**
+
 - Modify: `packages/engine/src/types.ts` (TurnReport, ~line 300)
 - Modify: `packages/engine/src/resolve.ts` (after the bonus-income loop, ~line 426, and the report literal ~line 474)
 - Test: `packages/engine/src/resolve.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `rules.plunderIncome`, `rules.plunderCap` (Task 1).
 - Produces: `export interface PlunderReport { slot: Slot; captures: number; income: number }` in types.ts; `TurnReport.plunder: PlunderReport[]`. Web Task 10 renders these fields.
 
@@ -303,10 +312,7 @@ describe('plunder', () => {
       owner: [0, 0, 0, 0, null, null, null, null, 1],
       armies: [2, 2, 2, 2, 0, 0, 0, 0, 5],
     });
-  const raid = [
-    orders(0, [move(0, 4, 1), move(1, 5, 1), move(2, 6, 1), move(3, 7, 1)]),
-    orders(1),
-  ];
+  const raid = [orders(0, [move(0, 4, 1), move(1, 5, 1), move(2, 6, 1), move(3, 7, 1)]), orders(1)];
 
   it('captures pay income next turn, capped per turn', () => {
     const map = plunderMap();
@@ -356,23 +362,23 @@ and in `TurnReport` after `battles`:
 `resolve.ts` — right after the `pendingBonusIncome` contest loop (line ~426), **before** `applyStorm` so a same-turn storm collapse cannot erase a paid-for capture:
 
 ```ts
-  // Expansion pays immediately: each captured territory converts to income,
-  // up to the per-turn cap. Counted before the storm so armies spent on a
-  // province the storm then eats were still not spent for nothing.
-  const plunder: PlunderReport[] = [];
-  if (rules.plunderIncome > 0) {
-    const captures = new Array<number>(state.playerCount).fill(0);
-    for (let id = 0; id < next.owner.length; id++) {
-      const owner = next.owner[id];
-      if (owner !== null && owner !== state.owner[id]) captures[owner]++;
-    }
-    for (let slot = 0; slot < state.playerCount; slot++) {
-      if (captures[slot] === 0) continue;
-      const income = Math.min(captures[slot], rules.plunderCap) * rules.plunderIncome;
-      next.pendingBonusIncome[slot] += income;
-      plunder.push({ slot, captures: captures[slot], income });
-    }
+// Expansion pays immediately: each captured territory converts to income,
+// up to the per-turn cap. Counted before the storm so armies spent on a
+// province the storm then eats were still not spent for nothing.
+const plunder: PlunderReport[] = [];
+if (rules.plunderIncome > 0) {
+  const captures = new Array<number>(state.playerCount).fill(0);
+  for (let id = 0; id < next.owner.length; id++) {
+    const owner = next.owner[id];
+    if (owner !== null && owner !== state.owner[id]) captures[owner]++;
   }
+  for (let slot = 0; slot < state.playerCount; slot++) {
+    if (captures[slot] === 0) continue;
+    const income = Math.min(captures[slot], rules.plunderCap) * rules.plunderIncome;
+    next.pendingBonusIncome[slot] += income;
+    plunder.push({ slot, captures: captures[slot], income });
+  }
+}
 ```
 
 add `plunder,` to the `TurnReport` literal (after `battles`), and `PlunderReport` to the types import.
@@ -386,6 +392,7 @@ add `plunder,` to the `TurnReport` literal (after `battles`), and `PlunderReport
 ### Task 4: ContestContext carries rules; tiers income payout
 
 **Files:**
+
 - Modify: `packages/engine/src/contest/types.ts:38-42`
 - Modify: `packages/engine/src/resolve.ts:131`
 - Modify: `packages/engine/src/contest/tiers.ts` (resolveTiers, ~lines 118-194)
@@ -393,6 +400,7 @@ add `plunder,` to the `TurnReport` literal (after `battles`), and `PlunderReport
 - Test: `packages/engine/src/contest/tiers.test.ts` (append + fix fixtures), `packages/engine/src/contest/pact.test.ts` (fix fixtures if it builds ContestContext literals)
 
 **Interfaces:**
+
 - Consumes: `rules.tiersPayout` (Task 1).
 - Produces: `ContestContext.rules: RuleConfig` (required); `TiersResult.incomeDelta: number` (0 in multiplier games). The report UI (Task 10) reads `incomeDelta`.
 
@@ -475,8 +483,8 @@ export interface ContestContext {
 `types.ts` `TiersResult`: add
 
 ```ts
-  /** Armies granted (or forfeited) next turn; 0 in multiplier games. */
-  incomeDelta: number;
+/** Armies granted (or forfeited) next turn; 0 in multiplier games. */
+incomeDelta: number;
 ```
 
 `contest/tiers.ts` — beside the scoring constants:
@@ -489,42 +497,42 @@ const INCOME_DIVISOR = 2;
 rename the `_context` parameter to `context`, and rework the per-slot loop:
 
 ```ts
-  const incomeMode = context.rules.tiersPayout === 'income';
+const incomeMode = context.rules.tiersPayout === 'income';
 
-  for (let slot = 0; slot < playerCount; slot++) {
-    if (state.status[slot] !== 'active') continue;
+for (let slot = 0; slot < playerCount; slot++) {
+  if (state.status[slot] !== 'active') continue;
 
-    const authorBonus = Math.max(0, (bestRead[slot]?.score ?? 0) - NEUTRAL_SCORE);
-    let incomeDelta = 0;
-    if (incomeMode) {
-      // Everyone fights at 1.00; reads are paid (or charged) in armies instead.
-      const guessIncome = guessResults[slot].reduce(
-        (sum, guess) => sum + Math.trunc((guess.score - NEUTRAL_SCORE) / INCOME_DIVISOR),
-        0,
-      );
-      incomeDelta = guessIncome + Math.ceil(authorBonus / INCOME_DIVISOR);
-      bonusIncome[slot] = incomeDelta;
-    } else {
-      const guessContribution = guessResults[slot].reduce(
-        (sum, guess) => sum + (guess.score - NEUTRAL_SCORE) * GUESS_WEIGHT,
-        0,
-      );
-      // Being read well pays; being read badly costs the author nothing.
-      multiplier[slot] = Math.min(
-        MAX_MULTIPLIER,
-        Math.max(MIN_MULTIPLIER, 100 + guessContribution + authorBonus),
-      );
-    }
-
-    results.push({
-      slot,
-      revealed: state.tiersLists[slot]?.items.slice() ?? null,
-      guesses: guessResults[slot],
-      bestRead: bestRead[slot],
-      multiplier: multiplier[slot],
-      incomeDelta,
-    });
+  const authorBonus = Math.max(0, (bestRead[slot]?.score ?? 0) - NEUTRAL_SCORE);
+  let incomeDelta = 0;
+  if (incomeMode) {
+    // Everyone fights at 1.00; reads are paid (or charged) in armies instead.
+    const guessIncome = guessResults[slot].reduce(
+      (sum, guess) => sum + Math.trunc((guess.score - NEUTRAL_SCORE) / INCOME_DIVISOR),
+      0,
+    );
+    incomeDelta = guessIncome + Math.ceil(authorBonus / INCOME_DIVISOR);
+    bonusIncome[slot] = incomeDelta;
+  } else {
+    const guessContribution = guessResults[slot].reduce(
+      (sum, guess) => sum + (guess.score - NEUTRAL_SCORE) * GUESS_WEIGHT,
+      0,
+    );
+    // Being read well pays; being read badly costs the author nothing.
+    multiplier[slot] = Math.min(
+      MAX_MULTIPLIER,
+      Math.max(MIN_MULTIPLIER, 100 + guessContribution + authorBonus),
+    );
   }
+
+  results.push({
+    slot,
+    revealed: state.tiersLists[slot]?.items.slice() ?? null,
+    guesses: guessResults[slot],
+    bestRead: bestRead[slot],
+    multiplier: multiplier[slot],
+    incomeDelta,
+  });
+}
 ```
 
 (`multiplier` stays initialised to 100 for every slot, so income mode needs no write.)
@@ -538,11 +546,13 @@ rename the `_context` parameter to `context`, and rework the per-slot loop:
 ### Task 5: Presets module
 
 **Files:**
+
 - Create: `packages/engine/src/presets.ts`
 - Modify: `packages/engine/src/index.ts` (add export line)
 - Test: `packages/engine/src/presets.test.ts` (new)
 
 **Interfaces:**
+
 - Consumes: `rulesFor` (constants.ts), `ContestKind`, `RuleConfig`, `TiersPayout` (types.ts).
 - Produces: `PresetId = 'pact' | 'tiers' | 'pact-blitz' | 'tiers-v2'`; `GamePreset { id, name, tagline, contest, tiersPayout, defaultTurnCap, defaultTurnMinutes, warEconomyInterval }`; `PRESETS: readonly GamePreset[]`; `presetById(id: string): GamePreset | null`; `presetRules(preset: GamePreset, playerCount: number, turnCap: number): RuleConfig`. Server Tasks 6–8 and web Tasks 9–10 import all of these from `@www/engine`. NOTE: the ids `'pact'` and `'tiers'` deliberately equal the `ContestKind` values so a legacy doc's contest can be used as a preset lookup key.
 
@@ -678,11 +688,7 @@ export function presetById(id: string): GamePreset | null {
 }
 
 /** The rules a NEW game gets: legacy base, preset pacing, anti-turtle economy. */
-export function presetRules(
-  preset: GamePreset,
-  playerCount: number,
-  turnCap: number,
-): RuleConfig {
+export function presetRules(preset: GamePreset, playerCount: number, turnCap: number): RuleConfig {
   return {
     ...rulesFor(playerCount, turnCap, preset.contest),
     warEconomyInterval: preset.warEconomyInterval,
@@ -710,12 +716,14 @@ export { PRESETS, presetById, presetRules, type GamePreset, type PresetId } from
 ### Task 6: Server resolves every game through effectiveRules
 
 **Files:**
+
 - Modify: `packages/server/src/store.ts` (add helper + GameDoc.presetId)
 - Modify: `packages/server/src/games.ts:189-192` (getView), `:276-290` (activate)
 - Modify: `packages/server/src/resolve.ts:103-107`
 - Test: `packages/server/src/store.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `rulesFor` from `@www/engine`.
 - Produces: `effectiveRules(doc: GameDoc): RuleConfig` exported from `store.ts`; `GameDoc.presetId?: string`. Tasks 7–8 consume both.
 
@@ -774,6 +782,7 @@ export function effectiveRules(doc: GameDoc): RuleConfig {
 (`doc.rules.turnCap` may be `undefined` on the oldest docs; `rulesFor`'s default parameter handles that.)
 
 Replace the three consumers:
+
 - `games.ts` getView: delete the inline merge (`const rules = { ...rulesFor(...), ...game.rules }`) in favour of `const rules = effectiveRules(game);` (keep the `contest` const above it).
 - `games.ts` `activate()`: `const state = createInitialState(map, effectiveRules(doc));`
 - `server/resolve.ts` `resolveGameTurn`: `rules: effectiveRules(game),` in the `resolveTurn` context (add the import).
@@ -787,12 +796,14 @@ Replace the three consumers:
 ### Task 7: Lobby config endpoint
 
 **Files:**
+
 - Modify: `packages/server/src/api-types.ts` (UpdateConfigRequest)
 - Modify: `packages/server/src/games.ts` (new updateConfig function)
 - Modify: `packages/server/src/app.ts` (new route)
 - Test: `packages/server/src/games.test.ts`, `packages/server/src/app.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `effectiveRules` (Task 6), `presetById`/`presetRules` (Task 5), existing bounds constants.
 - Produces: `UpdateConfigRequest { playerCount?: number; turnMinutes?: number; turnCap?: number }`; `updateConfig(db, gameId, user, req): Promise<GameView>`; route `POST /api/games/:id/config`. Web Task 9 calls the route; Task 8's test helper calls `updateConfig`.
 
@@ -842,33 +853,33 @@ describe('updateConfig', () => {
 And to `app.test.ts` (inside the lifecycle describe, as its own `it`):
 
 ```ts
-  it('exposes lobby config over HTTP', async () => {
-    const create = await app.inject({
-      method: 'POST',
-      url: '/api/games',
-      headers: H('tok-a'),
-      payload: { playerCount: 4, turnMinutes: 60 },
-    });
-    const { id } = create.json<{ id: string }>();
-    const config = await app.inject({
-      method: 'POST',
-      url: `/api/games/${id}/config`,
-      headers: H('tok-a'),
-      payload: { turnCap: 15, turnMinutes: 30 },
-    });
-    expect(config.statusCode).toBe(200);
-    expect(config.json<{ turnCap: number; turnMinutes: number }>()).toMatchObject({
-      turnCap: 15,
-      turnMinutes: 30,
-    });
-    const denied = await app.inject({
-      method: 'POST',
-      url: `/api/games/${id}/config`,
-      headers: H('tok-b'),
-      payload: { turnCap: 20 },
-    });
-    expect(denied.statusCode).toBe(403);
+it('exposes lobby config over HTTP', async () => {
+  const create = await app.inject({
+    method: 'POST',
+    url: '/api/games',
+    headers: H('tok-a'),
+    payload: { playerCount: 4, turnMinutes: 60 },
   });
+  const { id } = create.json<{ id: string }>();
+  const config = await app.inject({
+    method: 'POST',
+    url: `/api/games/${id}/config`,
+    headers: H('tok-a'),
+    payload: { turnCap: 15, turnMinutes: 30 },
+  });
+  expect(config.statusCode).toBe(200);
+  expect(config.json<{ turnCap: number; turnMinutes: number }>()).toMatchObject({
+    turnCap: 15,
+    turnMinutes: 30,
+  });
+  const denied = await app.inject({
+    method: 'POST',
+    url: `/api/games/${id}/config`,
+    headers: H('tok-b'),
+    payload: { turnCap: 20 },
+  });
+  expect(denied.statusCode).toBe(403);
+});
 ```
 
 (NOTE: these tests use the **old** `createGame` shape on purpose — it changes in Task 8, which also migrates them.)
@@ -911,7 +922,10 @@ export async function updateConfig(
     const turnMinutes = req.turnMinutes ?? game.turnMinutes;
     const turnCap = req.turnCap ?? effectiveRules(game).turnCap;
     if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
-      throw new HttpError(400, `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`);
+      throw new HttpError(
+        400,
+        `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`,
+      );
     }
     if (
       !Number.isInteger(turnMinutes) ||
@@ -953,10 +967,10 @@ export async function updateConfig(
 `app.ts` — after the `/games/:id/start` route (add `UpdateConfigRequest` to the type import and `updateConfig` to the games import):
 
 ```ts
-      api.post('/games/:id/config', async (req) => {
-        const { id } = req.params as { id: string };
-        return updateConfig(db, id, req.user, req.body as UpdateConfigRequest);
-      });
+api.post('/games/:id/config', async (req) => {
+  const { id } = req.params as { id: string };
+  return updateConfig(db, id, req.user, req.body as UpdateConfigRequest);
+});
 ```
 
 - [ ] **Step 4: Run the server suite** — `pnpm test:server && pnpm typecheck`. Expected: PASS.
@@ -968,6 +982,7 @@ export async function updateConfig(
 ### Task 8: Create games from a preset
 
 **Files:**
+
 - Modify: `packages/server/src/api-types.ts` (CreateGameRequest, GameView)
 - Modify: `packages/server/src/games.ts` (createGame, getView)
 - Modify: `packages/server/src/testing.ts` (createTestGame helper)
@@ -975,31 +990,32 @@ export async function updateConfig(
 - Test: `packages/server/src/games.test.ts` (new preset assertions)
 
 **Interfaces:**
+
 - Consumes: `presetById`, `presetRules` (Task 5), `updateConfig` (Task 7).
 - Produces: `CreateGameRequest { presetId: string }`; `GameView.presetId: string | null` and `GameView.presetName: string`; `createTestGame(db, user, opts?)` in server testing.ts. Web Tasks 9–10 consume the view fields.
 
 - [ ] **Step 1: Write the failing tests** — in `games.test.ts`, replace the "creates a lobby game with creator in seat 0" test body's create call with the new shape and extend it:
 
 ```ts
-  it('creates a lobby game from a preset', async () => {
-    const id = await createGame(db, alice, { presetId: 'tiers-v2' });
-    const view = await getView(db, id, alice);
-    expect(view.status).toBe('lobby');
-    expect(view.mySlot).toBe(0);
-    expect(view.playerCount).toBe(4);
-    expect(view.turnMinutes).toBe(60);
-    expect(view.turnCap).toBe(15);
-    expect(view.contest).toBe('tiers');
-    expect(view.presetId).toBe('tiers-v2');
-    expect(view.presetName).toBe('Tiers v2');
-    expect(view.rules.tiersPayout).toBe('income');
-    expect(view.rules.plunderIncome).toBe(1);
-    expect(view.rules.neutralGrowthInterval).toBe(0);
-  });
+it('creates a lobby game from a preset', async () => {
+  const id = await createGame(db, alice, { presetId: 'tiers-v2' });
+  const view = await getView(db, id, alice);
+  expect(view.status).toBe('lobby');
+  expect(view.mySlot).toBe(0);
+  expect(view.playerCount).toBe(4);
+  expect(view.turnMinutes).toBe(60);
+  expect(view.turnCap).toBe(15);
+  expect(view.contest).toBe('tiers');
+  expect(view.presetId).toBe('tiers-v2');
+  expect(view.presetName).toBe('Tiers v2');
+  expect(view.rules.tiersPayout).toBe('income');
+  expect(view.rules.plunderIncome).toBe(1);
+  expect(view.rules.neutralGrowthInterval).toBe(0);
+});
 
-  it('rejects unknown presets', async () => {
-    await expect(createGame(db, alice, { presetId: 'ranked' })).rejects.toThrow(HttpError);
-  });
+it('rejects unknown presets', async () => {
+  await expect(createGame(db, alice, { presetId: 'ranked' })).rejects.toThrow(HttpError);
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail** — `pnpm test:server`. Expected: the two new tests FAIL (TS error / 400).
@@ -1018,9 +1034,9 @@ export interface CreateGameRequest {
 `GameView` — after `rules`:
 
 ```ts
-  /** Null on games created before presets existed. */
-  presetId: string | null;
-  presetName: string;
+/** Null on games created before presets existed. */
+presetId: string | null;
+presetName: string;
 ```
 
 `games.ts` `createGame` — replace the validation and doc construction (drop the old playerCount/turnMinutes/contest/turnCap handling; `MIN_TURN_MINUTES`/`MAX_TURN_MINUTES` stay for updateConfig):
@@ -1066,7 +1082,7 @@ export async function createGame(
 `getView` — beside the existing `contest` const:
 
 ```ts
-  const preset = presetById(game.presetId ?? contest);
+const preset = presetById(game.presetId ?? contest);
 ```
 
 and in the returned view:
@@ -1089,7 +1105,11 @@ export async function createTestGame(
   opts: { presetId?: PresetId; playerCount?: number; turnMinutes?: number; turnCap?: number } = {},
 ): Promise<string> {
   const id = await createGame(db, user, { presetId: opts.presetId ?? 'pact' });
-  if (opts.playerCount !== undefined || opts.turnMinutes !== undefined || opts.turnCap !== undefined) {
+  if (
+    opts.playerCount !== undefined ||
+    opts.turnMinutes !== undefined ||
+    opts.turnCap !== undefined
+  ) {
     await updateConfig(db, id, user, {
       playerCount: opts.playerCount,
       turnMinutes: opts.turnMinutes,
@@ -1101,6 +1121,7 @@ export async function createTestGame(
 ```
 
 Migrate call sites — `grep -rn "createGame(" packages/server/src/*.test.ts` and `grep -n "playerCount" packages/server/src/app.test.ts`:
+
 - `createGame(db, alice, { playerCount: 2, turnMinutes: 60 })` → `createTestGame(db, alice, { playerCount: 2, turnMinutes: 60 })`.
 - Tiers server tests use `{ ..., contest: 'tiers' }` → `createTestGame(db, alice, { presetId: 'tiers', playerCount: 2, ... })`.
 - The old "rejects bad player counts" creation test moves its meaning to updateConfig (already covered in Task 7) — replace it with the "rejects unknown presets" test above.
@@ -1116,12 +1137,14 @@ Migrate call sites — `grep -rn "createGame(" packages/server/src/*.test.ts` an
 ### Task 9: Web — API client and preset-card Home
 
 **Files:**
+
 - Modify: `packages/web/src/api.ts` (updateConfig)
 - Modify: `packages/web/src/pages/Home.tsx` (create section)
 - Modify: `packages/web/src/styles.css` (preset cards)
 - Test: `packages/web/src/pages/Home.test.tsx` (new)
 
 **Interfaces:**
+
 - Consumes: `PRESETS` from `@www/engine`; `CreateGameRequest`/`UpdateConfigRequest` (Tasks 7–8).
 - Produces: `api.updateConfig(id: string, req: UpdateConfigRequest): Promise<GameView>`; Home preset cards with `data-testid={preset-${id}}`. Task 10 uses `api.updateConfig`.
 
@@ -1134,7 +1157,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../api.js', () => ({
-  api: { listGames: vi.fn().mockResolvedValue([]), createGame: vi.fn().mockResolvedValue({ id: 'g9' }) },
+  api: {
+    listGames: vi.fn().mockResolvedValue([]),
+    createGame: vi.fn().mockResolvedValue({ id: 'g9' }),
+  },
   ApiError: class extends Error {},
 }));
 
@@ -1151,7 +1177,9 @@ describe('Home', () => {
     expect(screen.getByText('Pact Blitz')).toBeDefined();
     expect(screen.getByText('Tiers v2')).toBeDefined();
     fireEvent.click(screen.getByTestId('preset-tiers-v2'));
-    await waitFor(() => expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }));
+    await waitFor(() =>
+      expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }),
+    );
   });
 });
 ```
@@ -1175,40 +1203,40 @@ Expected: FAIL — no preset cards rendered.
 `Home.tsx` — delete `TURN_LENGTHS`, `GAME_LENGTHS` and the `playerCount`/`turnMinutes`/`contest`/`turnCap` state; import `PRESETS` from `@www/engine`; replace the create handler and form:
 
 ```tsx
-  const create = async (presetId: string) => {
-    setCreating(true);
-    try {
-      const { id } = await api.createGame({ presetId });
-      await navigate(`/g/${id}`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'failed to create game');
-      setCreating(false);
-    }
-  };
+const create = async (presetId: string) => {
+  setCreating(true);
+  try {
+    const { id } = await api.createGame({ presetId });
+    await navigate(`/g/${id}`);
+  } catch (err) {
+    setError(err instanceof ApiError ? err.message : 'failed to create game');
+    setCreating(false);
+  }
+};
 ```
 
 ```tsx
-      <section className="panel">
-        <h2>New game</h2>
-        <p className="muted">Pick a mode — players, turn length and game length are set in the lobby.</p>
-        <div className="preset-grid">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              data-testid={`preset-${preset.id}`}
-              className="preset-card"
-              disabled={creating}
-              onClick={() => void create(preset.id)}
-            >
-              <strong>{preset.name}</strong>
-              <span>{preset.tagline}</span>
-              <span className="muted">
-                {preset.defaultTurnCap} turns · {formatTurnMinutes(preset.defaultTurnMinutes)}/turn
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+<section className="panel">
+  <h2>New game</h2>
+  <p className="muted">Pick a mode — players, turn length and game length are set in the lobby.</p>
+  <div className="preset-grid">
+    {PRESETS.map((preset) => (
+      <button
+        key={preset.id}
+        data-testid={`preset-${preset.id}`}
+        className="preset-card"
+        disabled={creating}
+        onClick={() => void create(preset.id)}
+      >
+        <strong>{preset.name}</strong>
+        <span>{preset.tagline}</span>
+        <span className="muted">
+          {preset.defaultTurnCap} turns · {formatTurnMinutes(preset.defaultTurnMinutes)}/turn
+        </span>
+      </button>
+    ))}
+  </div>
+</section>
 ```
 
 with a tiny local helper above the component:
@@ -1249,12 +1277,14 @@ const formatTurnMinutes = (minutes: number): string =>
 ### Task 10: Web — lobby Game setup panel
 
 **Files:**
+
 - Create: `packages/web/src/game/GameSetup.tsx`
 - Modify: `packages/web/src/pages/Lobby.tsx` (mount panel, show preset name)
 - Modify: `packages/web/src/styles.css` (if the form rows need anything beyond existing `.form-row`)
 - Test: `packages/web/src/game/GameSetup.test.tsx` (new)
 
 **Interfaces:**
+
 - Consumes: `GameView.presetId/presetName/turnMinutes/turnCap/rules/playerCount/mySlot/seats` (Task 8), `api.updateConfig` (Task 9), `presetById`, `MIN_PLAYERS`, `MAX_PLAYERS`, `MIN_TURN_CAP`, `MAX_TURN_CAP` from `@www/engine`.
 - Produces: `GameSetup({ view, onChanged })` component.
 
@@ -1352,7 +1382,11 @@ type Unit = 'minutes' | 'hours' | 'days';
 const UNIT_MINUTES: Record<Unit, number> = { minutes: 1, hours: 60, days: 1440 };
 
 const unitOf = (minutes: number): Unit =>
-  minutes % 1440 === 0 && minutes >= 1440 ? 'days' : minutes % 60 === 0 && minutes >= 60 ? 'hours' : 'minutes';
+  minutes % 1440 === 0 && minutes >= 1440
+    ? 'days'
+    : minutes % 60 === 0 && minutes >= 60
+      ? 'hours'
+      : 'minutes';
 
 const describeTurnLength = (minutes: number): string =>
   minutes % 1440 === 0 && minutes >= 1440
@@ -1374,7 +1408,9 @@ export function GameSetup({ view, onChanged }: Props) {
 
   // Local drafts for the two number inputs; committed on blur.
   const [unit, setUnit] = useState<Unit>(unitOf(view.turnMinutes));
-  const [turnValue, setTurnValue] = useState(String(view.turnMinutes / UNIT_MINUTES[unitOf(view.turnMinutes)]));
+  const [turnValue, setTurnValue] = useState(
+    String(view.turnMinutes / UNIT_MINUTES[unitOf(view.turnMinutes)]),
+  );
   const [capValue, setCapValue] = useState(String(view.turnCap));
   useEffect(() => {
     const u = unitOf(view.turnMinutes);
@@ -1489,7 +1525,7 @@ export function GameSetup({ view, onChanged }: Props) {
 `Lobby.tsx` — under the `<h2>` line add:
 
 ```tsx
-      <GameSetup view={view} onChanged={onChanged} />
+<GameSetup view={view} onChanged={onChanged} />
 ```
 
 with the import `import { GameSetup } from '../game/GameSetup.js';`.
@@ -1503,28 +1539,32 @@ with the import `import { GameSetup } from '../game/GameSetup.js';`.
 ### Task 11: Web — plunder and tiers income in the report and help panels
 
 **Files:**
+
 - Modify: `packages/web/src/game/ReportView.tsx` (plunder list + tiers income lines)
 - Modify: `packages/web/src/game/HowCombatWorks.tsx` (income-mode copy + plunder bullet)
 - Modify: `packages/web/src/pages/Game.tsx` (pass the new prop to HowCombatWorks — check its call site with grep)
 - Test: none new (these are copy/JSX changes; the engine types force correct field access) — rely on `pnpm typecheck` and existing web tests.
 
 **Interfaces:**
+
 - Consumes: `TurnReport.plunder`, `TiersResult.incomeDelta` (Tasks 3–4), `view.rules.tiersPayout`.
 
 - [ ] **Step 1: ReportView** — after the battles `<ul>` block (line ~121):
 
 ```tsx
-      {(report.plunder ?? []).length > 0 && (
-        <ul className="report-list">
-          {(report.plunder ?? []).map((p) => (
-            <li key={`pl${p.slot}`}>
-              <Dot slot={p.slot} /> {seatName(p.slot)} plundered {p.captures}{' '}
-              {p.captures === 1 ? 'province' : 'provinces'} (+{p.income}{' '}
-              {p.income === 1 ? 'army' : 'armies'} next turn)
-            </li>
-          ))}
-        </ul>
-      )}
+{
+  (report.plunder ?? []).length > 0 && (
+    <ul className="report-list">
+      {(report.plunder ?? []).map((p) => (
+        <li key={`pl${p.slot}`}>
+          <Dot slot={p.slot} /> {seatName(p.slot)} plundered {p.captures}{' '}
+          {p.captures === 1 ? 'province' : 'provinces'} (+{p.income}{' '}
+          {p.income === 1 ? 'army' : 'armies'} next turn)
+        </li>
+      ))}
+    </ul>
+  );
+}
 ```
 
 (`report.plunder ?? []` — reports stored before this feature lack the field.)
@@ -1532,12 +1572,14 @@ with the import `import { GameSetup } from '../game/GameSetup.js';`.
 In the tiers section, inside the per-result `<li>` after the `bestRead` block, add the income line:
 
 ```tsx
-                {view.rules.tiersPayout === 'income' && t.incomeDelta !== 0 && (
-                  <div className={t.incomeDelta > 0 ? 'concord' : 'betrayal'}>
-                    {t.incomeDelta > 0 ? '+' : ''}
-                    {t.incomeDelta} armies from the tiers
-                  </div>
-                )}
+{
+  view.rules.tiersPayout === 'income' && t.incomeDelta !== 0 && (
+    <div className={t.incomeDelta > 0 ? 'concord' : 'betrayal'}>
+      {t.incomeDelta > 0 ? '+' : ''}
+      {t.incomeDelta} armies from the tiers
+    </div>
+  );
+}
 ```
 
 (`view.rules` is always the effective rules from the server; `t.incomeDelta` may be undefined on pre-feature stored reports — guard with `(t.incomeDelta ?? 0) !== 0` and render `t.incomeDelta ?? 0`.)
@@ -1560,28 +1602,30 @@ export function HowCombatWorks({
 Replace the "Contest multiplier" `<li>` with:
 
 ```tsx
-        {incomeMode ? (
-          <li>
-            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00;
-            your tier-list reads pay (or cost) armies directly instead. Only the dice separate
-            two equal stacks.
-          </li>
-        ) : (
-          <li>
-            <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is
-            the biggest lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a
-            die is rolled. Neutral garrisons always fight at ×1.00.
-          </li>
-        )}
+{
+  incomeMode ? (
+    <li>
+      <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00; your
+      tier-list reads pay (or cost) armies directly instead. Only the dice separate two equal
+      stacks.
+    </li>
+  ) : (
+    <li>
+      <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is the biggest
+      lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a die is rolled. Neutral
+      garrisons always fight at ×1.00.
+    </li>
+  );
+}
 ```
 
 and add a plunder bullet after "The cost of winning":
 
 ```tsx
-        <li>
-          <strong>Plunder</strong> — every territory you capture pays +1 army next turn (up to
-          +3 a turn). Expansion pays for itself; sitting still does not.
-        </li>
+<li>
+  <strong>Plunder</strong> — every territory you capture pays +1 army next turn (up to +3 a turn).
+  Expansion pays for itself; sitting still does not.
+</li>
 ```
 
 Update the call site in `Game.tsx` (grep `HowCombatWorks`) to pass `tiersPayout={view.rules.tiersPayout}`. If the game predates plunder, the bullet is mildly wrong for it — acceptable: help text describes current games, and active legacy games keep resolving correctly regardless. Gate it if trivial: `{view.rules.plunderIncome > 0 && (<li>…</li>)}`. Prefer the gate.
@@ -1595,10 +1639,12 @@ Update the call site in `Game.tsx` (grep `HowCombatWorks`) to pass `tiersPayout=
 ### Task 12: Balance harness preset runs + full verification
 
 **Files:**
+
 - Modify: `tools/simulate/src/main.ts` (add `--preset` flag)
 - Test: manual sim runs; full repo sweep.
 
 **Interfaces:**
+
 - Consumes: `presetById`, `presetRules` (Task 5), existing `playBotGame({ rules })` option.
 
 - [ ] **Step 1: Add the flag** — in `parseArgs`, add `preset: null as string | null` to the defaults and a case:
@@ -1613,14 +1659,14 @@ Update the call site in `Game.tsx` (grep `HowCombatWorks`) to pass `tiersPayout=
 Where games are constructed (the loop calling `playBotGame` — read the file to find it), resolve rules per player count:
 
 ```ts
-    const preset = options.preset !== null ? presetById(options.preset) : null;
-    if (options.preset !== null && preset === null) {
-      console.error(`unknown preset: ${options.preset}`);
-      process.exit(2);
-    }
-    // inside the per-playerCount loop:
-    const rules = preset !== null ? presetRules(preset, playerCount, preset.defaultTurnCap) : undefined;
-    // pass { ..., rules } into playBotGame's options
+const preset = options.preset !== null ? presetById(options.preset) : null;
+if (options.preset !== null && preset === null) {
+  console.error(`unknown preset: ${options.preset}`);
+  process.exit(2);
+}
+// inside the per-playerCount loop:
+const rules = preset !== null ? presetRules(preset, playerCount, preset.defaultTurnCap) : undefined;
+// pass { ..., rules } into playBotGame's options
 ```
 
 (`playBotGame` already accepts `rules?: RuleConfig` and defaults to `rulesFor(playerCount)` — the no-flag behavior is byte-identical legacy tuning.)
@@ -1638,7 +1684,7 @@ pnpm sim -- --games 400 --players 4,6 --preset tiers-v2 --no-gates
 
 - [ ] **Step 3: Record findings** — write the observed medians and any retuning into the commit message body.
 
-- [ ] **Step 4: Full sweep** — `pnpm typecheck && pnpm test && pnpm test:server && pnpm lint`. Expected: all PASS (server suite must show tests *run*, not skipped).
+- [ ] **Step 4: Full sweep** — `pnpm typecheck && pnpm test && pnpm test:server && pnpm lint`. Expected: all PASS (server suite must show tests _run_, not skipped).
 
 - [ ] **Step 5: Commit** — message: `Sim: --preset flag; balance notes for the four presets` (+ findings in the body)
 

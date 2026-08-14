@@ -45,7 +45,9 @@ export function Home() {
     <main>
       <section className="panel">
         <h2>New game</h2>
-        <p className="muted">Pick a mode — players, turn length and game length are set in the lobby.</p>
+        <p className="muted">
+          Pick a mode — players, turn length and game length are set in the lobby.
+        </p>
         <div className="preset-grid">
           {PRESETS.map((preset) => (
             <button

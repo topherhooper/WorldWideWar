@@ -62,7 +62,11 @@ export async function createTestGame(
   opts: { presetId?: PresetId; playerCount?: number; turnMinutes?: number; turnCap?: number } = {},
 ): Promise<string> {
   const id = await createGame(db, user, { presetId: opts.presetId ?? 'pact' });
-  if (opts.playerCount !== undefined || opts.turnMinutes !== undefined || opts.turnCap !== undefined) {
+  if (
+    opts.playerCount !== undefined ||
+    opts.turnMinutes !== undefined ||
+    opts.turnCap !== undefined
+  ) {
     await updateConfig(db, id, user, {
       ...(opts.playerCount !== undefined && { playerCount: opts.playerCount }),
       ...(opts.turnMinutes !== undefined && { turnMinutes: opts.turnMinutes }),

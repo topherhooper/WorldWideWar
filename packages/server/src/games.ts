@@ -364,7 +364,10 @@ export async function updateConfig(
     const turnMinutes = req.turnMinutes ?? game.turnMinutes;
     const turnCap = req.turnCap ?? effectiveRules(game).turnCap;
     if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
-      throw new HttpError(400, `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`);
+      throw new HttpError(
+        400,
+        `playerCount must be an integer in [${MIN_PLAYERS}, ${MAX_PLAYERS}]`,
+      );
     }
     if (
       !Number.isInteger(turnMinutes) ||

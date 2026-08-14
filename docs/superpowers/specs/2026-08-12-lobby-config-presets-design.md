@@ -16,14 +16,14 @@ Four connected changes:
 3. **An anti-turtle economy, for every new game.** Neutral garrison growth rewarded sitting
    still in practice — neutrals fattened into stacks nobody would burn armies on and the map
    froze. It is removed for all new games; neutrals start weaker; and capturing territory pays
-   immediate, visible plunder income. Expansion becomes the correct *and* obvious move.
+   immediate, visible plunder income. Expansion becomes the correct _and_ obvious move.
 4. **Tiers v2 and Pact Blitz** — two new fast-paced presets. Tiers v2 additionally changes the
    tiers payout: guess scores pay **income** directly instead of a combat multiplier.
 
 **Active games are untouched throughout.** Every number that changes moves into stored
 per-game rules, and the legacy-default layer (`DEFAULT_RULES` / `rulesFor`) keeps emitting
 today's values so the stored-rules-win merge resolves old games exactly as before. What changes
-is what *newly created* games get, via a second layer (`presetRules`).
+is what _newly created_ games get, via a second layer (`presetRules`).
 
 ## 1. Presets
 
@@ -50,12 +50,12 @@ export function presetById(id: string): GamePreset | null;
 export function presetRules(preset: GamePreset, playerCount: number, turnCap: number): RuleConfig;
 ```
 
-| Preset | Contest | Payout | Cap | Turn | War economy |
-| ---------- | ----- | ---------- | -- | ---- | ------------- |
-| Pact | pact | multiplier | 25 | 24 h | every 5 turns |
-| Tiers | tiers | multiplier | 25 | 24 h | every 5 turns |
-| Pact Blitz | pact | multiplier | 15 | 1 h | every 3 turns |
-| Tiers v2 | tiers | income | 15 | 1 h | every 3 turns |
+| Preset     | Contest | Payout     | Cap | Turn | War economy   |
+| ---------- | ------- | ---------- | --- | ---- | ------------- |
+| Pact       | pact    | multiplier | 25  | 24 h | every 5 turns |
+| Tiers      | tiers   | multiplier | 25  | 24 h | every 5 turns |
+| Pact Blitz | pact    | multiplier | 15  | 1 h  | every 3 turns |
+| Tiers v2   | tiers   | income     | 15  | 1 h  | every 3 turns |
 
 All four presets share the anti-turtle economy (§3): `neutralGrowthInterval: 0`,
 `neutralGarrisonDelta: -1`, `plunderIncome: 1`, `plunderCap: 3`.
@@ -167,7 +167,7 @@ preset.defaultTurnCap)`. `GameDoc` gains `presetId?: string` (absent on legacy d
 interface UpdateConfigRequest {
   playerCount?: number; // 2–12 (MIN_PLAYERS–MAX_PLAYERS)
   turnMinutes?: number; // 5–10080, any integer
-  turnCap?: number;     // 10–50 (MIN_TURN_CAP–MAX_TURN_CAP), any integer
+  turnCap?: number; // 10–50 (MIN_TURN_CAP–MAX_TURN_CAP), any integer
 }
 ```
 

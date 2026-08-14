@@ -95,11 +95,7 @@ export function presetById(id: string): GamePreset | null {
 }
 
 /** The rules a NEW game gets: legacy base, preset pacing, anti-turtle economy. */
-export function presetRules(
-  preset: GamePreset,
-  playerCount: number,
-  turnCap: number,
-): RuleConfig {
+export function presetRules(preset: GamePreset, playerCount: number, turnCap: number): RuleConfig {
   return {
     ...rulesFor(playerCount, turnCap, preset.contest),
     warEconomyInterval: preset.warEconomyInterval,

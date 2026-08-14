@@ -8,7 +8,11 @@ type Unit = 'minutes' | 'hours' | 'days';
 const UNIT_MINUTES: Record<Unit, number> = { minutes: 1, hours: 60, days: 1440 };
 
 const unitOf = (minutes: number): Unit =>
-  minutes % 1440 === 0 && minutes >= 1440 ? 'days' : minutes % 60 === 0 && minutes >= 60 ? 'hours' : 'minutes';
+  minutes % 1440 === 0 && minutes >= 1440
+    ? 'days'
+    : minutes % 60 === 0 && minutes >= 60
+      ? 'hours'
+      : 'minutes';
 
 const describeTurnLength = (minutes: number): string =>
   minutes % 1440 === 0 && minutes >= 1440
@@ -30,7 +34,9 @@ export function GameSetup({ view, onChanged }: Props) {
 
   // Local drafts for the two number inputs; committed on blur.
   const [unit, setUnit] = useState<Unit>(unitOf(view.turnMinutes));
-  const [turnValue, setTurnValue] = useState(String(view.turnMinutes / UNIT_MINUTES[unitOf(view.turnMinutes)]));
+  const [turnValue, setTurnValue] = useState(
+    String(view.turnMinutes / UNIT_MINUTES[unitOf(view.turnMinutes)]),
+  );
   const [capValue, setCapValue] = useState(String(view.turnCap));
   useEffect(() => {
     const u = unitOf(view.turnMinutes);

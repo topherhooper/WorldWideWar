@@ -572,10 +572,7 @@ describe('plunder', () => {
       owner: [0, 0, 0, 0, null, null, null, null, 1],
       armies: [2, 2, 2, 2, 0, 0, 0, 0, 5],
     });
-  const raid = [
-    orders(0, [move(0, 4, 1), move(1, 5, 1), move(2, 6, 1), move(3, 7, 1)]),
-    orders(1),
-  ];
+  const raid = [orders(0, [move(0, 4, 1), move(1, 5, 1), move(2, 6, 1), move(3, 7, 1)]), orders(1)];
 
   it('captures pay income next turn, capped per turn', () => {
     const map = plunderMap();

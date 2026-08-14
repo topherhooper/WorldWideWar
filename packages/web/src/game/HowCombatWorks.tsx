@@ -29,15 +29,15 @@ export function HowCombatWorks({
         </li>
         {incomeMode ? (
           <li>
-            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00;
-            your tier-list reads pay (or cost) armies directly instead. Only the dice separate
-            two equal stacks.
+            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00; your
+            tier-list reads pay (or cost) armies directly instead. Only the dice separate two equal
+            stacks.
           </li>
         ) : (
           <li>
-            <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is
-            the biggest lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a
-            die is rolled. Neutral garrisons always fight at ×1.00.
+            <strong>Contest multiplier</strong> — ×0.80 to ×1.40 from {contestSource}. This is the
+            biggest lever in the game: a 1.40 against a 0.80 is nearly a 2:1 edge before a die is
+            rolled. Neutral garrisons always fight at ×1.00.
           </li>
         )}
         <li>
@@ -58,8 +58,8 @@ export function HowCombatWorks({
         </li>
         {plunderIncome > 0 && (
           <li>
-            <strong>Plunder</strong> — every territory you capture pays +1 army next turn (up to
-            +3 a turn). Expansion pays for itself; sitting still does not.
+            <strong>Plunder</strong> — every territory you capture pays +1 army next turn (up to +3
+            a turn). Expansion pays for itself; sitting still does not.
           </li>
         )}
       </ul>

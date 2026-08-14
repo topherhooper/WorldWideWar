@@ -4,7 +4,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../api.js', () => ({
-  api: { listGames: vi.fn().mockResolvedValue([]), createGame: vi.fn().mockResolvedValue({ id: 'g9' }) },
+  api: {
+    listGames: vi.fn().mockResolvedValue([]),
+    createGame: vi.fn().mockResolvedValue({ id: 'g9' }),
+  },
   ApiError: class extends Error {},
 }));
 
@@ -21,6 +24,8 @@ describe('Home', () => {
     expect(screen.getByText('Pact Blitz')).toBeDefined();
     expect(screen.getByText('Tiers v2')).toBeDefined();
     fireEvent.click(screen.getByTestId('preset-tiers-v2'));
-    await waitFor(() => expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }));
+    await waitFor(() =>
+      expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }),
+    );
   });
 });
