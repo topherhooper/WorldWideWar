@@ -495,7 +495,7 @@ balance:
 - Consumes: `main.ts --ignored-files` from Task 2.
 - Produces: nothing in code. This is the runbook entry for the human prerequisite above.
 
-- [ ] **Step 1: Extend `docs/deployment.md`** — after the paragraph describing the trigger,
+- [x] **Step 1: Extend `docs/deployment.md`** — after the paragraph describing the trigger,
       add:
 
 ````markdown
@@ -516,7 +516,7 @@ not a per-file decision, so there is no such thing as a partial deploy. A manual
 what typing that command means.
 ````
 
-- [ ] **Step 2: Extend `CLAUDE.md`** — in the CI paragraph under `## Before you push`, note
+- [x] **Step 2: Extend `CLAUDE.md`** — in the CI paragraph under `## Before you push`, note
       that the sweeps are now conditional and where the table lives:
 
 ```markdown
@@ -526,12 +526,34 @@ the server suite, the mapgen sweep and the balance sweep on
 anything it does not recognize. Engine changes still expect both sweeps.
 ```
 
-- [ ] **Step 3: Verify** — `pnpm exec prettier --check --end-of-line auto docs/deployment.md CLAUDE.md`
+- [x] **Step 3: Verify** — `pnpm exec prettier --check --end-of-line auto docs/deployment.md CLAUDE.md`
 
-- [ ] **Step 4: Commit** — `docs(deploy): filter the Cloud Build trigger on doc-only pushes`
+- [x] **Step 4: Commit** — `docs(deploy): filter the Cloud Build trigger on doc-only pushes`
 
 ---
 
 ## Self-review notes
 
-_(filled in during implementation)_
+- **The guards are stronger than the spec's first draft, on purpose.** Written as
+  `== 'true'`, a `changes` job that died on a bad install would skip `check`, `mapgen` and
+  `balance` — and branch protection reads a skipped required check as a pass, so a broken
+  classifier would turn every pull request green. Every guard therefore tests
+  `!= 'false'` (an absent output means run it) and every gated job carries `!cancelled()`
+  so it runs whether `changes` succeeded or not. The spec was updated to match.
+- **`main.ts` has no unit test**, as the plan says. It is `execFileSync` plus
+  `$GITHUB_OUTPUT` formatting; a test would assert that mocks were called. It was verified
+  by hand against `origin/main`, an empty base, and a real `$GITHUB_OUTPUT` file.
+- **`DOC_GLOBS` lists Markdown twice** (`*.md` and `**/*.md`) because glob
+  implementations disagree about whether `**` matches zero leading segments, and being
+  wrong there means a `README.md`-only push redeploys — the exact bug this closes.
+- **The `changes` job pays a cached `pnpm install`** to run `tsx`. Roughly half a minute
+  to gate up to twenty, and it keeps the classifier a tested TypeScript module in
+  `tools/` rather than untestable shell in the workflow.
+- **The deploy half ships as a runbook entry, not code.** `ignoredFiles` lives on the
+  Cloud Build trigger, which is not in this repository; until someone with GCP access runs
+  the `gcloud` command under `## Prerequisites`, every push to `main` still deploys.
+  Nothing in CI depends on it having been run.
+- **This work carried on `claude/selective-ci-deploy-7dg3p3`, not `idea/selective-ci-and-deploy`.**
+  The session was pinned to that branch. The idea doc was cherry-picked onto it so the pull
+  request still shows the whole arc from capture to implementation; the `idea/` branch is
+  now redundant and can be deleted after merge.

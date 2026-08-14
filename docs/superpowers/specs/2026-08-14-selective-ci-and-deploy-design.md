@@ -156,9 +156,11 @@ The list spells Markdown twice, `*.md` and `**/*.md` — whether `**` matches ze
 segments is exactly the thing glob implementations disagree about, and being wrong there
 means a `README.md`-only push redeploys, which is the bug this is here to fix.
 
-`cloudbuild.yaml` and `firebase.json` are untouched. Manual deploys
-(`gcloud builds submit`) are untouched too — they bypass the trigger, so they always
-deploy, which is what someone typing that command means.
+`cloudbuild.yaml` and `firebase.json` are untouched. So is the manual path added by #15 —
+`.github/workflows/deploy.yml` is `workflow_dispatch` only, so there is nothing to filter:
+it never fires on its own, and it submits the build directly rather than through the
+trigger. Dispatching a docs-only ref still deploys it, which is what someone naming a ref
+by hand means.
 
 ## Testing
 

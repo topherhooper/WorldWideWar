@@ -76,6 +76,15 @@ two sweeps that can fail on changes which pass locally: a 300-seed mapgen sweep,
 800-game balance run across 2/4/6/8/12 players that exits non-zero on a fairness gate.
 Engine changes should expect both.
 
+Which of those actually run depends on what you touched. A `changes` job maps the changed
+paths to jobs through `tools/ci/src/changed-areas.ts` and the rest of the workflow reads
+its output: `format:check`, `lint` and `typecheck` always run; `pnpm test` skips only on a
+documentation-only change; the server suite needs `packages/server` or `packages/engine`;
+the sweeps need `packages/engine` (mapgen) or `packages/engine`/`tools` (balance). Anything
+the table does not recognize — the lockfile, root config, the workflow itself — runs
+everything. Documentation-only pushes to `main` also skip deployment; see
+`docs/deployment.md`.
+
 **`pnpm format:check` is unreliable locally.** With `core.autocrlf=true` and no
 `.gitattributes`, it fails all ~100 files on CRLF and buries the handful that are
 genuinely misformatted — which is how ten bad files reached CI on #6. Use

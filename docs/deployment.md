@@ -22,6 +22,23 @@ The trigger runs as `cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com`
 (roles: run.admin, artifactregistry.writer, firebasehosting.admin, logging.logWriter,
 serviceAccountUser on the compute SA). CI checks stay in GitHub Actions and do not deploy.
 
+Documentation-only pushes do not deploy. The trigger carries an `ignoredFiles` filter; when
+every path in a push matches it, Cloud Build never queues a build at all. The globs are the
+same ones CI treats as documentation, printed by the classifier so the two cannot drift:
+
+```bash
+pnpm exec tsx tools/ci/src/main.ts --ignored-files
+gcloud builds triggers update github Sample \
+  --region=us-central1 --project=fluted-citizen-269819 \
+  --ignored-files='docs/**,*.md,**/*.md,.claude/**'
+```
+
+One non-documentation file in the push and the whole build runs — the filter is a union
+over the push, not a per-file decision, so there is no such thing as a partial deploy. The
+filter is on the trigger, so it only ever suppresses the automatic push-to-`main` deploy;
+every manual path below bypasses the trigger and therefore deploys whatever ref you name,
+documentation or not.
+
 Manual deploy, pinned to a commit — **Actions → Deploy → Run workflow**, or:
 
 ```
