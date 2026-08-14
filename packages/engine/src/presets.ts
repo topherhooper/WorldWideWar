@@ -21,7 +21,12 @@
 import { rulesFor } from './constants.js';
 import type { ContestKind, RuleConfig, TiersPayout } from './types.js';
 
-export type PresetId = 'pact' | 'tiers' | 'pact-blitz' | 'tiers-v2';
+/**
+ * A preset id. Deliberately not a union: the catalogue grows by one preset a
+ * day (see `.claude/commands/daily-preset.md`), so tomorrow's id cannot be
+ * enumerated at compile time. `presetById` is the check.
+ */
+export type PresetId = string;
 
 export interface GamePreset {
   id: PresetId;
@@ -37,6 +42,13 @@ export interface GamePreset {
   neutralGarrisonDelta: number;
   /** Bonus income next turn per territory captured this turn. */
   plunderIncome: number;
+  /**
+   * The UTC date (`YYYY-MM-DD`) this preset is the preset of the day. Absent
+   * means evergreen — carded on the home page every day. A daily preset is
+   * carded only on its date but stays creatable by id forever, because games
+   * created under it still have to name it.
+   */
+  featuredOn?: string;
 }
 
 export const PRESETS: readonly GamePreset[] = [
@@ -92,6 +104,13 @@ export const PRESETS: readonly GamePreset[] = [
 
 export function presetById(id: string): GamePreset | null {
   return PRESETS.find((preset) => preset.id === id) ?? null;
+}
+
+/** What the home page offers on a given UTC date: the evergreens, plus that day's daily. */
+export function presetsForDate(isoDate: string): GamePreset[] {
+  return PRESETS.filter(
+    (preset) => preset.featuredOn === undefined || preset.featuredOn === isoDate,
+  );
 }
 
 /** The rules a NEW game gets: legacy base, preset pacing, anti-turtle economy. */

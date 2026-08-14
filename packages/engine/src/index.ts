@@ -3,7 +3,14 @@
 export * from './types.js';
 export * from './constants.js';
 export { rulesFor, MIN_CONDOMINIUM_PLAYERS, MIN_CONCORDAT_PLAYERS } from './constants.js';
-export { PRESETS, presetById, presetRules, type GamePreset, type PresetId } from './presets.js';
+export {
+  PRESETS,
+  presetById,
+  presetRules,
+  presetsForDate,
+  type GamePreset,
+  type PresetId,
+} from './presets.js';
 export { makeRng, substream, type Rng } from './rng.js';
 export { canonicalJson, hashValue, sha256 } from './hash.js';
 export {

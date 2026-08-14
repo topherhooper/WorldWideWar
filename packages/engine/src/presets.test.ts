@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { rulesFor } from './constants.js';
-import { PRESETS, presetById, presetRules } from './presets.js';
+import { PRESETS, presetById, presetRules, presetsForDate } from './presets.js';
 
 describe('presets', () => {
   it('ships exactly four presets with contest-compatible classic ids', () => {
@@ -43,5 +43,27 @@ describe('presets', () => {
     const rules = presetRules(presetById('tiers-v2')!, 4, 15);
     expect(rules.contest).toBe('tiers');
     expect(rules.tiersPayout).toBe('income');
+  });
+});
+
+describe('presetsForDate', () => {
+  it('offers every evergreen preset on any date', () => {
+    const ids = presetsForDate('2026-08-14').map((p) => p.id);
+    for (const preset of PRESETS.filter((p) => p.featuredOn === undefined)) {
+      expect(ids).toContain(preset.id);
+    }
+  });
+
+  it('offers a daily preset on its date and no other', () => {
+    for (const daily of PRESETS.filter((p) => p.featuredOn !== undefined)) {
+      expect(presetsForDate(daily.featuredOn!).map((p) => p.id)).toContain(daily.id);
+      expect(presetsForDate('1999-12-31').map((p) => p.id)).not.toContain(daily.id);
+    }
+  });
+
+  it('stays playable by id after its day', () => {
+    for (const daily of PRESETS.filter((p) => p.featuredOn !== undefined)) {
+      expect(presetById(daily.id)).not.toBeNull();
+    }
   });
 });

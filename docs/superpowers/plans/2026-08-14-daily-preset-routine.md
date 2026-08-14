@@ -80,7 +80,7 @@ The preset validator has to check the same bound the server enforces, and the en
 
 **Steps:**
 
-- [ ] Write the failing cases in `presets.test.ts`:
+- [x] Write the failing cases in `presets.test.ts`:
 
   ```ts
   describe('presetsForDate', () => {
@@ -106,8 +106,8 @@ The preset validator has to check the same bound the server enforces, and the en
   });
   ```
 
-- [ ] Run `pnpm exec vitest run packages/engine/src/presets.test.ts` — fails, `presetsForDate` is not exported.
-- [ ] In `packages/engine/src/presets.ts`: change `export type PresetId = 'pact' | ...` to
+- [x] Run `pnpm exec vitest run packages/engine/src/presets.test.ts` — fails, `presetsForDate` is not exported.
+- [x] In `packages/engine/src/presets.ts`: change `export type PresetId = 'pact' | ...` to
 
   ```ts
   /**
@@ -118,7 +118,7 @@ The preset validator has to check the same bound the server enforces, and the en
   export type PresetId = string;
   ```
 
-- [ ] Add to `GamePreset`, after `plunderIncome`:
+- [x] Add to `GamePreset`, after `plunderIncome`:
 
   ```ts
   /**
@@ -130,7 +130,7 @@ The preset validator has to check the same bound the server enforces, and the en
   featuredOn?: string;
   ```
 
-- [ ] Append below `presetById`:
+- [x] Append below `presetById`:
 
   ```ts
   /** What the home page offers on a given UTC date: the evergreens, plus that day's daily. */
@@ -141,9 +141,9 @@ The preset validator has to check the same bound the server enforces, and the en
   }
   ```
 
-- [ ] Export it: in `packages/engine/src/index.ts`, extend the presets line to `export { PRESETS, presetById, presetRules, presetsForDate, type GamePreset, type PresetId } from './presets.js';`
-- [ ] Run `pnpm exec vitest run packages/engine && pnpm typecheck` — green.
-- [ ] Commit: `feat(engine): date presets so one can be featured per day`
+- [x] Export it: in `packages/engine/src/index.ts`, extend the presets line to `export { PRESETS, presetById, presetRules, presetsForDate, type GamePreset, type PresetId } from './presets.js';`
+- [x] Run `pnpm exec vitest run packages/engine && pnpm typecheck` — green.
+- [x] Commit: `feat(engine): date presets so one can be featured per day`
 
 ---
 
