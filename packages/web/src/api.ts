@@ -2,8 +2,10 @@ import type {
   CreateGameRequest,
   GameSummaryView,
   GameView,
+  NotifyPrefs,
   SubmitOrdersRequest,
   SubmitOrdersResponse,
+  UpdatePrefsRequest,
 } from '@www/server/api-types';
 
 import { auth } from './auth.js';
@@ -55,4 +57,6 @@ export const api = {
   submitLobbyList: (id: string, list: string[]) =>
     apiFetch<GameView>('PUT', `/api/games/${id}/lobby-list`, { list }),
   deleteGame: (id: string) => apiFetch<{ ok: boolean }>('DELETE', `/api/games/${id}`),
+  getPrefs: () => apiFetch<NotifyPrefs>('GET', '/api/prefs'),
+  updatePrefs: (patch: UpdatePrefsRequest) => apiFetch<NotifyPrefs>('PUT', '/api/prefs', patch),
 };

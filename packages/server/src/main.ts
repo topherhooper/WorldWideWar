@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { realVerifiers } from './auth.js';
 import { LogMailer, resendMailer } from './mailer.js';
 import { initFirestore } from './store.js';
+import { unsubSignerFromEnv } from './unsub.js';
 
 // Cloud Run injects PORT; the local default dodges the Firestore emulator's 8080.
 const port = Number(process.env.PORT ?? 3001);
@@ -25,6 +26,7 @@ const app = buildApp({
     tickServiceAccount: process.env.TICK_SERVICE_ACCOUNT ?? '',
   }),
   baseUrl,
+  signer: unsubSignerFromEnv(process.env.UNSUBSCRIBE_SECRET?.trim()),
 });
 
 app

@@ -6,6 +6,7 @@ import { App } from './App.js';
 import { AuthProvider, RequireAuth } from './auth.js';
 import { Game } from './pages/Game.js';
 import { Home } from './pages/Home.js';
+import { Settings } from './pages/Settings.js';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -14,6 +15,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Home /> },
       { path: '/g/:id', element: <Game /> },
+      { path: '/settings', element: <Settings /> },
     ],
   },
 ]);
