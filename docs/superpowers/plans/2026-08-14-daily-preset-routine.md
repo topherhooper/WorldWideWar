@@ -355,10 +355,10 @@ Rewrite `presets.test.ts` so it validates any preset instead of recognising four
 
 **Steps:**
 
-- [ ] Write `.claude/commands/daily-preset.md` with frontmatter (`description`, `allowed-tools` covering Bash for git/pnpm, Read, Edit, Grep) and these sections: what to do (branch `preset/<YYYY-MM-DD>` off `main`; read `presets.ts`; compose a preset no existing tuning tuple matches; append it with today's UTC date from `date -u +%F`; `pnpm sim -- --preset <id> --games 200 --players 6`; the full gate; commit `feat(engine): preset of the day — <name>`; push; draft PR carrying the simulation report), the hard rules from the spec, a short note on what makes a preset interesting rather than merely different (which knob is doing the work, and what that does to the shape of the game), and the cron plus prompt to schedule it with.
-- [ ] Add to `CLAUDE.md` under `## Conventions`, in the branches bullet: `preset/<YYYY-MM-DD>` for the daily preset routine, and a one-line pointer to the command beneath the workflow table.
-- [ ] Run `pnpm exec prettier --write .claude/commands/daily-preset.md CLAUDE.md`.
-- [ ] Commit: `docs: the daily preset routine`
+- [x] Write `.claude/commands/daily-preset.md` with frontmatter (`description`, `allowed-tools` covering Bash for git/pnpm, Read, Edit, Grep) and these sections: what to do (branch `preset/<YYYY-MM-DD>` off `main`; read `presets.ts`; compose a preset no existing tuning tuple matches; append it with today's UTC date from `date -u +%F`; `pnpm sim -- --preset <id> --games 200 --players 6`; the full gate; commit `feat(engine): preset of the day — <name>`; push; draft PR carrying the simulation report), the hard rules from the spec, a short note on what makes a preset interesting rather than merely different (which knob is doing the work, and what that does to the shape of the game), and the cron plus prompt to schedule it with.
+- [x] Add to `CLAUDE.md` under `## Conventions`, in the branches bullet: `preset/<YYYY-MM-DD>` for the daily preset routine, and a one-line pointer to the command beneath the workflow table.
+- [x] Run `pnpm exec prettier --write .claude/commands/daily-preset.md CLAUDE.md`.
+- [x] Commit: `docs: the daily preset routine`
 
 ---
 

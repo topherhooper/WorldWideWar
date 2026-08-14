@@ -32,6 +32,13 @@ The two commands live in `.claude/commands/`. Read them before hand-rolling eith
 step — the document formats they describe are the house style, taken from the existing
 specs and plans, and new artifacts should be indistinguishable from those.
 
+### The daily preset
+
+`/daily-preset` sits outside that chain: it adds one game preset to
+`packages/engine/src/presets.ts`, simulates it, and opens a draft PR. It is meant to be
+run by a scheduled session, once a day, and its hard rules are load-bearing — the
+catalogue is append-only, and a preset never grows the type it is an instance of.
+
 ### Requires the superpowers plugin
 
 `.claude/settings.json` enables `superpowers@claude-plugins-official` for this repo, so
@@ -121,7 +128,8 @@ only, with the default commit message set to "Pull request title and description
 ## Conventions
 
 - Branches: `idea/<slug>` off `main`, created at capture and carried through to the PR.
-  `claude/<kebab-topic>-<suffix>` for work that did not start from an idea doc.
+  `claude/<kebab-topic>-<suffix>` for work that did not start from an idea doc, and
+  `preset/<YYYY-MM-DD>` for the daily preset routine.
 - Commits within a branch: conventional commits scoped by package — `feat(engine):`,
   `fix(web):`, `docs(server):`. These are working history; the squash message is what
   lands on `main`.
