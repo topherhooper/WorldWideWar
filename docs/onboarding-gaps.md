@@ -60,12 +60,12 @@ established.
 The string is built by `incomeParts` (`packages/web/src/game/OrdersPanel.tsx:53-87`),
 mirroring `computeIncome` (`packages/engine/src/income.ts:17-46`):
 
-| Fragment | Source |
-|---|---|
-| `3 base` | `BASE_INCOME = 3` (`constants.ts:54`) |
+| Fragment                  | Source                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `3 base`                  | `BASE_INCOME = 3` (`constants.ts:54`)                                                             |
 | `2 from 6 supplied lands` | `floor(suppliedCount / TERRITORIES_PER_INCOME)`, `TERRITORIES_PER_INCOME = 3` (`constants.ts:55`) |
-| `1 war economy` | `floor(state.turn / WAR_ECONOMY_INTERVAL)`, `WAR_ECONOMY_INTERVAL = 5` (`constants.ts:58`) |
-| `4 whole regions` | `regionBonusFor(...)` — the summed **bonus**, not a count (`income.ts:49-70`) |
+| `1 war economy`           | `floor(state.turn / WAR_ECONOMY_INTERVAL)`, `WAR_ECONOMY_INTERVAL = 5` (`constants.ts:58`)        |
+| `4 whole regions`         | `regionBonusFor(...)` — the summed **bonus**, not a count (`income.ts:49-70`)                     |
 
 - **War economy** is a global ramp: +1 income per 5 turns elapsed, to shorten the
   late game (`constants.ts:57-58`, `income.ts:27-28`).

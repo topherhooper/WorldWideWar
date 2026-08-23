@@ -14,8 +14,11 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 shopt -s nullglob
 
-# field <file> <name> -- first value of a frontmatter key, quotes stripped
-field() { sed -n "s/^$2: *//p" "$1" | head -1 | tr -d '"'; }
+# field <file> <name> -- first value of a frontmatter key, quotes stripped.
+# Strips single and double quotes: a repo whose formatter normalises YAML to
+# single quotes turns blocked-by: "" into blocked-by: '', and stripping only
+# double quotes would leave a two-character value that reads as a blocker slug.
+field() { sed -n "s/^$2: *//p" "$1" | head -1 | tr -d "\"'"; }
 
 # unresolved <file> -- true if the file exists and is still open or blocked
 unresolved() {
