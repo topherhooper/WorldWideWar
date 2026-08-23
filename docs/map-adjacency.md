@@ -26,7 +26,7 @@ undo it.
 ## The actual bug: edges you can cross that are drawn nowhere
 
 `symmetrizeEdges` (`packages/engine/src/mapgen/symmetry.ts:119-158`) takes a majority
-vote per edge orbit and then adds the winner to *every* wedge:
+vote per edge orbit and then adds the winner to _every_ wedge:
 
 ```ts
 if (seen * 2 < orbitSize) continue;   // majority survives...

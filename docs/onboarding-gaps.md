@@ -46,7 +46,7 @@ not merely incomplete.
 
 Paco: "I can't seem to order multiple territories to move into the same one."
 That is legal in the engine and always was. The real constraint is one order per
-*source* territory, and a second order from the same source is silently dropped
+_source_ territory, and a second order from the same source is silently dropped
 (`packages/engine/src/orders.ts:120-130`). Whether that is what Paco hit was never
 established.
 

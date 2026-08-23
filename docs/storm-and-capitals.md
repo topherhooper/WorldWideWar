@@ -19,7 +19,7 @@ Tracing `resolveTurn` for turn T:
   ahead one further turn — so the warning names the wave collapsing on turn **T+2**
 - That wave is applied by `applyStorm` during the resolution of turn **T+1**
 
-A player reads the warning in turn T's report *while writing orders for turn T+1*,
+A player reads the warning in turn T's report _while writing orders for turn T+1_,
 and the warned land burns when those very orders resolve. Read as "it burns next
 turn," a player marches into the doomed territory and loses the whole stack —
 `applyStorm` destroys everything standing on collapsed ground (`storm.ts:53-59`).
@@ -63,7 +63,7 @@ The consequences:
 - The capital relocates to the strongest-garrison territory in the player's largest
   connected holding, and supply re-anchors (`resolve.ts:579-591`, `supply.ts:59-88`).
   A `capital_fell` event is emitted; the player is not eliminated. This part works.
-- **Decapitation victory is the casualty.** It is scored on *founding* capitals
+- **Decapitation victory is the casualty.** It is scored on _founding_ capitals
   (`victory.ts:260-291`), deliberately — the code notes "a relocated capital is a
   consolation prize." `victory.ts:272` skips any player whose founding capital is
   collapsed. From turn 16 the route is closed for the whole table, permanently. It

@@ -61,7 +61,7 @@ Four rules:
    things", not "is unresolved". Tidiness, completeness, test coverage and
    refactorability are not reasons on their own.
 2. **Curiosity is not a task.** Hypotheses, oddities noticed in passing, and questions
-   worth answering *someday* are not the open front. Write them into
+   worth answering _someday_ are not the open front. Write them into
    `docs/<topic>.md` if they're interesting, or nowhere at all. Never file a task
    whose only product is an answer.
 3. **One task per thread, not one per step.** File the next action. Don't pre-file the
@@ -119,7 +119,7 @@ PR title and description, and branches auto-deleting on merge.
 
 So **the PR description is the permanent record** — write it as a finding someone
 reads a year later in `git log`, not as a note to a reviewer. Negative results count.
-The PR *title* becomes the commit subject on `main`, so it leads with its area:
+The PR _title_ becomes the commit subject on `main`, so it leads with its area:
 `web: …`, `engine: …`, `repo: …`.
 
 ```bash
@@ -133,7 +133,7 @@ gh pr merge --squash
 re-wraps the description at ~72 characters when it becomes the commit message, so text
 already wrapped at 95 comes out ragged, with orphan fragments mid sentence. Bullet
 lists are fine; it is prose paragraphs that break. (This is the opposite of the rule
-for `docs/**`, which *is* hard-wrapped near 95 columns.)
+for `docs/**`, which _is_ hard-wrapped near 95 columns.)
 
 Squashing is not losing the notebook — it promotes the conclusion out of it. The messy
 commits stay readable on the PR page forever, just not in `main`.
