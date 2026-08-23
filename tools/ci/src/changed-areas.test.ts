@@ -8,6 +8,10 @@ describe('isDocPath', () => {
     expect(isDocPath('CLAUDE.md')).toBe(true);
     expect(isDocPath('packages/web/README.md')).toBe(true);
     expect(isDocPath('.claude/settings.json')).toBe(true);
+    // Every PR under this harness resolves or files a task. If task files ever
+    // stopped counting as documentation, each one would trigger the 800-game
+    // balance sweep.
+    expect(isDocPath('tasks/storm-warning-deadline.md')).toBe(true);
   });
 
   it('classifies source as source, whatever it contains', () => {
@@ -20,7 +24,7 @@ describe('isDocPath', () => {
 describe('selectCiJobs', () => {
   it('selects nothing for a docs-only changeset', () => {
     expect(
-      selectCiJobs(['docs/superpowers/ideas/2026-08-14-tier-list-cues.md', 'README.md']),
+      selectCiJobs(['docs/onboarding-gaps.md', 'tasks/tier-list-round-cue.md', 'README.md']),
     ).toEqual({ test: false, serverTest: false, mapgen: false, balance: false });
   });
 
