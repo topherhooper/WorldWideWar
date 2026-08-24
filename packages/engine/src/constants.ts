@@ -133,6 +133,11 @@ export const DEFAULT_RULES: RuleConfig = {
   plunderIncome: 0,
   plunderCap: 3,
   tiersPayout: 'multiplier',
+  // Competitive by default. Both fields exist so the stored-rules merge in the
+  // server backfills every game created before cooperative mode with the
+  // behaviour it has always had.
+  coop: false,
+  stormRaiders: 0,
 };
 
 /**
