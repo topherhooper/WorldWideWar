@@ -9,8 +9,10 @@ silently if either constant moved.
 > **Sam:** Topher does "storm warning" that's tucked away in the last turn report
 > mean we need to move off of our sea-lanes this turn? Or is it next turn?
 
-The rendered text (`packages/web/src/game/ReportView.tsx:135-140`) is the entire
-message — `Storm warning: <names>` — and states no timing at all.
+The rendered text was the entire message — `Storm warning: <names>` — and stated no
+timing at all. **Fixed 2026-08-23:** the report now says the land burns when the orders
+you are writing resolve, not next turn (`packages/web/src/game/ReportView.tsx`). The
+trace below is why that is the correct reading; the map half is still open.
 
 Tracing `resolveTurn` for turn T:
 
