@@ -60,6 +60,52 @@ export function applyStorm(
 
   state.wavesCollapsed = Math.max(state.wavesCollapsed, wave + 1);
   events.push({ kind: 'storm', wave, territories: [...territories], armiesLost });
+
+  applyRaiders(state, map, rules, territories, events);
+}
+
+/**
+ * Whatever lived on the burnt rim does not simply die with it.
+ *
+ * In cooperative games the storm stops being only a clock. Each wave drives
+ * raiders onto the surviving land that borders the ground it just took:
+ * unclaimed territory raises a fresh garrison, and held territory is attacked
+ * where it stands. The frontier therefore hardens exactly where the coalition
+ * is being pushed, so the shrinking map costs armies to cross rather than
+ * merely costing space.
+ *
+ * Owned territory is never taken outright by raiders and never drops below one
+ * army. The storm's job is pressure, not elimination -- a player must always
+ * lose their last province to somebody who decided to take it.
+ */
+function applyRaiders(
+  state: GameState,
+  map: GeneratedMap,
+  rules: RuleConfig,
+  collapsed: readonly TerritoryId[],
+  events: WorldEvent[],
+): void {
+  if (rules.stormRaiders <= 0) return;
+
+  // Ascending territory order, deduplicated: the frontier must be identical on
+  // a replay, and one province can border several that just burned.
+  const frontier = new Set<TerritoryId>();
+  for (const id of collapsed) {
+    for (const neighbour of map.adjacency[id]) {
+      if (!state.collapsed[neighbour]) frontier.add(neighbour);
+    }
+  }
+
+  for (const id of [...frontier].sort((a, b) => a - b)) {
+    if (state.owner[id] === null) {
+      state.armies[id] += rules.stormRaiders;
+      continue;
+    }
+    const lost = Math.min(rules.stormRaiders, Math.max(0, state.armies[id] - 1));
+    if (lost === 0) continue;
+    state.armies[id] -= lost;
+    events.push({ kind: 'routed', slot: state.owner[id]!, at: id, lost });
+  }
 }
 
 /** Territories still in play. */

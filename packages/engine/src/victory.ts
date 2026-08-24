@@ -65,6 +65,8 @@ export function checkVictory(
     detail: claim.detail,
   });
 
+  if (rules.coop) return checkCoopVictory(state, map, rules, alive);
+
   if (alive.length === 0) {
     // Everyone burned or was eliminated in the same tick.
     return {
@@ -138,6 +140,60 @@ export function checkVictory(
   }
 
   return null;
+}
+
+/**
+ * Cooperative victory: outlast the storm, and be counted.
+ *
+ * This is the one place the rule stated at the top of this file -- that a shared
+ * win must exclude somebody -- is deliberately suspended. It is not suspended
+ * because co-op is an exception to the reasoning; it is suspended because the
+ * reasoning does not apply. That rule exists so nobody settles for splitting a
+ * victory they could have taken outright, which presumes a rival to take it
+ * from. Here the excluded party is the world, and the thing the rule actually
+ * protects against -- a draw wearing a different name -- is handled instead by
+ * making the *count* of survivors the score. Five survivors and two survivors
+ * are not the same ending, and `standings` still ranks every player, so the
+ * table still has something to argue about afterwards.
+ *
+ * There is no early win. The coalition does not get to close the game out by
+ * playing well; it only gets to still be there when the last wave lands.
+ */
+function checkCoopVictory(
+  state: GameState,
+  map: GeneratedMap,
+  rules: RuleConfig,
+  alive: readonly Slot[],
+): GameResult | null {
+  const standings = rankPlayers(state, map);
+
+  if (alive.length === 0) {
+    return {
+      kind: 'extinction',
+      winners: [],
+      standings,
+      detail: 'the world closed over the last of them',
+    };
+  }
+
+  // The storm is the clock: the game ends when it has nothing left to take, or
+  // at the cap, whichever comes first.
+  const stormSpent = state.wavesCollapsed >= map.collapseWaves.length;
+  const lastWaveTurn =
+    rules.stormFirstWave + Math.max(0, map.collapseWaves.length - 1) * rules.stormInterval;
+  if (!stormSpent || state.turn < lastWaveTurn) {
+    if (state.turn < rules.turnCap) return null;
+  }
+
+  return {
+    kind: 'survival',
+    winners: [...alive],
+    standings,
+    detail:
+      alive.length === state.playerCount
+        ? `all ${alive.length} came through`
+        : `${alive.length} of ${state.playerCount} came through`,
+  };
 }
 
 // ─── Solo routes ─────────────────────────────────────────────────────────────
