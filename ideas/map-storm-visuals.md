@@ -136,6 +136,9 @@ opponent, so an unreadable storm is not an inconvenience, it is an unplayable mo
 | # | Decision | Rejected, and why |
 | - | -------- | ----------------- |
 | 1 | **"The environment" is three separate systems, not one storm.** The idea is scoped against the taxonomy below, and each system is allowed its own answer. | Rejected: the framing this doc was captured with — one monolithic "storm" whose only open question was how to draw it (tint the doomed tiles vs. draw the frontier as a ring). That question was asked and withdrawn: it presumes the environment is one thing acting in one way, and it is three things acting in three ways. Answering it first would have locked a visual vocabulary chosen for tile-collapse alone, and then forced the other two systems to borrow it. |
+| 2 | **Collapsed tiles keep being drawn.** The world does not shrink, reflow, or drop the dead land off the board — you can still see the ground that used to be there. | Rejected: this doc's own assumption that "collapsed land should recede, not shout." Also rejected: the encroaching-dark-mass treatment, which would have merged dead tiles into one filled shape creeping inward — it reads well as a shrinking world, but it stops collapsed land being *tiles*, and the point of keeping them is that the shape of what you lost stays legible. |
+| 3 | **The map shades the tiles the next wave takes.** The spatial forecast — and the only forecast that goes on the map. | Rejected: leaving the warning in prose in the report, which is the status quo and the thing that produced Sam's question. Confirms the direction already filed as `tasks/storm-warning-deadline.md`, so that task is what this resolves rather than a sibling of it. |
+| 4 | **Every other forecast consolidates into one box in the UI.** One place that says what the world is about to do, instead of the current scatter. | Rejected: the forecast-everywhere reading of the previous question — putting all three systems' next-turn effects on the map. The map gets the forecast that is *inherently spatial* (which ground disappears) and nothing else; a box is better than the map at "in two turns, no income." Also rejected: identity-first (redraw what things are before predicting what happens), which loses the order-writing minute this is all for. |
 
 ### The taxonomy, as the code actually has it
 
@@ -183,3 +186,24 @@ Still client-only, still no engine change: every fact all three would need to dr
 already in `GameState`, `GeneratedMap`, or `RuleConfig` and already crosses `redact()`.
 The one thing that would need engine work is the wrong `wave` field on the
 `storm_warning` event (`resolve.ts:479`), which nothing reads and nothing should.
+
+### The scatter that decision 4 consolidates
+
+Nothing is missing today; it is spread across five places, none of which is *the* place
+to look:
+
+- `GameHud.tsx:43-52` — two banners, `This turn:` and `Next turn:`, one sentence each.
+- `ReportView.tsx:153` — `storm_warning`, behind the "Show last turn's report" collapse.
+- `ReportView.tsx:181` — `event_announced`, behind the same collapse.
+- `OrdersPanel.tsx:62` — a `cold_snap` note, the only event that ever earned a second
+  surface, bolted on where it happened to matter.
+- `Game.tsx:132-137` — the map key's prose, carrying "neutral garrisons ... grow over
+  time" as a subordinate clause.
+
+And one thing genuinely absent: **neutral growth is never announced at all.** It fires
+on `state.turn % neutralGrowthInterval` (`resolve.ts:615-616`), which is as predictable
+as the storm and told to nobody.
+
+Decision 4 makes that box the answer to "what is the world about to do to me", which is
+the same collapse-hiding problem `tasks/tier-list-round-cue.md` names for a different
+subject.
