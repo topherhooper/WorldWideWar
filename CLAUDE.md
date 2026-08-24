@@ -58,11 +58,11 @@ a stated assumption in the idea doc, where it is cheap to correct.
 Four stages. Each is a commit prefix, so the branch log says which stage the idea is in and
 nothing has to track it.
 
-**1. Capture** — `git checkout -b idea/<slug>`, write `ideas/<slug>.md`, commit `note: <idea in
-one line>`. The doc holds the idea in the words it was said in, the one observable thing that
-would make it real, every link opened and what it actually said, `file:line` pointers into the
-code it touches, and the assumptions made instead of asking. Then **stop** and offer stage 2a
-and 2b as alternatives — do not pick unless I have said which.
+**1. Capture** — `git checkout -b idea/<slug> origin/main`, write `ideas/<slug>.md`, commit
+`note: <idea in one line>`. The doc holds the idea in the words it was said in, the one
+observable thing that would make it real, every link opened and what it actually said,
+`file:line` pointers into the code it touches, and the assumptions made instead of asking.
+Then **stop** and offer stage 2a and 2b as alternatives — do not pick unless I have said which.
 
 **The idea doc never reaches `main`.** It is deleted in the PR that merges the idea, and its
 content disperses into three homes that already exist: the PR body (the finding),
@@ -195,11 +195,15 @@ The PR _title_ becomes the commit subject on `main`, so it leads with its area:
 `web: …`, `engine: …`, `repo: …`.
 
 ```bash
-git checkout -b <area>/<slug>
+git checkout -b <area>/<slug> origin/main
 #   ... notebook commits ...
 gh pr create --fill-verbose      # then rewrite the body as a finding
 gh pr merge --squash
 ```
+
+Branch from `origin/main` explicitly, not from whatever is checked out. A session that
+starts in a working copy left on another branch will otherwise build on it silently, and
+the mistake surfaces as unrelated CI failures on a PR that does not mention them.
 
 **Do not hard-wrap the PR body.** Write each paragraph as one long line. GitHub
 re-wraps the description at ~72 characters when it becomes the commit message, so text

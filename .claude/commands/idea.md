@@ -10,7 +10,8 @@ $ARGUMENTS
 1. Ask **at most one** question, and only if you cannot name a concrete outcome
    without it. Everything else you wanted to ask becomes a line under
    `## Assumed, not asked`.
-2. `git checkout -b idea/<slug>` off the trunk.
+2. `git checkout -b idea/<slug> origin/main` — from the trunk explicitly, not
+   from whatever branch the repo happens to be sitting on.
 3. Write `ideas/<slug>.md` — open every link that was mentioned and record what
    it actually said, and put `file:line` pointers to the code this touches.
 4. Commit `note: <the idea in one line>`.
