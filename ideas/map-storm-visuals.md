@@ -130,3 +130,56 @@ opponent, so an unreadable storm is not an inconvenience, it is an unplayable mo
 - `tools/mapviz/src/render.ts:60-70` — the wave palette to copy rather than reinvent.
 - `packages/engine/src/storm.ts:16-31` — `waveCollapsingOn` / `warnedTerritories`, the two
   functions that answer "which tiles, which turn".
+
+## Decisions
+
+| # | Decision | Rejected, and why |
+| - | -------- | ----------------- |
+| 1 | **"The environment" is three separate systems, not one storm.** The idea is scoped against the taxonomy below, and each system is allowed its own answer. | Rejected: the framing this doc was captured with — one monolithic "storm" whose only open question was how to draw it (tint the doomed tiles vs. draw the frontier as a ring). That question was asked and withdrawn: it presumes the environment is one thing acting in one way, and it is three things acting in three ways. Answering it first would have locked a visual vocabulary chosen for tile-collapse alone, and then forced the other two systems to borrow it. |
+
+### The taxonomy, as the code actually has it
+
+All three are *the world acting on you rather than a player acting on you*, and each
+currently surfaces in a different place — none of them where it applies.
+
+**1. Losing tiles — `packages/engine/src/storm.ts`.** Spatial and per-tile. A fixed
+radial schedule (`generate.ts:654-675`) burns the world inward from the rim; the
+innermost ring never collapses, so the endgame is always fought over the same core.
+Everything standing on collapsed ground dies with it (`storm.ts:53-59`). *Surfaces as:*
+a flat grey fill after the fact (`MapView.tsx:17`), and prose in the report. The
+warning never reaches the map at all.
+
+**2. Effects that change the rules for a turn — `packages/engine/src/events.ts`.**
+Seven, drawn from a seeded deck without replacement and announced a turn ahead. The
+important structural fact is that **they are not all board-wide.** Four are:
+`mobilization`, `cold_snap`, `mud_season`, `fog`. **Three name specific tiles and could
+be drawn on the map today:**
+
+- `uprising` — every stack of 8+ loses 3 (`events.ts:75-80`)
+- `warlords` — 3 random neutral territories gain 3 armies each (`events.ts:84-96`)
+- `conscription` — *every frontier territory* raises 1 (`events.ts:98-111`)
+
+*Surfaces as:* one sentence of prose in the HUD banner (`GameHud.tsx:43-52`), identical
+in form whether the effect is global or lands on eleven specific tiles you own. A player
+told "Conscription — every frontier territory raises one army" is being asked to work
+out which of their tiles are frontier, by eye, from a definition they were never given.
+`cold_snap` is the only one that has ever earned a second surface (`OrdersPanel.tsx:62`).
+
+**3. Non-player armies — neutral garrisons.** Seeded from `map.neutralGarrisons`
+(`setup.ts:60-63`), and they *grow* every `neutralGrowthInterval` turns, default 3
+(`resolve.ts:615-616`, `constants.ts:131`). Presets tune them by table size
+(`presets.ts:52-88`). *Surfaces as:* the fill `NEUTRAL = '#8a8578'` and a number —
+visually the same kind of object as a player's tile, differing only in colour — plus
+one clause of prose in the map key: "grey = neutral garrisons that defend and grow over
+time." A whole mechanic, growth included, carried by a subordinate clause.
+
+**They interact.** `warlords` (2) is a shock to the neutrals (3). The storm (1) deletes
+neutrals along with everyone else. So they cannot be three unrelated decorations bolted
+on independently.
+
+### What this does not change
+
+Still client-only, still no engine change: every fact all three would need to draw is
+already in `GameState`, `GeneratedMap`, or `RuleConfig` and already crosses `redact()`.
+The one thing that would need engine work is the wrong `wave` field on the
+`storm_warning` event (`resolve.ts:479`), which nothing reads and nothing should.
