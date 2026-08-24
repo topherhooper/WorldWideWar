@@ -106,7 +106,12 @@ export const PRESETS: readonly GamePreset[] = [
     neutralGarrisonDelta: 0,
     plunderIncome: 1,
     coop: true,
-    stormRaiders: 2,
+    // Four, not two. Measured over 300-game runs at 4/5/6 players: two raiders
+    // are indistinguishable from none, four costs the coalition roughly a fifth
+    // of a survivor and puts a total wipe on the table at 1%, and six tips it
+    // to 5% wipes. Four keeps a clean run (everyone lives) at about a quarter
+    // of games, which is the thing worth chasing.
+    stormRaiders: 4,
   },
 ];
 
