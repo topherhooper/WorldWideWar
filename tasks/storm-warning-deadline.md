@@ -2,22 +2,35 @@
 status: open
 kind: task
 area: web
-priority: 0
+priority: 1
 blocked-by: ''
 ---
 
-# Say when the storm warning's land actually burns
+# Shade the doomed land on the map, not just in the report
 
 ## Next step
 
-Reword the warning in `packages/web/src/game/ReportView.tsx:135-140` to state the deadline. The correct answer is established: **the warned land burns when the orders you are writing right now resolve** -- not next turn.
+Make `MapView.tsx` read `Territory.wave` and shade the territories the storm takes next,
+so a player sees the deadline while placing orders rather than only in last turn's
+report. `tools/mapviz` already shades by wave (`tools/mapviz/src/render.ts:64-65`) --
+start from that palette rather than inventing one.
 
-That is a one-string change. Ship it before deciding anything about map shading.
+The warned wave is the one collapsing on turn T+2, and `Territory.wave` is the map's
+static schedule; the report's `storm_warning` event carries the wrong number
+(`wave: next.wavesCollapsed`, `resolve.ts:459`), so nothing should start reading that
+field until it is fixed.
 
 ## What we know
 
-The message is `Storm warning: <names>` with no timing at all, read in turn T's report while writing orders for turn T+1, and the land burns during T+1's resolution. A player who reads it as "next turn" marches in and loses the entire stack (`storm.ts:53-59`).
+The wording half shipped: the report now states that warned land burns when the orders
+you are writing resolve, not next turn -- the one-army mistake Sam nearly made. What is
+left is that the information exists only in the report, which sits behind "Show last
+turn's report"; see [tier-list-round-cue](tier-list-round-cue.md), the same collapse
+hiding a different thing.
 
-`MapView.tsx` never reads `Territory.wave`, so doomed territories look identical at order-entry time; `tools/mapviz` already shades by wave. Shading the map is the bigger, later move -- the cost of missing this is a whole army, which argues for both eventually.
+This is the half that `coop-survival-mode` (on `engine/pve-survival`) is blocked on. In
+that mode the storm is the opponent rather than a symmetric clock, so an unreadable storm
+makes the preset unplayable rather than merely expensive.
 
-Trace and the off-by-one in the emitted `wave` field: [docs/storm-and-capitals.md](../docs/storm-and-capitals.md).
+Trace, and the off-by-one in the emitted `wave` field:
+[docs/storm-and-capitals.md](../docs/storm-and-capitals.md).
