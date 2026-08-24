@@ -1,4 +1,6 @@
 node_modules/
+# Left behind by the podman gate in CLAUDE.md -- 500MB, never committable.
+.pnpm-store/
 dist/
 build/
 coverage/

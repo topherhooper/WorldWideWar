@@ -29,6 +29,7 @@ project-specific rules below are expected to diverge from it.
 
 | Information                          | Home                    | Lifetime            |
 | ------------------------------------ | ----------------------- | ------------------- |
+| A live idea, before it is work       | `ideas/*.md`            | the branch only     |
 | What's open, what's next             | `tasks/*.md`            | until resolved      |
 | Working notes on an idea             | branch commits          | until squashed      |
 | What happened, and why we believe it | `git log main`          | forever             |
@@ -46,6 +47,75 @@ writing the open front into a doc, make a `tasks/` file instead.
 `## Decisions` tables and the rejected alternatives beside them — the one thing in a
 spec that git history cannot reconstruct. Add to them when a decision is genuinely
 load-bearing; don't write a new one per feature.
+
+### The front door — idea to plan
+
+**A new idea is captured, not started.** When I mention an idea, the default response is stage
+1 below — never opening an editor. You may ask **at most one question** before capturing, and
+only if you cannot name a concrete outcome without it; anything else you wanted to ask becomes
+a stated assumption in the idea doc, where it is cheap to correct.
+
+Four stages. Each is a commit prefix, so the branch log says which stage the idea is in and
+nothing has to track it.
+
+**1. Capture** — `git checkout -b idea/<slug> origin/main`, write `ideas/<slug>.md`, commit
+`note: <idea in one line>`. The doc holds the idea in the words it was said in, the one
+observable thing that would make it real, every link opened and what it actually said,
+`file:line` pointers into the code it touches, and the assumptions made instead of asking.
+Then **stop** and offer stage 2a and 2b as alternatives — do not pick unless I have said which.
+
+**The idea doc never reaches `main`.** It is deleted in the PR that merges the idea, and its
+content disperses into three homes that already exist: the PR body (the finding),
+`docs/design/<slug>.md` (decisions worth keeping), and at most one `tasks/` file (the next
+action). If nothing survives dispersal, the idea produced nothing — delete the branch, which is
+also a result. An idea doc that reaches `main` is a leak; `./scripts/ready.sh` reports it.
+
+**2a. Prototype** (the default — it is cheaper to learn from a thing that runs). Precondition:
+`## Prototype goal` in the idea doc, one sentence with an observable outcome. If it cannot be
+written, the idea is not ready to prototype; brainstorm instead. Then run **autonomously**, no
+check-ins, notebook commits as you go. Shortest path explicitly licenses: no refactoring, no
+cleanup, no error handling the goal does not need, no tests unless the test is the goal,
+hardcode it, skip the abstraction. Prototype code is notebook — allowed to be embarrassing,
+expected to be thrown away.
+
+**Stop at the second surprise.** Work around the first unexpected blocker and note it; the
+second one ends the run. That is a count rather than a judgement, because a rewrite arrived at
+one increment at a time is defensible at every step. Two endings, both results:
+
+- it worked → PR titled `<area>: <what changed>`, body written as a finding
+- it cannot be done without major changes → write `## Why not` (what the change actually is,
+  what it costs, what would have to be true to make it worth doing), PR titled
+  `ruled-out: <idea>`, and **merge it** so `main` carries the reason and the idea is not
+  re-proposed in six months
+
+**2b. Brainstorm** — one question per turn, only questions whose answer changes what gets
+built. Append `## Decisions` to the idea doc, one row per decision with what was rejected and
+why, committing `decision: <what was chosen>`. The rejections are the durable half: they are
+the only thing in the file git cannot reconstruct.
+
+**3. Plan** — only after brainstorming. Append `## Route`: **prose, no checkboxes**, committed
+`plan:`. A list of ticked steps is recoverable from the PR and the log, so the only copy that
+outlives the work is a stale one. The residue on `main` is exactly two things:
+`docs/design/<slug>.md` for the decisions and route, and **one** `tasks/` file for the next
+action. A plan that wants to open more than one task has not picked a first step — say so.
+
+**Branch commits on an idea branch keep using conventional commits for code**; `note:`,
+`decision:` and `plan:` sit alongside them and mark the stage, so a capture commit is `note:`
+even on a branch whose other commits are `feat(engine):`.
+
+#### What to delegate to a subagent
+
+Delegate the stages whose output is a diff; keep the ones whose output is a question. Capture,
+brainstorm and plan stay in the main session because the judgement in them is mine.
+**Prototyping**, and the **dispersal** work at merge — writing `docs/design/` from the
+`decision:` commits, deleting the idea doc, drafting the PR body from the branch log, running
+the formatter — go to a subagent on the cheapest model that can do the job.
+
+That is safe here specifically because the record is the branch log rather than the transcript:
+a subagent that commits `try:` and `dead-end:` leaves exactly the trace I would, and discarding
+its context afterwards costs nothing. The test for handing something off is the same as the
+precondition for prototyping — **if the goal cannot be stated in one paragraph, it is not ready
+to delegate.**
 
 ### The open front — `tasks/*.md`
 
@@ -107,7 +177,9 @@ Commit early and often on a branch. These never reach `main`, so they cost nothi
 are allowed to be wrong. Use conventional commits scoped by package —
 `feat(engine):`, `fix(web):`, `docs(server):`, `wip(web):`. For work that is an
 investigation rather than a build, `try:` / `result:` / `dead-end:` are better and
-allowed; what matters is that the log says what was believed at each step.
+allowed; what matters is that the log says what was believed at each step. The three
+front-door prefixes — `note:`, `decision:`, `plan:` — are not optional and sit alongside
+whichever of those the code commits use.
 
 What must not happen is an empty branch log because everything was squashed into one
 commit at the end.
@@ -123,11 +195,15 @@ The PR _title_ becomes the commit subject on `main`, so it leads with its area:
 `web: …`, `engine: …`, `repo: …`.
 
 ```bash
-git checkout -b <area>/<slug>
+git checkout -b <area>/<slug> origin/main
 #   ... notebook commits ...
 gh pr create --fill-verbose      # then rewrite the body as a finding
 gh pr merge --squash
 ```
+
+Branch from `origin/main` explicitly, not from whatever is checked out. A session that
+starts in a working copy left on another branch will otherwise build on it silently, and
+the mistake surfaces as unrelated CI failures on a PR that does not mention them.
 
 **Do not hard-wrap the PR body.** Write each paragraph as one long line. GitHub
 re-wraps the description at ~72 characters when it becomes the commit message, so text
@@ -144,12 +220,14 @@ Anything with a question attached gets a branch.
 ### Session protocol
 
 ```bash
-./scripts/ready.sh
+./scripts/ready.sh                     # tasks, plus any idea branches in flight
 git log main --oneline -15
 gh pr list
 ```
 
-That is the entire memory load — nothing to install, no context injected, no plugin.
+If `ready.sh` says you are on an `idea/*` branch, read that idea doc before anything else — it
+is the only place the assumptions behind the branch are written down. Otherwise that is the
+entire memory load: nothing to install, no context injected, no plugin.
 
 ### Committing
 
@@ -171,9 +249,22 @@ Two tripwires, so the system upgrades on a threshold instead of quietly decaying
   subdirectories.
 - **a task file past one screen** → it has become an investigation. Move the narrative
   into `docs/<topic>.md` and leave the task pointing at it.
+- **more than ~2 open `idea/*` branches** → collecting ideas rather than building them. Pick
+  one and resolve the rest, by merging a `ruled-out:` or by deleting the branch.
+- **an `idea/*` branch with no commit past `note:` after ~2 weeks** → delete it. Most ideas do
+  not survive contact, and that is their normal end.
+- **any `ideas/*.md` on `main`** → a leak. The dispersal step was skipped.
 
 Do not add a tracking tool before hitting one of these. The last one was removed for
 failing the bare-clone test.
+
+### Keeping this file current
+
+When you do something this file does not describe, or follow a rule here that cost more than it
+returned, add one line to the PR body prefixed `harness:` saying what happened. That is the
+whole maintenance process — no audit, nothing to remember between sessions. General lessons go
+upstream to `github.com/topherhooper/harness` before they go anywhere else; ones specific to
+this repo stay here.
 
 ## Invariants
 
