@@ -153,7 +153,9 @@ export function ReportView({ view, map, report }: Props) {
               case 'storm_warning':
                 return (
                   <li key={i} className="storm">
-                    Storm warning: {w.territories.map((t) => tName(map, t)).join(', ')}
+                    Storm warning: {w.territories.map((t) => tName(map, t)).join(', ')} —{' '}
+                    <strong>this land burns when the orders you write now resolve</strong>, not next
+                    turn. Anything standing there is lost.
                   </li>
                 );
               case 'eliminated':
