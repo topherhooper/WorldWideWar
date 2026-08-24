@@ -221,7 +221,11 @@ export function rulesFor(
     // unreachable: half of twenty-five regions is not a strategy, and hegemony
     // simply stopped existing above six players.
     hegemonyShare: playerCount <= 4 ? 0.5 : playerCount <= 6 ? 0.45 : playerCount <= 9 ? 0.4 : 0.45,
-    stormFirstWave: stormFirstWaveFor(turnCap, firstWaveFraction, stormIntervalFor(playerCount, turnCap)),
+    stormFirstWave: stormFirstWaveFor(
+      turnCap,
+      firstWaveFraction,
+      stormIntervalFor(playerCount, turnCap),
+    ),
     stormInterval: stormIntervalFor(playerCount, turnCap),
     // "Recent cooperation" must never mean a third of the game ago.
     concordatWindow: Math.min(5, Math.max(2, Math.round(turnCap / 3))),
