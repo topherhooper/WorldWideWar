@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('../api.js', () => ({
@@ -15,6 +15,10 @@ const { api } = await import('../api.js');
 const { Home } = await import('./Home.js');
 
 describe('Home', () => {
+  // No global cleanup is configured, so each render must unmount its own tree or
+  // `screen` matches every test's DOM at once.
+  afterEach(cleanup);
+
   it('creates a game from a preset card', async () => {
     render(
       <MemoryRouter>
@@ -27,5 +31,19 @@ describe('Home', () => {
     await waitFor(() =>
       expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }),
     );
+  });
+
+  // /party is a Hosting rewrite to a separate Cloud Run service, so this has to stay a
+  // real anchor with a real href -- a react-router <Link> would keep the navigation
+  // inside the SPA and land on the catch-all instead.
+  it('offers the dinner party as a plain link out of the app', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    const link = screen.getByTestId('dinner-party');
+    expect(link.tagName).toBe('A');
+    expect(link.getAttribute('href')).toBe('/party');
   });
 });

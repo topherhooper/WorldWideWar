@@ -15,11 +15,20 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const PAGE = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 import { buildTale, makeLie } from './tale.mjs';
 
 const PORT = Number(process.env.PORT ?? 8787);
+
+// Behind Firebase Hosting the rewrite forwards the original path, so requests arrive as
+// /party/... rather than /... . The base is stripped here and injected into the page, so
+// the same file runs unchanged on localhost with no base at all.
+const BASE = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
 const MAX_PLAYERS = 20;
+
+const PAGE = readFileSync(new URL('./index.html', import.meta.url), 'utf8').replace(
+  '__BASE__',
+  BASE,
+);
 
 /** code -> room */
 const rooms = new Map();
@@ -386,7 +395,9 @@ const cleanName = (raw) =>
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const path = url.pathname;
+  const path = url.pathname.startsWith(BASE)
+    ? url.pathname.slice(BASE.length) || '/'
+    : url.pathname;
 
   if (path === '/' || path.startsWith('/r/')) {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -613,4 +624,4 @@ const server = createServer(async (req, res) => {
   send(res, 405, { error: 'method not allowed' });
 });
 
-server.listen(PORT, () => console.log(`dinner party prototype on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`dinner party prototype on http://localhost:${PORT}${BASE}`));
