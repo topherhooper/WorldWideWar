@@ -74,21 +74,34 @@ function polygonArea(polygon: readonly [number, number][]): number {
   return Math.abs(sum) / 2;
 }
 
-/** One anchor per region: the centroid of its largest territory. */
-function regionAnchors(map: GeneratedMap): { id: number; x: number; y: number }[] {
-  return map.regions.map((region) => {
-    let best = region.territoryIds[0];
+/**
+ * One anchor per region: the centroid of its largest *living* territory.
+ *
+ * A region the storm has entirely consumed pays nobody (`regionBonusFor` in
+ * income.ts), so it gets no label at all — printing "DALAI WASTES +2" across a
+ * field of ash advertises a bonus that cannot be collected.
+ */
+function regionAnchors(
+  map: GeneratedMap,
+  collapsed: readonly boolean[],
+): { id: number; x: number; y: number }[] {
+  const out: { id: number; x: number; y: number }[] = [];
+  for (const region of map.regions) {
+    let best = -1;
     let bestArea = -1;
     for (const id of region.territoryIds) {
+      if (collapsed[id]) continue;
       const area = polygonArea(map.territories[id].polygon);
       if (area > bestArea) {
         bestArea = area;
         best = id;
       }
     }
+    if (best < 0) continue;
     const [x, y] = map.territories[best].centroid;
-    return { id: region.id, x, y };
-  });
+    out.push({ id: region.id, x, y });
+  }
+  return out;
 }
 
 /** A sea-lane path bowed sideways, so it reads as a route rather than a border. */
@@ -127,7 +140,7 @@ export function MapView({ map, state, rules, mySlot, selected, mode, onTerritory
   const capitals = new Set(state.capital.filter((c): c is TerritoryId => c !== null));
   const borders = useMemo(() => regionBorders(map), [map]);
   const walls = useMemo(() => impassableBorders(map), [map]);
-  const anchors = useMemo(() => regionAnchors(map), [map]);
+  const anchors = useMemo(() => regionAnchors(map, state.collapsed), [map, state.collapsed]);
   const seaLanes = useMemo(() => map.edges.filter((e) => e.kind === 'sea'), [map]);
   const doomed = useMemo(() => doomedNow(map, state, rules), [map, state, rules]);
   const hatchStep = map.radius * 0.018;

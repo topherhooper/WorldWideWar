@@ -7,6 +7,7 @@ import { GameHud } from '../game/GameHud.js';
 import { HowCombatWorks } from '../game/HowCombatWorks.js';
 import { HowToWin } from '../game/HowToWin.js';
 import { MapView } from '../game/MapView.js';
+import { ForecastBox } from '../game/ForecastBox.js';
 import { DeleteGame } from '../game/DeleteGame.js';
 import { ResolveNow } from '../game/ResolveNow.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
@@ -121,9 +122,11 @@ function GameInner({ id }: { id: string }) {
     <main className="game-layout">
       <div className="map-wrap">
         <GameHud view={view} state={state} />
+        <ForecastBox state={state} map={view.map} rules={view.rules} />
         <MapView
           map={view.map}
           state={state}
+          rules={view.rules}
           mySlot={mySlot}
           selected={selected}
           mode={mode}
@@ -133,7 +136,8 @@ function GameInner({ id }: { id: string }) {
           Number = armies stationed there · ★ = capital · gold outline = yours · grey = neutral
           garrisons that defend and grow over time · ⚓ = sea-lane port (select it to see the route
           it connects) · heavy seams divide regions · beaded ridges are impassable — bordering lands
-          you cannot march across.
+          you cannot march across · hatched land is taken by the storm when this turn resolves ·
+          dark ash is land the storm has already taken.
         </p>
         <HowToWin view={view} state={state} map={view.map} />
         <HowCombatWorks

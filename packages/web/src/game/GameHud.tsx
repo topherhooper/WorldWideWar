@@ -1,14 +1,11 @@
-import { describeEvent, territoryCount } from '@www/engine';
+import { territoryCount } from '@www/engine';
 import type { GameState } from '@www/engine';
 import type { GameView } from '@www/server/api-types';
 
 import { playerColor } from '../format.js';
 
-/** Who is who, at a glance — and what the world is doing to everyone. */
+/** Who is who, at a glance. What the world is doing lives in ForecastBox. */
 export function GameHud({ view, state }: { view: GameView; state: GameState }) {
-  const active = describeEvent(state.activeEvent);
-  const pending = describeEvent(state.pendingEvent);
-
   return (
     <div className="hud">
       <ul className="legend">
@@ -40,16 +37,6 @@ export function GameHud({ view, state }: { view: GameView; state: GameState }) {
           );
         })}
       </ul>
-      {active !== null && (
-        <p className="event-banner">
-          <strong>This turn:</strong> {active}
-        </p>
-      )}
-      {pending !== null && (
-        <p className="event-banner event-coming">
-          <strong>Next turn:</strong> {pending}
-        </p>
-      )}
     </div>
   );
 }
