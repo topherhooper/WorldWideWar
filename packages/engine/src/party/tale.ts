@@ -14,8 +14,9 @@
 
 import { substream } from '../rng.js';
 import type { Rng } from '../rng.js';
-import { cloneParty } from './state.js';
-import { children, dependentsOf, grownUps, guestAt } from './rules.js';
+import { TOGETHER_SUSPECTS } from './constants.js';
+import { addGuest, cloneParty } from './state.js';
+import { atTable, children, dependentsOf, grownUps, guestAt, suspects } from './rules.js';
 import type { Costume, Duo, Favour, PartyGuest, PartyState, Piece } from './types.js';
 
 const GOWNS = ['green', 'gold', 'crimson', 'silver'];
@@ -95,6 +96,19 @@ export const DUOS: readonly Duo[] = [
 export const duoById = (id: string | null): Duo | null =>
   id === null ? null : (DUOS.find((d) => d.id === id) ?? null);
 
+/**
+ * Which duo characters a mode can actually deal.
+ *
+ * The Godmother sees falsehoods and the Huntsman smells liars. In a together
+ * party there is no liar, so both are dealt an ability that can never fire —
+ * worse than no ability, because a four-year-old is told they can smell a fib
+ * and then never gets to. The Nursemaid (who watches the whole hall) and the
+ * Spinner (whose thread runs both ways) work unchanged, and two is exactly
+ * enough for a family with two children.
+ */
+export const duosFor = (mode: PartyState['mode']): Duo[] =>
+  mode === 'together' ? DUOS.filter((d) => d.id === 'nursemaid' || d.id === 'spinner') : [...DUOS];
+
 export const KID_PARTS = [
   'Princess Aurora',
   'The Rose Fairy',
@@ -169,7 +183,9 @@ function buildDeck(state: PartyState, culprit: PartyGuest, rng: Rng): Piece[] {
   for (const place of PLACES) {
     if (place !== c.place) chipping.push(`Nobody standing ${place} could have done it.`);
   }
-  for (const guest of rng.shuffle(state.guests.filter((g) => g.id !== culprit.id))) {
+  // Alibis clear suspects, not bystanders: in a together party "Mum never left
+  // the hall" is true, useless, and crowds out a clue that would have helped.
+  for (const guest of rng.shuffle(suspects(state).filter((g) => g.id !== culprit.id))) {
     chipping.push(`${guest.name} never left the hall. It was not them.`);
   }
   return [...pinning, ...rng.shuffle(chipping)].map((text) => ({ text, fake: false }));
@@ -196,7 +212,7 @@ function buildDeck(state: PartyState, culprit: PartyGuest, rng: Rng): Piece[] {
  * change rather than a port, so it is not made here.
  */
 export function makeLie(state: PartyState, seed: string): string | null {
-  if (state.culprit === null) return null;
+  if (state.mode === 'together' || state.culprit === null) return null;
   const culprit = guestAt(state, state.culprit);
   if (culprit === null || culprit.costume === null) return null;
 
@@ -227,23 +243,43 @@ export function dealTale(state: PartyState, seed: string): PartyState {
   const next = cloneParty(state);
   const rng = substream(seed, 'party', 'tale');
 
+  // The courtiers who came to the christening and went home. Only a together
+  // party has any, and one of them is who the hall is looking for.
+  const courtierNames =
+    next.mode === 'together'
+      ? substream(seed, 'party', 'courtiers').shuffle(GROWN_PARTS).slice(0, TOGETHER_SUSPECTS)
+      : [];
+  for (const name of courtierNames) {
+    const courtier = addGuest(next, {
+      name,
+      young: false,
+      slot: -1,
+      broughtBy: null,
+      absent: true,
+    });
+    courtier.part = name;
+  }
+
   // Costumes first: everything else in the tale is stated in terms of one.
+  // Everybody wears one, courtiers included — sixty-four exist and twenty is
+  // the ceiling, so they stay distinct and a pinned costume names one person.
   const costumes = rng.shuffle(costumeDeck());
   next.guests.forEach((guest, i) => {
     guest.costume = costumes[i] ?? null;
   });
 
   const grown = grownUps(next);
-  const culprit = rng.shuffle(grown)[0];
+  const culprit = rng.shuffle(suspects(next))[0];
 
   // One duo character per pair. Which pairs draw one is seeded rather than
   // join-order dependent, so arriving early is not an advantage. A grown-up who
   // brought two children is one duo, not two — the pair is built from the
   // grown-up, so it is one by construction rather than by a guard.
+  const cast = duosFor(next.mode);
   const pairs = rng
     .shuffle(grown.filter((g) => dependentsOf(next, g.id).some((d) => d.young)))
-    .slice(0, DUOS.length);
-  const duoDeck = rng.shuffle([...DUOS]);
+    .slice(0, cast.length);
+  const duoDeck = rng.shuffle(cast);
   pairs.forEach((adult, i) => {
     const duo = duoDeck[i];
     const kid = dependentsOf(next, adult.id).find((d) => d.young);
@@ -270,14 +306,16 @@ export function dealTale(state: PartyState, seed: string): PartyState {
   );
 
   next.culprit = culprit.id;
-  next.lieBudget = lieBudget(next.guests.length);
+  // Nobody at the table laid the curse in a together party, so nobody can lie.
+  next.lieBudget = next.mode === 'together' ? 0 : lieBudget(atTable(next).length);
   next.deck = buildDeck(next, culprit, rng);
 
-  // Everyone starts holding one piece. A child's is sealed behind a favour.
+  // Everyone at the table starts holding one piece; a child's is sealed behind
+  // a favour. A courtier who went home holds nothing and owes nothing.
   const opening = substream(seed, 'party', 'opening').shuffle(next.deck);
   const favourOrder = substream(seed, 'party', 'favours').shuffle(FAVOURS.map((_, i) => i));
   let nthKid = 0;
-  next.guests.forEach((guest, i) => {
+  atTable(next).forEach((guest, i) => {
     guest.pieces = opening[i] === undefined ? [] : [{ ...opening[i] }];
     guest.favour = guest.young ? favourOrder[nthKid++ % favourOrder.length] : null;
     guest.lies = guest.id === culprit.id ? next.lieBudget : 0;

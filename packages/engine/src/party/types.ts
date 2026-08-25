@@ -25,6 +25,28 @@ export type GuestId = number;
 
 export type PartyPhase = 'lobby' | 'invited' | 'mingle' | 'vote' | 'over';
 
+/**
+ * Which game the hall is playing.
+ *
+ * `traitor` is the design as written: one of the grown-ups at the table laid
+ * the curse, and the hall votes on who. It needs **three grown-ups minimum**,
+ * which is a stricter bound than the prototype's two and is arithmetic rather
+ * than taste: a nomination carries on `yes * 2 > total`, so with two grown-ups
+ * the innocent one can raise at most half the voices in the room and the curse
+ * can never be broken. Two grown-ups also makes the deduction vacuous — if you
+ * are innocent, you already know who did it.
+ *
+ * `together` is the family-sized game. Nobody at the table laid the curse; the
+ * culprit is one of the courtiers who came to the christening and went home.
+ * The grown-ups assemble the tale side by side against the candles, there are
+ * no falsehoods because there is no liar, and an accusation settles the moment
+ * it is made rather than going to a vote. It is the "pure play-along" the
+ * design rejected as a whole evening, kept for the size where the traitor half
+ * cannot function — and it keeps the child-facing half completely intact, which
+ * is the entire point of playing with a four-year-old.
+ */
+export type PartyMode = 'traitor' | 'together';
+
 export type DuoId = 'godmother' | 'huntsman' | 'nursemaid' | 'spinner';
 
 /**
@@ -81,7 +103,13 @@ export interface PartyGuest {
   name: string;
   /** A child: no vote, no nomination, a favour, and half of a duo. */
   young: boolean;
-  /** The seat whose Google account acts for this guest. */
+  /**
+   * A courtier who was at the christening and is not at the table. They wear a
+   * costume and can be accused; they hold nothing, do nothing, and no seat
+   * speaks for them. Only `together` parties have any.
+   */
+  absent: boolean;
+  /** The seat whose Google account acts for this guest. -1 for an absent one. */
   slot: number;
   /** The grown-up a dependent came with; null for whoever holds the seat. */
   broughtBy: GuestId | null;
@@ -135,6 +163,7 @@ export interface VoteResult {
 export interface PartyState {
   formatVersion: 1;
   tale: 'sleeping-beauty';
+  mode: PartyMode;
   /**
    * `lobby` and `invited` both predate the evening: the first is filling seats,
    * the second is the window between dealing the roles and ringing everyone in,

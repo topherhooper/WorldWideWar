@@ -8,24 +8,48 @@
  * any nomination at all.
  */
 
-import { DUO_WEIGHT, SOLO_WEIGHT } from './constants.js';
+import {
+  DUO_WEIGHT,
+  MIN_TOGETHER_GROWNUPS,
+  MIN_TRAITOR_GROWNUPS,
+  SOLO_WEIGHT,
+} from './constants.js';
 import type { GuestId, PartyGuest, PartyState } from './types.js';
 
 /** The guest an id points at, or null if the id is not one. */
 export const guestAt = (state: PartyState, id: GuestId): PartyGuest | null =>
   state.guests[id] ?? null;
 
-export const grownUps = (state: PartyState): PartyGuest[] => state.guests.filter((g) => !g.young);
+/** Everyone actually in the room, courtiers who went home excluded. */
+export const atTable = (state: PartyState): PartyGuest[] => state.guests.filter((g) => !g.absent);
 
-export const children = (state: PartyState): PartyGuest[] => state.guests.filter((g) => g.young);
+export const grownUps = (state: PartyState): PartyGuest[] => atTable(state).filter((g) => !g.young);
+
+export const children = (state: PartyState): PartyGuest[] => atTable(state).filter((g) => g.young);
+
+/**
+ * Who could have laid the curse.
+ *
+ * In a traitor party it is the grown-ups at the table, and naming one banishes
+ * a real person. In a together party it is the courtiers who went home, and
+ * naming one is a guess the whole hall makes side by side.
+ */
+export const suspects = (state: PartyState): PartyGuest[] =>
+  state.mode === 'together'
+    ? state.guests.filter((g) => g.absent)
+    : state.guests.filter((g) => !g.absent && !g.young);
+
+/** The smallest hall this mode can actually be played in. */
+export const minGrownUps = (mode: PartyState['mode']): number =>
+  mode === 'together' ? MIN_TOGETHER_GROWNUPS : MIN_TRAITOR_GROWNUPS;
 
 /** Everyone this guest brought with them. */
 export const dependentsOf = (state: PartyState, id: GuestId): PartyGuest[] =>
   state.guests.filter((g) => g.broughtBy === id);
 
-/** Everyone a seat speaks for, the seat-holder first. */
+/** Everyone a seat speaks for, the seat-holder first. Never a courtier. */
 export const guestsOfSeat = (state: PartyState, slot: number): PartyGuest[] =>
-  state.guests.filter((g) => g.slot === slot);
+  state.guests.filter((g) => !g.absent && g.slot === slot);
 
 /**
  * A dependent never confirms anything themselves — the guest who brought them
@@ -55,21 +79,21 @@ export const speakerSlot = (guest: PartyGuest): number => guest.slot;
  * about at the table — so the invitation card says it out loud.
  */
 export function weightOf(guest: PartyGuest): number {
-  if (guest.young) return 0;
+  if (guest.young || guest.absent) return 0;
   return guest.duoId === null ? SOLO_WEIGHT : DUO_WEIGHT;
 }
 
 /** Grown-ups vote. A banished one has a single voice left for the rest of the night. */
 export const canVote = (guest: PartyGuest): boolean =>
-  !guest.young && !(guest.banished && guest.lastVoteSpent);
+  !guest.young && !guest.absent && !(guest.banished && guest.lastVoteSpent);
 
 /** Total voices still in the room — the majority a nomination is measured against. */
 export const totalVoices = (state: PartyState): number =>
   state.guests.reduce((n, g) => (canVote(g) ? n + weightOf(g) : n), 0);
 
-/** Anyone still un-banished may be put on the floor. Children never can. */
+/** Anyone still in the frame may be put on the floor. Children never can. */
 export const nominable = (state: PartyState): PartyGuest[] =>
-  state.guests.filter((g) => !g.young && !g.banished);
+  suspects(state).filter((g) => !g.banished);
 
 /**
  * The curser and everyone they brought. A pair wins or loses together, so a
@@ -81,12 +105,17 @@ export const nominable = (state: PartyState): PartyGuest[] =>
  */
 export function cursedSide(state: PartyState): GuestId[] {
   if (state.culprit === null) return [];
+  // In a together party the curser went home. Nobody at the table is on their
+  // side, which is what makes it a game the whole family wins or loses at once.
+  if (state.mode === 'together') return [state.culprit];
   return [state.culprit, ...dependentsOf(state, state.culprit).map((g) => g.id)];
 }
 
 /** Whether this guest ends the night on the winning side. Only meaningful once over. */
 export function hasWon(state: PartyState, guest: PartyGuest): boolean | null {
   if (state.phase !== 'over') return null;
+  // Together: everyone at the table is on the same side, and they win by light.
+  if (state.mode === 'together') return state.candles > 0;
   const cursed = cursedSide(state).includes(guest.id);
   // The curser wins by darkness: the last candle out means Aurora sleeps.
   return cursed === (state.candles === 0);

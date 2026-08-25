@@ -11,9 +11,23 @@
  * the guest still gets a sentence they can read.
  */
 
-import { MIN_GROWNUPS } from './constants.js';
-import { advanceParty, allVoicesSpoken, beginRound, ringBell, settleVote } from './clock.js';
-import { canVote, guestAt, grownUps, nominable, speakerFor, weightOf } from './rules.js';
+import {
+  advanceParty,
+  allVoicesSpoken,
+  beginRound,
+  burnCandle,
+  ringBell,
+  settleVote,
+} from './clock.js';
+import {
+  canVote,
+  guestAt,
+  grownUps,
+  minGrownUps,
+  nominable,
+  speakerFor,
+  weightOf,
+} from './rules.js';
 import { cloneParty } from './state.js';
 import { dealTale, makeLie } from './tale.js';
 import { substream } from '../rng.js';
@@ -58,8 +72,14 @@ export function applyPartyAction(
 function applyDeal(state: PartyState, ctx: PartyContext): PartyResult {
   if (!ctx.isHost) return reject(state, 'only the host deals');
   if (state.phase !== 'lobby') return reject(state, 'the roles are already dealt');
-  if (grownUps(state).length < MIN_GROWNUPS) {
-    return reject(state, 'need at least two grown-ups — one of them did it');
+  const needed = minGrownUps(state.mode);
+  if (grownUps(state).length < needed) {
+    return reject(
+      state,
+      state.mode === 'together'
+        ? 'somebody has to come to the party'
+        : `a hunt needs at least ${needed} grown-ups — with two, the innocent one can never carry a vote`,
+    );
   }
   return accept(dealTale(state, ctx.seed));
 }
@@ -100,6 +120,7 @@ function applyMeet(
   const target = guestAt(state, targetId);
   if (actor === null || target === null) return reject(state, 'nobody here by that name');
   if (!speaksFor(state, ctx.slot, actor)) return reject(state, 'that is not your guest to move');
+  if (target.absent) return reject(state, `${target.name} went home before you arrived`);
   if (actor.id === target.id) return reject(state, 'you cannot meet yourself');
   if (target.broughtBy === actor.id) {
     return reject(state, 'they came with you — you are already a team');
@@ -231,7 +252,7 @@ function applyNominate(
   suspectId: number,
   ctx: PartyContext,
 ): PartyResult {
-  if (state.phase !== 'vote') return reject(state, 'nobody is voting yet');
+  if (state.phase !== 'vote') return reject(state, 'nobody is naming anyone yet');
   if (state.nomination !== null) return reject(state, 'somebody is already on the floor');
   const actor = guestAt(state, actorId);
   const suspect = guestAt(state, suspectId);
@@ -240,13 +261,53 @@ function applyNominate(
   if (actor.young) return reject(state, 'a grown-up has to say it out loud');
   if (suspect.young) return reject(state, 'no child laid that curse');
   if (!nominable(state).some((g) => g.id === suspect.id)) {
-    return reject(state, `${suspect.name} has already been banished`);
+    return reject(
+      state,
+      suspect.banished
+        ? `${suspect.name} is already ruled out`
+        : `${suspect.name} was never at the christening`,
+    );
   }
 
   const next = cloneParty(state);
   next.nomination = { suspect: suspectId, by: actorId, votes: [], tally: null };
   next.lastResult = null;
+  // Together: everyone is on the same side, so there is nothing to vote on. The
+  // grown-ups have already argued it out loud; naming a courtier is the guess.
+  if (next.mode === 'together') settleGuess(next, ctx.nowMs);
   return accept(next);
+}
+
+/**
+ * A together party's accusation, settled on the spot.
+ *
+ * Right, and the curse breaks. Wrong, and that courtier is struck off the list
+ * — which is real progress, not just a penalty — at the price of a candle. With
+ * six suspects and three candles, guessing blind loses; reading the clues wins.
+ */
+function settleGuess(state: PartyState, nowMs: number): void {
+  const nom = state.nomination;
+  if (nom === null) return;
+  const suspect = guestAt(state, nom.suspect);
+  state.nomination = null;
+  if (suspect === null) return;
+
+  const right = suspect.id === state.culprit;
+  state.lastResult = {
+    suspect: nom.suspect,
+    by: nom.by,
+    tally: { yes: 0, total: 0, carried: right },
+  };
+  if (right) {
+    state.phase = 'over';
+    state.phaseEndsAt = null;
+    state.outcome = 'the curse is broken — you named the one who laid it';
+    return;
+  }
+  suspect.banished = true;
+  state.banished.push(suspect.id);
+  burnCandle(state, `${suspect.name} was not the one — a candle for the guess`);
+  if (state.phase !== 'over') beginRound(state, nowMs);
 }
 
 function applyVote(
@@ -255,6 +316,9 @@ function applyVote(
   yes: boolean,
   ctx: PartyContext,
 ): PartyResult {
+  if (state.mode === 'together') {
+    return reject(state, 'nobody here laid the curse — naming a courtier is the guess');
+  }
   if (state.phase !== 'vote' || state.nomination === null) {
     return reject(state, 'nothing on the floor');
   }

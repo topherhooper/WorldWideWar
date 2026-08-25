@@ -12,8 +12,20 @@ export const MAX_PARTY_GUESTS = 20;
  */
 export const MAX_PARTY_SEATS = 20;
 
-/** One of them did it, so there has to be more than one of them. */
-export const MIN_GROWNUPS = 2;
+/**
+ * A traitor party needs three grown-ups, not two.
+ *
+ * The prototype required two, reasoning only that one of them did it. That is
+ * necessary and not sufficient: a nomination carries on `yes * 2 > total`, so
+ * with two grown-ups the single innocent raises at most half the voices in the
+ * room and the curse can never be broken. `together` parties have no such
+ * bound — nobody at the table did it, so two grown-ups is a full hall.
+ */
+export const MIN_TRAITOR_GROWNUPS = 3;
+export const MIN_TOGETHER_GROWNUPS = 1;
+
+/** How many courtiers went home before anyone noticed. The suspect list. */
+export const TOGETHER_SUSPECTS = 6;
 
 /**
  * The candles are the curser's clock, and the reason a wrongful banishment
@@ -22,7 +34,17 @@ export const MIN_GROWNUPS = 2;
  * last one goes out, Aurora sleeps and the curser has won.
  */
 export const CANDLES = 5;
-export const MIN_CANDLES = 3;
+
+/**
+ * The family game, sized for the twenty minutes before bedtime: three candles
+ * at two-minute rounds, which is about ten minutes end to end — long enough for
+ * each grown-up to run two or three errands for a four-year-old and make one
+ * guess.
+ */
+export const QUICK_CANDLES = 3;
+export const QUICK_ROUND_MINUTES = 2;
+
+export const MIN_CANDLES = 1;
 export const MAX_CANDLES = 9;
 
 /** How long the hall has to nominate and speak once the bell has rung. */

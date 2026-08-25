@@ -31,6 +31,7 @@ import type {
   DuoId,
   GuestId,
   PartyGuest,
+  PartyMode,
   PartyPhase,
   PartyState,
   Tally,
@@ -46,6 +47,8 @@ export interface RosterEntry {
   id: GuestId;
   name: string;
   young: boolean;
+  /** A courtier who went home. They can be accused; they cannot be met. */
+  absent: boolean;
   part: string | null;
   costume: Costume | null;
   /** How many grown-ups have knelt to this child. Their whole scoreboard. */
@@ -121,6 +124,7 @@ export interface NominationView {
 }
 
 export interface PartyView {
+  mode: PartyMode;
   phase: PartyPhase;
   round: number;
   candles: number;
@@ -160,6 +164,7 @@ export function redactParty(state: PartyState, viewerSlot: number | null): Party
   const over = state.phase === 'over';
 
   const base: Omit<PartyView, 'cards'> = {
+    mode: state.mode,
     phase: state.phase,
     round: state.round,
     candles: state.candles,
@@ -175,6 +180,7 @@ export function redactParty(state: PartyState, viewerSlot: number | null): Party
       id: g.id,
       name: g.name,
       young: g.young,
+      absent: g.absent,
       part: g.part,
       costume: g.costume,
       curtsies: g.young ? g.curtsies.length : null,
@@ -226,7 +232,7 @@ function cardFor(state: PartyState, me: PartyGuest): GuestCard {
   const canMeet: MeetOption[] =
     state.phase === 'mingle'
       ? state.guests
-          .filter((g) => g.id !== me.id && g.broughtBy !== me.id)
+          .filter((g) => !g.absent && g.id !== me.id && g.broughtBy !== me.id)
           .map((g) => ({
             id: g.id,
             name: g.name,

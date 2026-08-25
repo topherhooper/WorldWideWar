@@ -14,6 +14,7 @@ import type {
   GuestId,
   Nomination,
   PartyGuest,
+  PartyMode,
   PartyState,
   Piece,
   VoteResult,
@@ -25,9 +26,12 @@ export interface NewGuest {
   slot: number;
   /** The guest who brought them, or null for whoever holds the seat. */
   broughtBy: GuestId | null;
+  /** A courtier who is not at the table. Only `together` parties have any. */
+  absent?: boolean;
 }
 
 export interface PartyOptions {
+  mode?: PartyMode;
   roundMinutes?: number;
   voteSeconds?: number;
   candles?: number;
@@ -38,6 +42,7 @@ export function createPartyState(hostSlot: number, options: PartyOptions = {}): 
   return {
     formatVersion: 1,
     tale: 'sleeping-beauty',
+    mode: options.mode ?? 'traitor',
     phase: 'lobby',
     round: 0,
     phaseEndsAt: null,
@@ -63,6 +68,7 @@ export function addGuest(state: PartyState, guest: NewGuest): PartyGuest {
     id: state.guests.length,
     name: guest.name,
     young: guest.young,
+    absent: guest.absent ?? false,
     slot: guest.slot,
     broughtBy: guest.broughtBy,
     part: null,

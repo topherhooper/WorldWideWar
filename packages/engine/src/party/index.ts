@@ -11,6 +11,7 @@ export * from './constants.js';
 export { addGuest, cloneParty, createPartyState, removeSeat } from './state.js';
 export type { NewGuest, PartyOptions } from './state.js';
 export {
+  atTable,
   canVote,
   children,
   cursedSide,
@@ -19,9 +20,11 @@ export {
   guestAt,
   guestsOfSeat,
   hasWon,
+  minGrownUps,
   nominable,
   speakerFor,
   speakerSlot,
+  suspects,
   totalVoices,
   weightOf,
 } from './rules.js';
@@ -32,6 +35,7 @@ export {
   KID_PARTS,
   dealTale,
   duoById,
+  duosFor,
   lieBudget,
   makeLie,
 } from './tale.js';

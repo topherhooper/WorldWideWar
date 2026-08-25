@@ -65,9 +65,14 @@ function encounter(state: PartyState, a: number, b: number, lie = false): PartyS
 }
 
 describe('dealing', () => {
-  it('refuses a hall with only one grown-up — one of them did it', () => {
-    const state = seated(1, 1);
-    expect(refuse(state, { kind: 'deal' }, ctx(0))).toMatch(/two grown-ups/);
+  it('refuses a hunt with fewer than three grown-ups', () => {
+    // Two is not enough, and the reason is arithmetic rather than atmosphere:
+    // a nomination carries on `yes * 2 > total`, so the lone innocent can raise
+    // at most half the voices in the room and the curse never breaks.
+    for (const count of [1, 2]) {
+      expect(refuse(seated(count, 1), { kind: 'deal' }, ctx(0))).toMatch(/at least 3 grown-ups/);
+    }
+    expect(applyPartyAction(seated(3), { kind: 'deal' }, ctx(0)).rejected).toBeNull();
   });
 
   it("is the host's to do, and only once", () => {
