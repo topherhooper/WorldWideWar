@@ -54,6 +54,16 @@ substitutions:
   # window would otherwise carry links that fail to connect.
   _BASE_URL: https://play.topherhooper.com
 
+# The default 10 minutes is not enough on the default machine type, and a build that
+# times out costs the same minutes as one that finishes.
+timeout: 1800s
+
 options:
+  # CLOUD_LOGGING_ONLY is required for --service-account and must stay.
+  #
+  # No machineType here, deliberately. Cloud Build's 2,500 free build-minutes a month
+  # apply to e2-standard-2 in the default pool and to nothing else — naming any other
+  # machine type forfeits the free tier for every build, from the first minute. This
+  # config asked for E2_HIGHCPU_8, so each push to main was billed at the highcpu rate
+  # while 2,500 free minutes went unused. Builds get slower; they stop costing money.
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
