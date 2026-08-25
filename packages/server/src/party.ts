@@ -395,7 +395,10 @@ export async function updatePartyConfig(
       MAX_VOTE_SECONDS,
       'voteSeconds',
     );
+    // Both, because nothing has burned yet: the lobby is the only place the
+    // count changes, and the display needs the total it started with.
     state.candles = bounded(req.candles ?? state.candles, MIN_CANDLES, MAX_CANDLES, 'candles');
+    state.candlesLit = state.candles;
 
     game.partyJson = serializeParty(state);
     game.turnMinutes = state.roundMinutes;

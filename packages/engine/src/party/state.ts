@@ -49,6 +49,7 @@ export function createPartyState(hostSlot: number, options: PartyOptions = {}): 
     roundMinutes: options.roundMinutes ?? ROUND_MINUTES,
     voteSeconds: options.voteSeconds ?? VOTE_SECONDS,
     candles: options.candles ?? CANDLES,
+    candlesLit: options.candles ?? CANDLES,
     snuffed: null,
     outcome: null,
     guests: [],

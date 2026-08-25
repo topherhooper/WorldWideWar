@@ -39,7 +39,10 @@ export function Invitation({
         <ul>
           {view.roster.map((guest) => (
             <li key={guest.id} className={guest.absent ? 'muted' : undefined}>
-              <strong>{guest.name}</strong> — {guest.part}
+              <strong>{guest.name}</strong>
+              {/* A courtier's name is their part, so saying both reads as a
+                  stutter: "The Chamberlain — The Chamberlain in gold". */}
+              {guest.part !== null && guest.part !== guest.name && <> — {guest.part}</>}
               {guest.costume !== null && (
                 <span className="muted">
                   {' '}

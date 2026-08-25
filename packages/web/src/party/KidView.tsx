@@ -25,9 +25,7 @@ export function KidView({ card, view }: { card: GuestCard; view: PartyView }) {
 
       <section className="kid-crowns">
         <p aria-label={`${card.curtsies.length} crowns`}>
-          {card.curtsies.length === 0
-            ? '👑'.repeat(0) || '—'
-            : '👑'.repeat(Math.min(card.curtsies.length, 12))}
+          {card.curtsies.length === 0 ? '—' : '👑'.repeat(Math.min(card.curtsies.length, 12))}
         </p>
         <p className="muted">
           {card.curtsies.length === 0

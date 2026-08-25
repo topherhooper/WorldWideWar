@@ -245,9 +245,15 @@ export function dealTale(state: PartyState, seed: string): PartyState {
 
   // The courtiers who came to the christening and went home. Only a together
   // party has any, and one of them is who the hall is looking for.
+  // Never a name a duo half wears. The prototype guarded soloists against this
+  // and had no courtiers to guard; a second Spinner across the room is exactly
+  // as unreadable when one of them is a suspect.
+  const duoNames = new Set(DUOS.flatMap((d) => [d.grown, d.kid]));
   const courtierNames =
     next.mode === 'together'
-      ? substream(seed, 'party', 'courtiers').shuffle(GROWN_PARTS).slice(0, TOGETHER_SUSPECTS)
+      ? substream(seed, 'party', 'courtiers')
+          .shuffle(GROWN_PARTS.filter((name) => !duoNames.has(name)))
+          .slice(0, TOGETHER_SUSPECTS)
       : [];
   for (const name of courtierNames) {
     const courtier = addGuest(next, {

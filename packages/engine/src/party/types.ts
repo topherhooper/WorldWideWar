@@ -180,6 +180,13 @@ export interface PartyState {
   roundMinutes: number;
   voteSeconds: number;
   candles: number;
+  /**
+   * How many were lit to begin with. Kept beside the count because the display
+   * needs both, and deriving the total from the remainder makes the row shrink
+   * as it burns — a three-candle party would read "three of five", then "two of
+   * two".
+   */
+  candlesLit: number;
   /** Why the last candle went out, so the hall can see what it cost them. */
   snuffed: string | null;
   outcome: string | null;

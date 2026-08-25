@@ -241,3 +241,28 @@ describe('a party of four, before bedtime', () => {
     expect(view.mode).toBe('together');
   });
 });
+
+describe('the cast a together party deals', () => {
+  it('never gives a courtier a name a duo half is wearing', () => {
+    // A second Spinner across the room is unreadable — doubly so when one of
+    // them is a suspect the hall is meant to be able to name.
+    for (let s = 0; s < 200; s++) {
+      const dealt = act(family(), { kind: 'deal' }, ctx(0, T0, `cast-${s}`));
+      const parts = dealt.guests.map((g) => g.part!);
+      expect(new Set(parts).size).toBe(parts.length);
+    }
+  });
+
+  it('counts the candles it lit, so the row does not shrink as they burn', () => {
+    let state = started('candles');
+    const view0 = redactParty(state, 0);
+    expect(view0.candles).toBe(QUICK_CANDLES);
+    expect(view0.maxCandles).toBe(QUICK_CANDLES);
+
+    // Let the clock burn one, and the total must not move with it.
+    state = advanceParty(state, T0 + 30 * 60_000).state;
+    const view1 = redactParty(state, 0);
+    expect(view1.maxCandles).toBe(QUICK_CANDLES);
+    expect(view1.candles).toBeLessThan(QUICK_CANDLES);
+  });
+});

@@ -12,7 +12,6 @@
  * graph to the Nursemaid, and a falsehood budget to the curser alone.
  */
 
-import { CANDLES } from './constants.js';
 import {
   canVote,
   cursedSide,
@@ -171,7 +170,7 @@ export function redactParty(state: PartyState, viewerSlot: number | null): Party
     phase: state.phase,
     round: state.round,
     candles: state.candles,
-    maxCandles: Math.max(state.candles, CANDLES),
+    maxCandles: Math.max(state.candlesLit, state.candles),
     roundMinutes: state.roundMinutes,
     voteSeconds: state.voteSeconds,
     phaseEndsAt: state.phaseEndsAt,
