@@ -36,6 +36,40 @@ steps:
       # first deploy); --update-env-vars merges and will not clobber it.
       - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>
 
+  - id: build-party
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/www/party:$COMMIT_SHA
+      - prototypes/dinner-party
+
+  - id: push-party
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/www/party:$COMMIT_SHA
+
+  - id: deploy-party
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - www-party
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/www/party:$COMMIT_SHA
+      - --region=us-central1
+      - --allow-unauthenticated
+      - --min-instances=0
+      # Rooms live in the instance's memory, so every guest at one party has to land on
+      # the same container. max-instances=1 is load-bearing here rather than a cost
+      # control: raise it and half the table joins a room the other half cannot see. The
+      # client polls every two seconds, which keeps the instance warm for as long as one
+      # phone is open; a deploy mid-party still drops every room, which is the price of
+      # publishing a prototype.
+      - --max-instances=1
+      - --set-env-vars=BASE_PATH=/party
+
   - id: deploy-hosting
     name: node:22
     entrypoint: bash

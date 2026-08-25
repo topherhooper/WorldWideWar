@@ -68,6 +68,21 @@ export function Home() {
       </section>
 
       <section className="panel">
+        <h2>At a party instead?</h2>
+        <p className="muted">
+          Dinner Party is a different game entirely — everyone in one room, on their phones, for up
+          to twenty guests including small children. It runs on its own and needs no account.
+        </p>
+        {/* A plain anchor, not a Link: /party is a Hosting rewrite to another service, so
+            the router must not swallow it. */}
+        <a className="preset-card" href="/party" data-testid="dinner-party">
+          <strong>Dinner Party</strong>
+          <span>Sleeping Beauty — someone here laid the curse.</span>
+          <span className="muted">up to 20 guests · one evening</span>
+        </a>
+      </section>
+
+      <section className="panel">
         <h2>Your games</h2>
         {error !== null && <p className="error">{error}</p>}
         {gamesList === null ? (

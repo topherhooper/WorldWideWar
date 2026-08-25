@@ -162,10 +162,12 @@
   <body>
     <main id="app"></main>
     <script>
+      // Replaced by the server at startup: '' on localhost, '/party' behind Hosting.
+      const BASE = '__BASE__';
       const app = document.getElementById('app');
       let token = sessionStorage.getItem('tok') || '';
-      let code = location.pathname.startsWith('/r/')
-        ? location.pathname.slice(3).toUpperCase()
+      let code = location.pathname.startsWith(BASE + '/r/')
+        ? location.pathname.slice(BASE.length + 3).toUpperCase()
         : sessionStorage.getItem('code') || '';
       let err = '';
       // The curser arms a falsehood, then chooses who receives it. Client-side only --
@@ -181,7 +183,7 @@
         return body;
       };
       const post = (action, data) =>
-        api('/api/rooms/' + code + '/' + action, {
+        api(BASE + '/api/rooms/' + code + '/' + action, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ token, ...data }),
@@ -194,7 +196,7 @@
       }
 
       async function host(name, young) {
-        const r = await api('/api/rooms', {
+        const r = await api(BASE + '/api/rooms', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name, young }),
@@ -509,7 +511,7 @@
         if (!code) return landing();
         let v;
         try {
-          v = await api('/api/rooms/' + code + '/view?token=' + encodeURIComponent(token));
+          v = await api(BASE + '/api/rooms/' + code + '/view?token=' + encodeURIComponent(token));
         } catch {
           sessionStorage.clear();
           code = '';
