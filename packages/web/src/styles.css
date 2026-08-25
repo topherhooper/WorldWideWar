@@ -335,18 +335,41 @@ select {
   color: var(--ok);
 }
 
-.event-banner {
-  margin: 0.35rem 0 0;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--accent);
+/* One place for what the world is about to do, above the map so it is read
+   before the board on a phone as well as on a desktop. */
+.forecast {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.7rem 0.5rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
   border-radius: 8px;
-  color: var(--accent);
+  background: var(--panel-2);
+}
+
+.forecast-head {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.forecast-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
   font-size: 0.9rem;
 }
 
-.event-coming {
-  border-style: dashed;
-  opacity: 0.85;
+.forecast-storm {
+  color: var(--text);
+}
+
+.forecast-coming {
+  color: var(--muted);
 }
 
 .how-to-win {

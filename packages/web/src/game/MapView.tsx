@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
-import { HIDDEN_ARMIES } from '@www/engine';
-import type { GameState, GeneratedMap, TerritoryId } from '@www/engine';
+import { HIDDEN_ARMIES, waveCollapsingOn } from '@www/engine';
+import type { GameState, GeneratedMap, RuleConfig, TerritoryId } from '@www/engine';
 
 import { playerColor } from '../format.js';
 
 interface Props {
   map: GeneratedMap;
   state: GameState;
+  rules: RuleConfig;
   mySlot: number | null;
   selected: TerritoryId | null;
   mode: 'deploy' | 'move';
@@ -14,7 +15,8 @@ interface Props {
 }
 
 const NEUTRAL = '#8a8578';
-const COLLAPSED = '#2b2b33';
+/** Ash: ground the storm has already taken. Still drawn, still shaped, dead. */
+const COLLAPSED = '#3b3833';
 
 type Segment = [number, number, number, number];
 
@@ -72,21 +74,34 @@ function polygonArea(polygon: readonly [number, number][]): number {
   return Math.abs(sum) / 2;
 }
 
-/** One anchor per region: the centroid of its largest territory. */
-function regionAnchors(map: GeneratedMap): { id: number; x: number; y: number }[] {
-  return map.regions.map((region) => {
-    let best = region.territoryIds[0];
+/**
+ * One anchor per region: the centroid of its largest *living* territory.
+ *
+ * A region the storm has entirely consumed pays nobody (`regionBonusFor` in
+ * income.ts), so it gets no label at all — printing "DALAI WASTES +2" across a
+ * field of ash advertises a bonus that cannot be collected.
+ */
+function regionAnchors(
+  map: GeneratedMap,
+  collapsed: readonly boolean[],
+): { id: number; x: number; y: number }[] {
+  const out: { id: number; x: number; y: number }[] = [];
+  for (const region of map.regions) {
+    let best = -1;
     let bestArea = -1;
     for (const id of region.territoryIds) {
+      if (collapsed[id]) continue;
       const area = polygonArea(map.territories[id].polygon);
       if (area > bestArea) {
         bestArea = area;
         best = id;
       }
     }
+    if (best < 0) continue;
     const [x, y] = map.territories[best].centroid;
-    return { id: region.id, x, y };
-  });
+    out.push({ id: region.id, x, y });
+  }
+  return out;
 }
 
 /** A sea-lane path bowed sideways, so it reads as a route rather than a border. */
@@ -102,7 +117,21 @@ function lanePath(map: GeneratedMap, a: TerritoryId, b: TerritoryId): string {
   return `M ${ax} ${ay} Q ${mx - (dy / len) * bow} ${my + (dx / len) * bow} ${bx} ${by}`;
 }
 
-export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }: Props) {
+/**
+ * Territories the storm takes when the orders now being written resolve.
+ *
+ * Deliberately not `warnedTerritories`, and not the `storm_warning` event: both
+ * are phrased from the resolver's point of view, one turn further on. What a
+ * player needs while writing orders for turn T is the wave that dies during
+ * T's resolution, which is exactly `waveCollapsingOn(T)`.
+ */
+function doomedNow(map: GeneratedMap, state: GameState, rules: RuleConfig): Set<TerritoryId> {
+  const wave = waveCollapsingOn(state.turn, rules);
+  if (wave === null || wave >= map.collapseWaves.length) return new Set();
+  return new Set(map.collapseWaves[wave].filter((id) => !state.collapsed[id]));
+}
+
+export function MapView({ map, state, rules, mySlot, selected, mode, onTerritoryClick }: Props) {
   const r = map.radius * 1.04;
   const armyFont = map.radius * 0.05;
   const nameFont = map.radius * 0.026;
@@ -111,8 +140,10 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
   const capitals = new Set(state.capital.filter((c): c is TerritoryId => c !== null));
   const borders = useMemo(() => regionBorders(map), [map]);
   const walls = useMemo(() => impassableBorders(map), [map]);
-  const anchors = useMemo(() => regionAnchors(map), [map]);
+  const anchors = useMemo(() => regionAnchors(map, state.collapsed), [map, state.collapsed]);
   const seaLanes = useMemo(() => map.edges.filter((e) => e.kind === 'sea'), [map]);
+  const doomed = useMemo(() => doomedNow(map, state, rules), [map, state, rules]);
+  const hatchStep = map.radius * 0.018;
   const ports = useMemo(() => new Set(seaLanes.flatMap((e) => [e.a, e.b])), [seaLanes]);
   // Routes are drawn only for the selected port — always-on lanes crossing the
   // whole map read as noise, not adjacency.
@@ -128,6 +159,30 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
       role="img"
       aria-label="world map"
     >
+      <defs>
+        {/* The storm warning. A hatch rather than a fill, because fill is
+            already spent on eight player colours plus neutral — laid over the
+            territory, the owner still reads underneath it. */}
+        <pattern
+          id="storm-hatch"
+          patternUnits="userSpaceOnUse"
+          width={hatchStep}
+          height={hatchStep}
+          patternTransform="rotate(45)"
+        >
+          <rect width={hatchStep} height={hatchStep} fill="#0b0b12" fillOpacity={0.42} />
+          <line
+            x1={0}
+            y1={0}
+            x2={0}
+            y2={hatchStep}
+            stroke="#f2e4d8"
+            strokeOpacity={0.92}
+            strokeWidth={hatchStep * 0.3}
+          />
+        </pattern>
+      </defs>
+
       {map.territories.map((t) => {
         const owner = state.owner[t.id];
         const collapsed = state.collapsed[t.id];
@@ -231,6 +286,22 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
           pointerEvents="none"
         />
       ))}
+
+      {/* Storm warning overlay: these tiles, and everything standing on them,
+          are gone when the orders being written now resolve. */}
+      {map.territories
+        .filter((t) => doomed.has(t.id))
+        .map((t) => (
+          <polygon
+            key={`d${t.id}`}
+            points={t.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
+            fill="url(#storm-hatch)"
+            stroke="#ff6b3d"
+            strokeWidth={3}
+            strokeOpacity={0.9}
+            pointerEvents="none"
+          />
+        ))}
 
       {map.territories.map((t) => {
         if (state.collapsed[t.id]) return null;
