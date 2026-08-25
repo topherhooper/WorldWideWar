@@ -1,5 +1,11 @@
-import { useState } from 'react';
-import { MIN_TRAITOR_GROWNUPS } from '@www/engine/party';
+import { useEffect, useRef, useState } from 'react';
+import {
+  MAX_CANDLES,
+  MAX_ROUND_MINUTES,
+  MIN_CANDLES,
+  MIN_ROUND_MINUTES,
+  MIN_TRAITOR_GROWNUPS,
+} from '@www/engine/party';
 import type { PartyGameView } from '@www/server/api-types';
 
 /**
@@ -108,28 +114,22 @@ export function PartyLobby({
       {view.isHost && (
         <div className="party-dials">
           <h3>How long have we got?</h3>
-          <label>
-            Candles{' '}
-            <input
-              type="number"
-              min={1}
-              max={9}
-              value={view.party.candles}
-              disabled={busy}
-              onChange={(e) => onConfig({ candles: Number(e.target.value) })}
-            />
-          </label>
-          <label>
-            Minutes a round{' '}
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={view.party.roundMinutes}
-              disabled={busy}
-              onChange={(e) => onConfig({ roundMinutes: Number(e.target.value) })}
-            />
-          </label>
+          <Dial
+            label="Candles"
+            value={view.party.candles}
+            min={MIN_CANDLES}
+            max={MAX_CANDLES}
+            busy={busy}
+            onCommit={(candles) => onConfig({ candles })}
+          />
+          <Dial
+            label="Minutes a round"
+            value={view.party.roundMinutes}
+            min={MIN_ROUND_MINUTES}
+            max={MAX_ROUND_MINUTES}
+            busy={busy}
+            onCommit={(roundMinutes) => onConfig({ roundMinutes })}
+          />
           <p className="muted">
             About {view.party.candles * view.party.roundMinutes} minutes of mingling, plus the
             arguing.
@@ -154,5 +154,79 @@ export function PartyLobby({
       )}
       {!view.isHost && <p className="muted">Waiting for the host to deal the roles.</p>}
     </main>
+  );
+}
+
+/**
+ * One host dial: a number the server owns, edited through a local draft.
+ *
+ * These two were controlled straight off `view.party`, with the change handler
+ * firing a config request per keystroke. Emptying the box to type a new number
+ * sent `Number('') === 0`, the server rejected it as out of range, and the old
+ * value snapped back — so the field could neither be cleared nor replaced, only
+ * nudged by the spinner. Same shape as the move-count fix in OrdersPanel and
+ * the turn-length one in GameSetup: hold the raw string while it is being
+ * typed, commit once on blur or Enter.
+ *
+ * `value` is the dependency rather than the view, so a lobby poll that returns
+ * the same number does not wipe what the host is halfway through typing.
+ */
+function Dial({
+  label,
+  value,
+  min,
+  max,
+  busy,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  busy: boolean;
+  onCommit: (next: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+
+  // What the last commit sent, so pressing Enter and then leaving the field
+  // does not send it twice: `value` only catches up a round-trip later. Cleared
+  // on the next keystroke, so re-sending the same number after a failure works.
+  const sent = useRef<number | null>(null);
+
+  // Clamp rather than reject: the host who types 90 minutes a round means the
+  // longest round there is, and a 400 in red is a worse answer than 60.
+  const commit = () => {
+    const typed = Math.round(Number(draft));
+    if (draft.trim() === '' || !Number.isFinite(typed)) {
+      setDraft(String(value));
+      return;
+    }
+    const next = Math.min(max, Math.max(min, typed));
+    setDraft(String(next));
+    if (next === value || next === sent.current) return;
+    sent.current = next;
+    onCommit(next);
+  };
+
+  return (
+    <label>
+      {label}{' '}
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={draft}
+        disabled={busy}
+        onChange={(e) => {
+          sent.current = null;
+          setDraft(e.target.value);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+        }}
+      />
+    </label>
   );
 }
