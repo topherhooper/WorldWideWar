@@ -28,7 +28,8 @@ that §3 below exists to talk you out of it.
 ```ts
 const TALE = {
   title: 'Sleeping Beauty',
-  prompt: 'Someone at this christening cursed the baby. Find out who before the last candle goes out.',
+  prompt:
+    'Someone at this christening cursed the baby. Find out who before the last candle goes out.',
 };
 // ...
 tale: dealt(state) ? { ...TALE } : null,
