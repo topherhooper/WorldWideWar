@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
-import { HIDDEN_ARMIES } from '@www/engine';
-import type { GameState, GeneratedMap, TerritoryId } from '@www/engine';
+import { HIDDEN_ARMIES, waveCollapsingOn } from '@www/engine';
+import type { GameState, GeneratedMap, RuleConfig, TerritoryId } from '@www/engine';
 
 import { playerColor } from '../format.js';
 
 interface Props {
   map: GeneratedMap;
   state: GameState;
+  rules: RuleConfig;
   mySlot: number | null;
   selected: TerritoryId | null;
   mode: 'deploy' | 'move';
@@ -14,7 +15,8 @@ interface Props {
 }
 
 const NEUTRAL = '#8a8578';
-const COLLAPSED = '#2b2b33';
+/** Ash: ground the storm has already taken. Still drawn, still shaped, dead. */
+const COLLAPSED = '#3b3833';
 
 type Segment = [number, number, number, number];
 
@@ -102,7 +104,21 @@ function lanePath(map: GeneratedMap, a: TerritoryId, b: TerritoryId): string {
   return `M ${ax} ${ay} Q ${mx - (dy / len) * bow} ${my + (dx / len) * bow} ${bx} ${by}`;
 }
 
-export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }: Props) {
+/**
+ * Territories the storm takes when the orders now being written resolve.
+ *
+ * Deliberately not `warnedTerritories`, and not the `storm_warning` event: both
+ * are phrased from the resolver's point of view, one turn further on. What a
+ * player needs while writing orders for turn T is the wave that dies during
+ * T's resolution, which is exactly `waveCollapsingOn(T)`.
+ */
+function doomedNow(map: GeneratedMap, state: GameState, rules: RuleConfig): Set<TerritoryId> {
+  const wave = waveCollapsingOn(state.turn, rules);
+  if (wave === null || wave >= map.collapseWaves.length) return new Set();
+  return new Set(map.collapseWaves[wave].filter((id) => !state.collapsed[id]));
+}
+
+export function MapView({ map, state, rules, mySlot, selected, mode, onTerritoryClick }: Props) {
   const r = map.radius * 1.04;
   const armyFont = map.radius * 0.05;
   const nameFont = map.radius * 0.026;
@@ -113,6 +129,8 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
   const walls = useMemo(() => impassableBorders(map), [map]);
   const anchors = useMemo(() => regionAnchors(map), [map]);
   const seaLanes = useMemo(() => map.edges.filter((e) => e.kind === 'sea'), [map]);
+  const doomed = useMemo(() => doomedNow(map, state, rules), [map, state, rules]);
+  const hatchStep = map.radius * 0.018;
   const ports = useMemo(() => new Set(seaLanes.flatMap((e) => [e.a, e.b])), [seaLanes]);
   // Routes are drawn only for the selected port — always-on lanes crossing the
   // whole map read as noise, not adjacency.
@@ -128,6 +146,30 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
       role="img"
       aria-label="world map"
     >
+      <defs>
+        {/* The storm warning. A hatch rather than a fill, because fill is
+            already spent on eight player colours plus neutral — laid over the
+            territory, the owner still reads underneath it. */}
+        <pattern
+          id="storm-hatch"
+          patternUnits="userSpaceOnUse"
+          width={hatchStep}
+          height={hatchStep}
+          patternTransform="rotate(45)"
+        >
+          <rect width={hatchStep} height={hatchStep} fill="#0b0b12" fillOpacity={0.42} />
+          <line
+            x1={0}
+            y1={0}
+            x2={0}
+            y2={hatchStep}
+            stroke="#ff6b3d"
+            strokeOpacity={0.95}
+            strokeWidth={hatchStep * 0.34}
+          />
+        </pattern>
+      </defs>
+
       {map.territories.map((t) => {
         const owner = state.owner[t.id];
         const collapsed = state.collapsed[t.id];
@@ -231,6 +273,22 @@ export function MapView({ map, state, mySlot, selected, mode, onTerritoryClick }
           pointerEvents="none"
         />
       ))}
+
+      {/* Storm warning overlay: these tiles, and everything standing on them,
+          are gone when the orders being written now resolve. */}
+      {map.territories
+        .filter((t) => doomed.has(t.id))
+        .map((t) => (
+          <polygon
+            key={`d${t.id}`}
+            points={t.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
+            fill="url(#storm-hatch)"
+            stroke="#ff6b3d"
+            strokeWidth={3}
+            strokeOpacity={0.9}
+            pointerEvents="none"
+          />
+        ))}
 
       {map.territories.map((t) => {
         if (state.collapsed[t.id]) return null;
