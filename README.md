@@ -93,6 +93,11 @@ bit-for-bit too. That purity is what makes replays
 exact, makes crash recovery a matter of simply re-running the turn, and lets the browser run the
 identical code to preview orders.
 
+Both shapes reach players through the same grid, the same `/g/:id` link and the same deadline
+sweep, but they are built from four different mechanisms — a preset, a contest, a party mode and
+a game kind. [docs/game-modes.md](docs/game-modes.md) says what each mode is today, where it
+branches, and what adding another actually costs.
+
 ## Requirements
 
 - Node 22+
