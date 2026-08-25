@@ -5,8 +5,6 @@
     "rewrites": [
       { "source": "/api/**", "run": { "serviceId": "www-api", "region": "us-central1" } },
       { "source": "/unsubscribe", "run": { "serviceId": "www-api", "region": "us-central1" } },
-      { "source": "/party", "run": { "serviceId": "www-party", "region": "us-central1" } },
-      { "source": "/party/**", "run": { "serviceId": "www-party", "region": "us-central1" } },
       { "source": "**", "destination": "/index.html" }
     ]
   },

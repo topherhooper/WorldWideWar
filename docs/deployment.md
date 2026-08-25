@@ -7,7 +7,6 @@ Everything runs in GCP project **`fluted-citizen-269819`**, region **`us-central
 | Site           | https://play.topherhooper.com (Firebase Hosting, CDN)                    |
 | DNS            | Cloud DNS zone `topherhooper-com`; registrar Squarespace, NS delegated   |
 | API            | Cloud Run service `www-api` — reached via the Hosting `/api/**` rewrite  |
-| Dinner Party   | Cloud Run service `www-party` — the `/party` and `/party/**` rewrites    |
 | State          | Firestore `(default)`, native mode                                       |
 | Images         | Artifact Registry `us-central1-docker.pkg.dev/fluted-citizen-269819/www` |
 | Turn deadlines | Cloud Scheduler job `www-tick`, every minute → `POST /internal/tick`     |
@@ -18,32 +17,11 @@ Everything runs in GCP project **`fluted-citizen-269819`**, region **`us-central
 ## Pipeline
 
 Push to `main` fires the Cloud Build trigger (`Sample`, us-central1) → `cloudbuild.yaml`:
-docker build/push → `gcloud run deploy www-api` → the same again for `www-party` → vite
-build → `firebase deploy --only hosting`.
+docker build/push → `gcloud run deploy www-api` → vite build → `firebase deploy --only hosting`.
 
 The trigger runs as `cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com`
 (roles: run.admin, artifactregistry.writer, firebasehosting.admin, logging.logWriter,
 serviceAccountUser on the compute SA). CI checks stay in GitHub Actions and do not deploy.
-
-### The Dinner Party service
-
-`www-party` is a second, deliberately unentangled service: its own tiny Dockerfile in
-`prototypes/dinner-party/`, no dependencies, no build step, no share of the workspace. That
-separation is what stops prototype code leaking into `packages/server`.
-
-Two things about it are load-bearing rather than incidental.
-
-**`--max-instances=1` is correctness, not cost.** Rooms live in the instance's memory, so
-every guest at one party has to land on the same container. Raise it and half the table
-joins a room the other half cannot see. There is no session affinity to fall back on.
-
-**A deploy drops every room in flight.** New revision, new memory. The client polls every
-two seconds so an active party keeps the instance warm against `--min-instances=0`, but
-nothing survives a deployment — which is the standing price of publishing a prototype, and
-the reason not to push to `main` on an evening somebody is playing.
-
-Making it durable means moving rooms into Firestore, at which point the service could scale
-normally. That is the work, and it has not been done.
 
 Documentation-only pushes do not deploy. The trigger carries an `ignoredFiles` filter; when
 every path in a push matches it, Cloud Build never queues a build at all. The globs are the
