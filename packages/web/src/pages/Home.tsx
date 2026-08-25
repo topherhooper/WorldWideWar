@@ -46,8 +46,7 @@ export function Home() {
       <section className="panel">
         <h2>New game</h2>
         <p className="muted">
-          Pick a mode — for the map games, players, turn length and game length are set in the
-          lobby.
+          Pick a mode — players, turn length and game length are set in the lobby.
         </p>
         <div className="preset-grid">
           {PRESETS.map((preset) => (
@@ -65,15 +64,6 @@ export function Home() {
               </span>
             </button>
           ))}
-          {/* Sits in the grid because it is a mode, not a footnote — but it is a plain
-              anchor rather than a Link: /party is a Hosting rewrite to another service,
-              and the router must not swallow it. It also takes no preset, since the party
-              has no lobby to configure. */}
-          <a className="preset-card" href="/party" data-testid="dinner-party">
-            <strong>Dinner Party</strong>
-            <span>Sleeping Beauty — someone here laid the curse.</span>
-            <span className="muted">up to 20 guests · one evening</span>
-          </a>
         </div>
       </section>
 
