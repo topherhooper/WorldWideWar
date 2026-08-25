@@ -343,6 +343,17 @@ and will not clobber it), `RESEND_API_KEY` and `UNSUBSCRIBE_SECRET` from Secret 
 Min 0 / max 1 instance — one instance is deliberate; Firestore transactions guard
 correctness anyway.
 
+## Cost
+
+The billing account carries a $15 budget (`low cost - 15`). A GCP budget is an alert and
+not a cap — crossing it shuts nothing off. What actually spends, and the ~$9/month
+baseline that predates this project entirely, is in [cost.md](cost.md).
+
+Two things there bear on this runbook: `cloudbuild.yaml` deliberately sets no
+`machineType`, because naming one forfeits Cloud Build's 2,500 free build-minutes a
+month; and Artifact Registry has no cleanup policy yet, so every `api:$COMMIT_SHA` ever
+pushed is still stored.
+
 ## Gotchas learned the hard way
 
 - **`/healthz` 404s publicly**: Google's frontend reserves `/healthz` on `run.app`
