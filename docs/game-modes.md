@@ -172,6 +172,10 @@ Then give it a preset. A contest with no preset selecting it is unreachable from
 No document field changes, and no migration: mode is inside `partyJson`, and every party
 written before yours still parses.
 
+A new **tale** is not this — it is the largest change the party can take, and the design already
+ruled out the JSON-skin version of it. [docs/party-tales.md](party-tales.md) says what a tale
+actually is here, and why a mode is usually the right answer instead.
+
 ### 4. A new kind
 
 The party is the worked example, so read `git log` around it as the cost estimate rather than

@@ -74,6 +74,7 @@ host deals the roles whenever the guest list is settled, and each guest's page b
 private invitation: their character, their costume, their ability, and one guest's secret.
 
 Design and decisions: [docs/design/dinner-party.md](docs/design/dinner-party.md).
+Adding a tale: [docs/party-tales.md](docs/party-tales.md).
 
 ## Repository layout
 
