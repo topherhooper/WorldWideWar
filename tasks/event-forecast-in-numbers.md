@@ -25,7 +25,7 @@ board-wide and their existing sentence is already the whole truth. Leave them.
 
 ## What we know
 
-`EVENT_DESCRIPTIONS` states the *rule* — "Conscription — every frontier territory raises
+`EVENT_DESCRIPTIONS` states the _rule_ — "Conscription — every frontier territory raises
 one army" — which asks a player to work out by eye which of their tiles are frontier,
 from a definition of "frontier" they were never given. This is the same failure mode as
 the storm warning that lived only in the report: the information exists, at the wrong
