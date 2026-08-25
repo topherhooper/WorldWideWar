@@ -290,8 +290,9 @@
         const me = v.me;
         app.innerHTML = `
           <div class="kid">
-            <p class="banner">you are</p>
+            <p class="banner">${me.duo ? esc(me.duo.name) : 'you are'}</p>
             <div class="part">${esc(me.part)}</div>
+            ${me.duo ? '<div class="quest" style="margin-top:12px">' + esc(me.duo.blurb) + '</div>' : ''}
             <p class="sub">in a ${esc(me.costume.gown)} gown, holding ${esc(me.costume.gift)}</p>
             <div class="quest">The grown-ups need what you know.<br />They must <b>${esc(me.favour)}</b> first.</div>
             <div class="crowns">${candles(v.candles)}</div>
@@ -301,7 +302,7 @@
             <p class="kidnum">${me.curtsies.length}</p>
             <div class="crowns">${'\u{1F451}'.repeat(me.curtsies.length) || '—'}</div>
             <ul>${me.curtsies.map((n) => '<li>' + esc(n) + '</li>').join('')}</ul>
-            ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. Nobody else knows.</p>' : ''}
+            ${me.ally ? '<p class="sub">You and <b>' + esc(me.ally.name) + '</b> are one character. Nobody else knows.</p>' : ''}
           </div>`;
       }
 
@@ -415,7 +416,46 @@
           ${voteFloor(v)}
           ${v.lastResult && v.phase === 'mingle' ? '<div class="card floor"><div class="banner">last round</div><b>' + esc(v.lastResult.suspect) + '</b> — ' + v.lastResult.tally.yes + ' of ' + v.lastResult.tally.total + ' voices. ' + (v.lastResult.tally.carried ? 'Banished, and still here.' : 'Let off.') + '</div>' : ''}
           <div class="card clue"><div class="banner">pieces you hold (${me.pieces.length})</div><ul>${pieces}</ul></div>
-          ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. You win or lose together.</p>' : ''}
+          ${
+            me.duo
+              ? `<div class="card duo"><div class="banner">${esc(me.duo.name)}</div>
+                   <div>${esc(me.duo.blurb)}</div>
+                   <div class="muted" style="margin-top:8px">You and <b>${esc(me.ally.name)}</b> are one character. You win or lose together, and nobody else knows.</div>
+                   ${
+                     me.duo.id === 'huntsman' && !v.over
+                       ? me.sniff
+                         ? `<div style="margin-top:10px"><b>${esc(me.sniff.target)}</b> — the cub ${me.sniff.lied ? 'smells a lie' : 'smells nothing'}.</div>`
+                         : `<div class="noms">${me.nominable
+                             .filter((n) => n !== me.name)
+                             .map(
+                               (n) =>
+                                 `<button class="small sniff" data-sniff="${esc(n)}">${esc(n)}</button>`,
+                             )
+                             .join(' ')}</div>`
+                       : ''
+                   }
+                   ${
+                     me.hall
+                       ? '<div style="margin-top:10px"><div class="banner">who has met whom</div>' +
+                         me.hall
+                           .map(
+                             (h) =>
+                               '<div class="muted">' +
+                               esc(h.name) +
+                               ' — ' +
+                               esc(h.met.join(', ')) +
+                               '</div>',
+                           )
+                           .join('') +
+                         '</div>'
+                       : ''
+                   }</div>`
+              : me.ally
+                ? '<p class="sub">Your secret ally is <b>' +
+                  esc(me.ally.name) +
+                  '</b>. You win or lose together.</p>'
+                : ''
+          }
           ${mine ? '<p class="banner" style="margin-top:22px">your little one</p><ul>' + mine + '</ul>' : ''}
           ${queue ? '<p class="banner" style="margin-top:22px">did they really?</p><ul>' + queue + '</ul>' : ''}
           ${people ? '<p class="banner" style="margin-top:22px">go and meet them (' + me.met.length + ' met)</p><ul>' + people + '</ul>' : ''}
@@ -448,6 +488,7 @@
           post('meet', { who: b.dataset.meet, lie: b.classList.contains('lie') }),
         );
         go('button[data-nom]', (b) => post('nominate', { suspect: b.dataset.nom }));
+        go('button[data-sniff]', (b) => post('sniff', { target: b.dataset.sniff }));
         go('button.yes-v', () => post('vote', { yes: true }));
         go('button.no-v', () => post('vote', { yes: false }));
         go('#bell', () => post('bell'));

@@ -32,6 +32,50 @@ export const FAVOURS = [
   { grown: 'promise to slay a dragon for them', kid: 'promise to slay a dragon for you' },
 ];
 
+/**
+ * A grown-up who brought a child is not two guests, they are one character with two
+ * halves and an ability neither half has alone. The child's half is always something
+ * to *be* and *do*; the grown-up's half is the part that reads.
+ */
+export const DUOS = [
+  {
+    id: 'godmother',
+    name: 'The Godmother and her Godchild',
+    grown: 'The Godmother',
+    kid: 'The Godchild',
+    grownBlurb:
+      'Every grown-up who kneels to your godchild lends you their ear. Her crowns count double when the hall votes.',
+    kidBlurb:
+      'Every grown-up who kneels to you makes your Godmother stronger when everyone argues.',
+  },
+  {
+    id: 'huntsman',
+    name: 'The Huntsman and the Wolf-Cub',
+    grown: 'The Huntsman',
+    kid: 'The Wolf-Cub',
+    grownBlurb:
+      'Once tonight, name a guest. The cub can smell whether that guest has ever told a lie.',
+    kidBlurb: 'You can smell a fib. Once tonight, you and the Huntsman may sniff somebody out.',
+  },
+  {
+    id: 'nursemaid',
+    name: 'The Nursemaid and the Sleeping Princess',
+    grown: 'The Nursemaid',
+    kid: 'The Sleeping Princess',
+    grownBlurb:
+      'You watch the whole hall. You see every meeting anyone has had tonight, not only your own.',
+    kidBlurb: 'This whole party is for you. Everybody is watching you, so watch them back.',
+  },
+  {
+    id: 'spinner',
+    name: 'The Spinner and the Thread-Holder',
+    grown: 'The Spinner',
+    kid: 'The Thread-Holder',
+    grownBlurb: 'The thread runs both ways: a piece your child is given, you are given too.',
+    kidBlurb: 'You hold the end of the thread. What you are told, your grown-up is told as well.',
+  },
+];
+
 export const KID_PARTS = [
   'Princess Aurora',
   'The Rose Fairy',
@@ -146,8 +190,38 @@ export function buildTale(players) {
   const kids = players.filter((p) => p.young);
   const culprit = shuffle(grownups)[0];
 
-  dealParts(GROWN_PARTS, grownups);
-  dealParts(KID_PARTS, kids);
+  // Pairs are dealt a duo character; everyone else draws from the ordinary cast.
+  const duoDeck = shuffle(DUOS);
+  // One duo character per pair, and no grown-up wears two of them: a parent who brought
+  // two children is one duo, not two. Pairs beyond the cast simply play as plain allies.
+  const spokenFor = new Set();
+  const pairs = kids
+    .map((kid) => ({ kid, grown: grownups.find((g) => g.name === kid.allyName) }))
+    .filter((pair) => {
+      if (pair.grown === undefined || spokenFor.has(pair.grown.name)) return false;
+      spokenFor.add(pair.grown.name);
+      return true;
+    })
+    .slice(0, duoDeck.length);
+  pairs.forEach((pair, i) => {
+    const duo = duoDeck[i];
+    pair.grown.duo = duo;
+    pair.kid.duo = duo;
+    pair.grown.part = duo.grown;
+    pair.kid.part = duo.kid;
+  });
+  // A soloist must not draw a name a duo is already wearing: several duo halves --
+  // the Huntsman, the Spinner -- also appear in the ordinary cast, and a second
+  // Huntsman across the room makes the board unreadable.
+  const taken = new Set(pairs.flatMap((pair) => [pair.grown.part, pair.kid.part]));
+  dealParts(
+    GROWN_PARTS.filter((name) => !taken.has(name)),
+    grownups.filter((p) => p.duo === null),
+  );
+  dealParts(
+    KID_PARTS.filter((name) => !taken.has(name)),
+    kids.filter((p) => p.duo === null),
+  );
 
   const deck = buildDeck(players, culprit);
   // Everyone starts holding one piece. A child's is sealed behind a favour.

@@ -39,6 +39,10 @@ function newPlayer(name, young, allyName) {
     young,
     allyName: allyName || null,
     part: null,
+    /** The duo character this player is half of, or null if they came alone. */
+    duo: null,
+    /** The Huntsman's one sniff: { target, lied } once spent. */
+    sniff: null,
     costume: null,
     favour: null,
     /** Pieces of the puzzle this player holds. Never attributed -- you are not told who
@@ -94,7 +98,12 @@ function weightOf(room, player) {
   const crowns = room.players
     .filter((p) => p.young && allyOf(room, p) === player)
     .reduce((n, child) => n + child.curtsies.length, 0);
-  return 1 + Math.min(crowns, CROWN_CAP);
+  // The Godmother's whole character: her godchild's crowns count twice, so she reaches
+  // the ceiling on half the kneeling. The ceiling itself barely moves -- doubling the
+  // count *and* the cap put her at six voices against a plain guest's one, which decides
+  // a hall of twelve on its own. Untested against real players; a guess, not a finding.
+  const doubled = player.duo?.id === 'godmother' ? crowns * 2 : crowns;
+  return 1 + Math.min(doubled, player.duo?.id === 'godmother' ? CROWN_CAP + 1 : CROWN_CAP);
 }
 
 /**
@@ -196,14 +205,23 @@ function signerFor(room, player) {
 
 /** Deal one piece the receiver does not already hold. Attribution is never recorded. */
 function dealPiece(room, to, lie) {
-  if (lie) {
-    to.pieces.push({ id: -1, text: lie, fake: true });
-    return;
+  const piece = lie
+    ? { id: -1, text: lie, fake: true }
+    : (() => {
+        const held = new Set(to.pieces.map((p) => p.text));
+        const fresh = room.tale.deck.filter((c) => !held.has(c.text));
+        return fresh.length === 0 ? null : { ...fresh[Math.floor(Math.random() * fresh.length)] };
+      })();
+  if (piece === null) return;
+  to.pieces.push(piece);
+
+  // The Spinner's thread runs both ways: what reaches the child reaches the grown-up.
+  if (to.duo?.id === 'spinner' && to.young) {
+    const grown = allyOf(room, to);
+    if (grown !== undefined && grown !== null && !grown.pieces.some((p) => p.text === piece.text)) {
+      grown.pieces.push({ ...piece });
+    }
   }
-  const held = new Set(to.pieces.map((p) => p.text));
-  const fresh = room.tale.deck.filter((c) => !held.has(c.text));
-  if (fresh.length === 0) return;
-  to.pieces.push({ ...fresh[Math.floor(Math.random() * fresh.length)] });
 }
 
 // ─── The choke point ─────────────────────────────────────────────────────────
@@ -311,6 +329,21 @@ function viewFor(room, token) {
       met: me.met,
       curtsies: me.curtsies,
       ally: ally === null ? null : { name: ally.name, part: ally.part },
+      // Your half of a duo character, and what it lets the two of you do.
+      duo:
+        me.duo === null
+          ? null
+          : {
+              name: me.duo.name,
+              id: me.duo.id,
+              blurb: me.young ? me.duo.kidBlurb : me.duo.grownBlurb,
+            },
+      // The Nursemaid watches the whole hall, not only her own evening.
+      hall:
+        me.duo?.id === 'nursemaid' && room.dealt
+          ? room.players.filter((p) => p.met.length > 0).map((p) => ({ name: p.name, met: p.met }))
+          : null,
+      sniff: me.sniff,
       canMeet,
       toConfirm,
       mine: myChildren.map((c) => ({ name: c.name, part: c.part, crowns: c.curtsies.length })),
@@ -392,7 +425,9 @@ const server = createServer(async (req, res) => {
   }
 
   const match =
-    /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|meet|confirm|deny|bell|nominate|vote)$/.exec(path);
+    /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|meet|confirm|deny|bell|nominate|vote|sniff)$/.exec(
+      path,
+    );
   if (match === null) {
     send(res, 404, { error: 'not found' });
     return;
@@ -511,6 +546,21 @@ const server = createServer(async (req, res) => {
   }
 
   // The host may ring the bell early rather than waiting out the round.
+  // The Huntsman's single question of the night, asked through the cub.
+  if (action === 'sniff' && req.method === 'POST') {
+    if (me === null) return send(res, 403, { error: 'not at this party' });
+    if (!room.dealt || room.over) return send(res, 409, { error: 'not tonight' });
+    if (me.duo?.id !== 'huntsman' || me.young)
+      return send(res, 403, { error: 'that is not your character' });
+    if (me.sniff !== null) return send(res, 409, { error: 'the cub has already sniffed tonight' });
+    const target = byName(room, body.target);
+    if (target === null) return send(res, 404, { error: 'nobody here by that name' });
+    // Truthfully: has this guest ever handed over something untrue?
+    const lied = target.id === room.tale.culpritId && target.lies < room.tale.lies;
+    me.sniff = { target: target.name, lied };
+    return send(res, 200, viewFor(room, body.token));
+  }
+
   if (action === 'bell' && req.method === 'POST') {
     if (body.token !== room.hostToken)
       return send(res, 403, { error: 'only the host rings the bell' });
