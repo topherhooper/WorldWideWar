@@ -61,18 +61,25 @@ jobs:
 
       # The same command the runbook documents, with a real SHA in place of `manual-N`
       # and a clean checkout in place of a working tree.
+      #
+      # `--gcs-source-staging-dir` names the staging bucket explicitly. Left to itself,
+      # gcloud resolves the default `<project>_cloudbuild` bucket by listing/creating it,
+      # and `storage.buckets.list` is a project-level permission that cannot be granted on
+      # one bucket — so the SA 403s with "forbidden from accessing the bucket" no matter
+      # how much bucket-scoped access it holds. Naming the directory skips that resolution
+      # step, which is why this needs no project-wide role.
+      #
+      # These notes live here rather than inside the `run:` block on purpose: a `#` comment
+      # between backslash-continued lines is not a break in the command. Bash removes the
+      # backslash-newline first, so the comment starts on the joined logical line and eats
+      # every flag after it — which is how run 7 lost the staging dir, the substitution and
+      # the source argument, and 403'd on exactly the bucket this flag exists to avoid.
       - name: Submit build
         run: |
           gcloud builds submit \
             --config cloudbuild.yaml \
             --project "$GCP_PROJECT" \
             --service-account "projects/$GCP_PROJECT/serviceAccounts/$GCP_BUILD_SERVICE_ACCOUNT" \
-            # Name the staging bucket explicitly. Left to itself, gcloud resolves the
-            # default `<project>_cloudbuild` bucket by listing/creating it, and
-            # `storage.buckets.list` is a project-level permission that cannot be granted
-            # on one bucket — so the SA 403s with "forbidden from accessing the bucket"
-            # no matter how much bucket-scoped access it holds. Naming the directory
-            # skips that resolution step, which is why this needs no project-wide role.
             --gcs-source-staging-dir "gs://${GCP_PROJECT}_cloudbuild/gha-source" \
             --substitutions COMMIT_SHA=${{ steps.sha.outputs.sha }} \
             .

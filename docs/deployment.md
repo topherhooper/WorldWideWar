@@ -130,6 +130,15 @@ Firestore included. Naming the staging directory skips the resolution step entir
 keeps `gha-deploy@` scoped to one bucket. This was established the hard way — the error
 text blames `serviceusage.services.use`, which is a red herring.
 
+**The flag can also be lost without being removed.** Run 7 failed with that same 403 while
+the flag was still sitting in `deploy.yml`, three lines below a `#` comment explaining why
+it had to stay. Inside a `run:` block, a comment between backslash-continued lines does not
+interrupt the command: bash strips the backslash-newline first, so the `#` lands on the
+joined logical line and comments out every flag after it — here the staging directory, the
+`COMMIT_SHA` substitution and the `.` source argument all vanished, and gcloud went back to
+resolving the default bucket. Annotate a continued command from above the step, never
+inside it.
+
 **The role set below is what is provisioned, not a minimized set.** `serviceUsageConsumer`
 and `legacyBucketReader` were added while chasing the 403 above and may not be load-bearing
 now that the staging directory is explicit. Nobody has tried removing them.
@@ -226,14 +235,15 @@ gh run watch --repo topherhooper/WorldWideWar
 
 Failures worth recognising on the first run:
 
-| Symptom                                                           | Cause                                                                                   |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `Workflow does not have 'workflow_dispatch' trigger` / not listed | `deploy.yml` is not on `main` yet                                                       |
-| `Permission denied on resource ... workloadIdentityPools`         | Step 7's binding missing, or the repo name in it is wrong                               |
-| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step | Attribute condition in step 6 does not match `$REPO`                                    |
-| Auth passes, `builds submit` 403s                                 | Step 3, 4 or 5 skipped                                                                  |
-| `builds submit` rejects `--service-account`                       | The build config must set `logging: CLOUD_LOGGING_ONLY`; `cloudbuild.yaml` already does |
-| Build runs, `firebase deploy` fails on permissions                | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA`  |
+| Symptom                                                                 | Cause                                                                                           |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Workflow does not have 'workflow_dispatch' trigger` / not listed       | `deploy.yml` is not on `main` yet                                                               |
+| `Permission denied on resource ... workloadIdentityPools`               | Step 7's binding missing, or the repo name in it is wrong                                       |
+| `unable to impersonate`, `IAM_PERMISSION_DENIED` at the auth step       | Attribute condition in step 6 does not match `$REPO`                                            |
+| Auth passes, `builds submit` 403s                                       | Step 3, 4 or 5 skipped                                                                          |
+| The same 403 with steps 3-5 done and the staging flag still in the file | A `#` comment inside the continued `run:` command silently swallowed `--gcs-source-staging-dir` |
+| `builds submit` rejects `--service-account`                             | The build config must set `logging: CLOUD_LOGGING_ONLY`; `cloudbuild.yaml` already does         |
+| Build runs, `firebase deploy` fails on permissions                      | The Cloud Build SA lacks `firebasehosting.admin` — grant on the build SA, not on `$SA`          |
 
 ## Secrets
 
