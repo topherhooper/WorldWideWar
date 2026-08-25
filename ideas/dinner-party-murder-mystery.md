@@ -116,3 +116,49 @@ another guest's role from the server by any request they are able to make.
 That last clause is the half worth building. Dealing roles is a shuffle; the thing this repo
 already knows how to get right, and the thing a dinner party would be ruined by getting
 wrong, is that a secret has exactly one way out to exactly one viewer.
+
+## What the prototype showed
+
+Built in `prototypes/dinner-party/` — one Node file, one HTML string, in memory, no deps.
+Driven with five separate browser contexts (five phones) under Playwright. The goal was met:
+
+```
+Topher (host)  The Rival        SECRET
+Jeff           The Detective    SECRET
+Dana           The Heir         SECRET
+Sam            The Murderer     SECRET
+Nora (5)       The Dog          public job
+```
+
+every window shows exactly one card · the kid got a public job · the murderer is a grown-up
+
+**The identity problem mostly evaporated.** The capture called it the hardest structural
+collision — five phones, five identities, no logins, a five-year-old with no email. At
+prototype scale it took a four-letter room code read aloud (`makeCode` drops vowels and
+`I/O/0/1`, so it survives being shouted across a table) and an opaque token in
+`sessionStorage`. Nobody signed in. That does not make the collision with
+`packages/server/src/games.ts:91` disappear, but it reframes it: the dinner party does not
+need the account model, so the question is whether it can be allowed to skip it rather than
+how to stretch it.
+
+**The redaction property was cheap, and cheap for a specific reason.** `viewFor` assembles a
+response addressed to one token rather than filtering a fuller one down. A leak would
+require adding code, not forgetting to remove it. Forged tokens, empty tokens and guessed
+UUIDs all return `me: null`, and a guest's entire response body mentions zero roles besides
+their own. This is the same shape as `redact()` and it cost about fifteen lines.
+
+**Surprise 1 — the host is not a player unless you make them one.** Built the obvious way,
+`hostToken` and a player token are different things, and the host ends up a game master who
+sits out their own dinner. That contradicts an assumption written down two hours earlier.
+Worked around by having one token carry both capabilities: authority to deal, and a seat to
+be dealt to. It is a token-design question, not a UI one, and it will recur in any real
+version.
+
+**A deduction the design hands out for free.** The roster is public including the little-kid
+flag, and kids are dealt from the public pool, so the whole table can infer that no kid is
+the murderer. Probably what you want at a real dinner party — but it is a rule nobody chose,
+falling out of the age split.
+
+**What it does not show.** Whether any of this is fun. The prototype deals; it does not play.
+Whether a five-year-old is satisfied by ringing a bell, and whether the adults' mystery
+survives having a barking dog at the table, are questions no amount of dealing answers.

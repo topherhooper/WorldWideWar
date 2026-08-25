@@ -21,18 +21,50 @@ const PORT = Number(process.env.PORT ?? 8787);
 // with something concrete to DO, and every kid card is safe to read aloud.
 
 const SECRET_ROLES = [
-  { name: 'The Murderer', secret: true, card: 'You did it. The pudding was yours. Do not get caught.' },
-  { name: 'The Detective', secret: true, card: 'You are on the case. You may ask one person a direct question each course.' },
-  { name: 'The Heir', secret: true, card: 'You needed the money. You are innocent, and it looks terrible.' },
-  { name: 'The Old Friend', secret: true, card: 'You know a secret about the Heir. You are innocent.' },
-  { name: 'The Rival', secret: true, card: 'You argued with the victim tonight. You are innocent.' },
+  {
+    name: 'The Murderer',
+    secret: true,
+    card: 'You did it. The pudding was yours. Do not get caught.',
+  },
+  {
+    name: 'The Detective',
+    secret: true,
+    card: 'You are on the case. You may ask one person a direct question each course.',
+  },
+  {
+    name: 'The Heir',
+    secret: true,
+    card: 'You needed the money. You are innocent, and it looks terrible.',
+  },
+  {
+    name: 'The Old Friend',
+    secret: true,
+    card: 'You know a secret about the Heir. You are innocent.',
+  },
+  {
+    name: 'The Rival',
+    secret: true,
+    card: 'You argued with the victim tonight. You are innocent.',
+  },
   { name: 'The Neighbour', secret: true, card: 'You saw someone in the garden. You are innocent.' },
 ];
 
 const KID_ROLES = [
-  { name: 'The Bell-Ringer', secret: false, card: 'Your job: ring the bell whenever you want. Everyone must stop and say where they were. Tell people your job -- it is not a secret.' },
-  { name: 'The Dog', secret: false, card: 'Your job: you saw everything, but you can only bark. Bark twice when someone says something untrue. Tell people your job -- it is not a secret.' },
-  { name: 'The Waiter', secret: false, card: 'Your job: bring one person a napkin whenever you like. That person must then say one true thing. Tell people your job -- it is not a secret.' },
+  {
+    name: 'The Bell-Ringer',
+    secret: false,
+    card: 'Your job: ring the bell whenever you want. Everyone must stop and say where they were. Tell people your job -- it is not a secret.',
+  },
+  {
+    name: 'The Dog',
+    secret: false,
+    card: 'Your job: you saw everything, but you can only bark. Bark twice when someone says something untrue. Tell people your job -- it is not a secret.',
+  },
+  {
+    name: 'The Waiter',
+    secret: false,
+    card: 'Your job: bring one person a napkin whenever you like. That person must then say one true thing. Tell people your job -- it is not a secret.',
+  },
 ];
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -59,7 +91,8 @@ function shuffled(list) {
 function deal(room) {
   const kids = room.players.filter((p) => p.young);
   const grownups = room.players.filter((p) => !p.young);
-  if (grownups.length < 2) return { error: 'need at least two grown-ups -- somebody has to be the murderer' };
+  if (grownups.length < 2)
+    return { error: 'need at least two grown-ups -- somebody has to be the murderer' };
 
   const kidPool = shuffled(KID_ROLES);
   kids.forEach((p, i) => (p.role = kidPool[i % kidPool.length]));
@@ -137,7 +170,10 @@ const server = createServer(async (req, res) => {
     // capabilities -- authority to deal, and a seat that gets dealt to. Splitting them
     // made the host a game master who sits out their own dinner.
     const token = randomUUID();
-    const name = String(body.name ?? '').trim().slice(0, 24) || 'The Host';
+    const name =
+      String(body.name ?? '')
+        .trim()
+        .slice(0, 24) || 'The Host';
     const room = { code, hostToken: token, dealt: false, players: [] };
     room.players.push({ id: randomUUID(), token, name, young: body.young === true, role: null });
     rooms.set(code, room);
@@ -163,12 +199,20 @@ const server = createServer(async (req, res) => {
       return;
     }
     const body = await readBody(req);
-    const name = String(body.name ?? '').trim().slice(0, 24);
+    const name = String(body.name ?? '')
+      .trim()
+      .slice(0, 24);
     if (name === '') {
       send(res, 400, { error: 'need a name' });
       return;
     }
-    const player = { id: randomUUID(), token: randomUUID(), name, young: body.young === true, role: null };
+    const player = {
+      id: randomUUID(),
+      token: randomUUID(),
+      name,
+      young: body.young === true,
+      role: null,
+    };
     room.players.push(player);
     send(res, 200, { token: player.token, view: viewFor(room, player.token) });
     return;
