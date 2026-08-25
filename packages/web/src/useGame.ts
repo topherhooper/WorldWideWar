@@ -1,29 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GameView } from '@www/server/api-types';
+import type { AnyGameView } from '@www/server/api-types';
 import type { OrderSet } from '@www/engine';
 
 import { api, ApiError } from './api.js';
 
 const IDLE_MS = 15_000;
 const LOCKED_MS = 5_000;
+/** A mingle is live: twenty people are confirming encounters in one room. */
+const PARTY_LIVE_MS = 2_500;
+/** An invitation sits open for days. Polling it every two seconds is the bill. */
+const PARTY_IDLE_MS = 60_000;
+
+/**
+ * How often to ask again. A war turn moves on a deadline measured in hours; a
+ * party round moves whenever somebody in the room presses something.
+ */
+export function pollIntervalFor(view: AnyGameView | null): number {
+  if (view === null) return IDLE_MS;
+  if (view.kind === 'party') {
+    if (view.status === 'finished') return PARTY_IDLE_MS;
+    return view.party.phase === 'mingle' || view.party.phase === 'vote'
+      ? PARTY_LIVE_MS
+      : PARTY_IDLE_MS;
+  }
+  return view.myLocked && view.status === 'active' ? LOCKED_MS : IDLE_MS;
+}
 
 export interface UseGame {
-  view: GameView | null;
+  view: AnyGameView | null;
   error: string | null;
-  refresh: () => Promise<GameView | null>;
+  refresh: () => Promise<AnyGameView | null>;
   /** Persists a draft; returns server warnings. Optimistic UI lives in the caller's draft state. */
   saveOrders: (orders: OrderSet, locked: boolean) => Promise<string[]>;
 }
 
 export function useGame(id: string): UseGame {
-  const [view, setView] = useState<GameView | null>(null);
+  const [view, setView] = useState<AnyGameView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const viewRef = useRef<GameView | null>(null);
+  const viewRef = useRef<AnyGameView | null>(null);
   const viewJsonRef = useRef<string | null>(null);
 
   // Skips the state update (and the full map re-render) when a poll returns
   // an identical view — the common case for an async game.
-  const install = useCallback((fresh: GameView) => {
+  const install = useCallback((fresh: AnyGameView) => {
     const json = JSON.stringify(fresh);
     if (json !== viewJsonRef.current) {
       viewJsonRef.current = json;
@@ -33,7 +52,7 @@ export function useGame(id: string): UseGame {
     setError(null);
   }, []);
 
-  const refresh = useCallback(async (): Promise<GameView | null> => {
+  const refresh = useCallback(async (): Promise<AnyGameView | null> => {
     try {
       install(await api.getGame(id));
     } catch (err) {
@@ -49,7 +68,7 @@ export function useGame(id: string): UseGame {
     const tick = async () => {
       if (stopped) return;
       const v = document.hidden ? viewRef.current : await refresh();
-      const wait = v !== null && v.myLocked && v.status === 'active' ? LOCKED_MS : IDLE_MS;
+      const wait = pollIntervalFor(v);
       timer = setTimeout(() => void tick(), wait);
     };
     void tick();

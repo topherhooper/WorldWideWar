@@ -595,3 +595,198 @@ select {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* ── The dinner party ──────────────────────────────────────────────────────
+   The invitation is the one screen in this app that is not a control panel.
+   It is read once, in a hallway, by somebody who has just clicked a link in a
+   group chat, so it is given the width and the quiet that a card wants. */
+
+.invitation {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+.invitation-head {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+}
+.invitation-head h1 {
+  margin: 0.25rem 0;
+  font-size: 1.9rem;
+  letter-spacing: 0.02em;
+}
+.invitation-eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.invitation-prompt {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-style: italic;
+}
+.invitation-card {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.invitation-card.is-child {
+  border-left-color: var(--ok);
+}
+.invitation-card h2 {
+  margin: 0.1rem 0 0.6rem;
+}
+.invitation-part {
+  font-size: 1.1rem;
+  margin: 0.3rem 0;
+}
+.invitation-costume,
+.invitation-duo,
+.invitation-favour {
+  margin: 0.5rem 0;
+}
+.invitation-duo {
+  color: var(--accent);
+}
+/* The one secret on any invitation, and only ever on one of them. */
+.invitation-secret {
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: rgba(230, 85, 58, 0.08);
+}
+.invitation-cast {
+  margin-top: 1.25rem;
+}
+.invitation-cast ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.invitation-cast li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.invitation-foot {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.candles {
+  margin: 0.4rem 0;
+  letter-spacing: 0.15rem;
+}
+.candle.is-out {
+  opacity: 0.28;
+  filter: grayscale(1);
+}
+
+/* A child's screen: no load-bearing text, and nothing to press. */
+.kid-view {
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+.kid-view h1 {
+  font-size: 2.1rem;
+  margin: 0.2rem 0;
+}
+.kid-blurb {
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+.kid-price {
+  margin: 1.25rem 0;
+  padding: 0.9rem;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+}
+.kid-price-text {
+  margin: 0.2rem 0 0;
+  font-size: 1.3rem;
+}
+.kid-crowns p:first-child {
+  font-size: 1.8rem;
+  margin: 0.4rem 0 0;
+  line-height: 1.2;
+}
+.kid-outcome {
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+
+.party-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.party-whose {
+  margin: 0.5rem 0;
+}
+.party-whose .is-current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.party-claim {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.meet-list,
+.piece-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.meet-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.piece-list li {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+/* Only the Godmother ever sees this class applied. */
+.piece.is-fake {
+  color: var(--danger);
+}
+.party-seat-form,
+.party-dials {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.party-dials input {
+  width: 4.5rem;
+}
+.party-ending h2 {
+  color: var(--accent);
+}
+button.link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}

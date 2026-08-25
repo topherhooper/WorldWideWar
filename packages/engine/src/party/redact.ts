@@ -129,6 +129,9 @@ export interface PartyView {
   round: number;
   candles: number;
   maxCandles: number;
+  /** The dials, so the lobby can show and edit what the evening will cost. */
+  roundMinutes: number;
+  voteSeconds: number;
   /** Epoch ms; the client counts down itself rather than being told a remainder. */
   phaseEndsAt: number | null;
   outcome: string | null;
@@ -169,6 +172,8 @@ export function redactParty(state: PartyState, viewerSlot: number | null): Party
     round: state.round,
     candles: state.candles,
     maxCandles: Math.max(state.candles, CANDLES),
+    roundMinutes: state.roundMinutes,
+    voteSeconds: state.voteSeconds,
     phaseEndsAt: state.phaseEndsAt,
     outcome: state.outcome,
     snuffed: state.snuffed,

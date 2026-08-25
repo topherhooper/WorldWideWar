@@ -1,13 +1,18 @@
 import type {
+  AnyGameView,
   CreateGameRequest,
+  Dependent,
   GameSummaryView,
   GameView,
   NotifyPrefs,
+  PartyGameView,
   SubmitOrdersRequest,
   SubmitOrdersResponse,
   UpdateConfigRequest,
+  UpdatePartyConfigRequest,
   UpdatePrefsRequest,
 } from '@www/server/api-types';
+import type { PartyAction } from '@www/engine/party';
 
 import { auth } from './auth.js';
 
@@ -49,7 +54,8 @@ async function apiFetch<T>(method: string, path: string, body?: unknown): Promis
 export const api = {
   createGame: (req: CreateGameRequest) => apiFetch<{ id: string }>('POST', '/api/games', req),
   listGames: () => apiFetch<GameSummaryView[]>('GET', '/api/games'),
-  getGame: (id: string) => apiFetch<GameView>('GET', `/api/games/${id}`),
+  // One read for both games; the response is discriminated on `kind`.
+  getGame: (id: string) => apiFetch<AnyGameView>('GET', `/api/games/${id}`),
   join: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/join`),
   start: (id: string) => apiFetch<GameView>('POST', `/api/games/${id}/start`),
   updateConfig: (id: string, req: UpdateConfigRequest) =>
@@ -60,6 +66,15 @@ export const api = {
   submitLobbyList: (id: string, list: string[]) =>
     apiFetch<GameView>('PUT', `/api/games/${id}/lobby-list`, { list }),
   deleteGame: (id: string) => apiFetch<{ ok: boolean }>('DELETE', `/api/games/${id}`),
+  takePartySeat: (id: string, dependents: Dependent[]) =>
+    apiFetch<PartyGameView>('POST', `/api/games/${id}/party/seat`, { dependents }),
+  dropPartySeat: (id: string, slot: number) =>
+    apiFetch<PartyGameView>('DELETE', `/api/games/${id}/party/seat/${slot}`),
+  updatePartyConfig: (id: string, req: UpdatePartyConfigRequest) =>
+    apiFetch<PartyGameView>('POST', `/api/games/${id}/party/config`, req),
+  /** Deal, bell, meet, confirm, deny, sniff, nominate and vote all come here. */
+  partyAct: (id: string, action: PartyAction) =>
+    apiFetch<PartyGameView>('POST', `/api/games/${id}/party/act`, { action }),
   getPrefs: () => apiFetch<NotifyPrefs>('GET', '/api/prefs'),
   updatePrefs: (patch: UpdatePrefsRequest) => apiFetch<NotifyPrefs>('PUT', '/api/prefs', patch),
 };

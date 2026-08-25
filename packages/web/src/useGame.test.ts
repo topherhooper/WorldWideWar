@@ -94,6 +94,8 @@ describe('useGame', () => {
       warnings = await result.current.saveOrders(orders, false);
     });
     expect(warnings).toEqual(['bad move']);
-    expect(result.current.view?.myOrders).toEqual(orders);
+    const current = result.current.view;
+    expect(current?.kind).not.toBe('party');
+    expect(current !== null && current.kind !== 'party' ? current.myOrders : null).toEqual(orders);
   });
 });

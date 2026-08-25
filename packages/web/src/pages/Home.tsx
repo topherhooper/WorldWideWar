@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { GameSummaryView } from '@www/server/api-types';
+import type { CreateGameRequest, GameSummaryView } from '@www/server/api-types';
 import { PRESETS } from '@www/engine';
 
 import { api, ApiError } from '../api.js';
@@ -30,10 +30,10 @@ export function Home() {
       );
   }, []);
 
-  const create = async (presetId: string) => {
+  const create = async (req: CreateGameRequest) => {
     setCreating(true);
     try {
-      const { id } = await api.createGame({ presetId });
+      const { id } = await api.createGame(req);
       await navigate(`/g/${id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'failed to create game');
@@ -55,7 +55,7 @@ export function Home() {
               data-testid={`preset-${preset.id}`}
               className="preset-card"
               disabled={creating}
-              onClick={() => void create(preset.id)}
+              onClick={() => void create({ presetId: preset.id })}
             >
               <strong>{preset.name}</strong>
               <span>{preset.tagline}</span>
@@ -64,6 +64,31 @@ export function Home() {
               </span>
             </button>
           ))}
+
+          {/* Back in the grid after #31 took it out, and a button rather than
+              the anchor of #30 — the party creates a game and lands on /g/:id
+              like every other mode, so it needs no route and no CSS of its own. */}
+          <button
+            data-testid="dinner-party"
+            className="preset-card"
+            disabled={creating}
+            onClick={() => void create({ kind: 'party', mode: 'traitor' })}
+          >
+            <strong>Dinner Party</strong>
+            <span>Sleeping Beauty — one of the grown-ups here laid the curse.</span>
+            <span className="muted">3&ndash;20 guests · one evening</span>
+          </button>
+
+          <button
+            data-testid="bedtime-party"
+            className="preset-card"
+            disabled={creating}
+            onClick={() => void create({ kind: 'party', mode: 'together' })}
+          >
+            <strong>Bedtime Party</strong>
+            <span>The same tale, but nobody here did it — work it out together.</span>
+            <span className="muted">from 2 people · about ten minutes</span>
+          </button>
         </div>
       </section>
 
@@ -81,17 +106,26 @@ export function Home() {
                 <Link to={`/g/${g.id}`} className="game-card">
                   <span className="game-card-status">
                     {g.status === 'lobby'
-                      ? `Lobby ${g.seatsFilled}/${g.playerCount}`
+                      ? g.kind === 'party'
+                        ? `Party — ${g.seatsFilled} coming`
+                        : `Lobby ${g.seatsFilled}/${g.playerCount}`
                       : g.status === 'finished'
                         ? 'Finished'
-                        : `Turn ${g.turn}`}
+                        : g.kind === 'party'
+                          ? // A dealt-but-unrung party has no round yet: the
+                            // invitation is out and the evening has not started.
+                            g.turn === 0
+                            ? 'Invitations sent'
+                            : `Round ${g.turn}`
+                          : `Turn ${g.turn}`}
                   </span>
                   {g.status === 'active' && g.deadlineAt !== null && (
                     <span className="muted">{formatRemaining(g.deadlineAt, now)}</span>
                   )}
-                  {g.status === 'active' && !g.myLocked && g.mySlot !== null && (
-                    <span className="badge-due">orders due</span>
-                  )}
+                  {g.status === 'active' &&
+                    g.kind !== 'party' &&
+                    !g.myLocked &&
+                    g.mySlot !== null && <span className="badge-due">orders due</span>}
                 </Link>
               </li>
             ))}
