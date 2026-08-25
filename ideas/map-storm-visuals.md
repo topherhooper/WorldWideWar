@@ -131,6 +131,20 @@ opponent, so an unreadable storm is not an inconvenience, it is an unplayable mo
 - `packages/engine/src/storm.ts:16-31` — `waveCollapsingOn` / `warnedTerritories`, the two
   functions that answer "which tiles, which turn".
 
+## Prototype goal
+
+A player with orders still to write can see, on the map, which of their tiles will be
+gone when those orders resolve.
+
+Design A (decision 8) is what gets built: a diagonal hatch laid over the doomed tiles as
+an SVG `<pattern>` so the owner's colour still reads underneath, flat ash for ground the
+storm has already taken, and one forecast box above the map that absorbs `GameHud`'s two
+event banners. No motion, no dependence on the previous turn.
+
+The thing actually being tested is narrower than the sentence: **does a hatch read as
+"doomed" over all eight player colours at once, without competing with ownership?** That
+is the question no amount of discussion settles.
+
 ## Decisions
 
 | # | Decision | Rejected, and why |
