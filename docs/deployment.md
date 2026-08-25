@@ -251,11 +251,17 @@ Google sign-in fails. They are enforced by different systems and none implies th
 others, so adding a hosting domain and stopping there is the standing trap — it is what
 broke `play.topherhooper.com` on 2026-08-13.
 
-| Place                             | Enforced by      | Failure if missing                                      |
-| --------------------------------- | ---------------- | ------------------------------------------------------- |
-| API key `29962844-…` referrers    | API Keys         | `auth/requests-from-referer-<origin>-are-blocked` (403) |
-| Firebase Auth `authorizedDomains` | Identity Toolkit | `auth/unauthorized-domain`                              |
-| OAuth client redirect URIs        | Google OAuth     | `Error 400: redirect_uri_mismatch`                      |
+A **fourth** thing has to be right, and it is not an origin at all: the client ID _and
+secret_ Firebase Auth stores for the Google provider. It is listed here because the three
+origin probes below all pass while it is broken, which is exactly how it cost a day on
+2026-08-25 — a green checklist on a site nobody could sign in to.
+
+| Place                             | Enforced by      | Failure if missing                                                  |
+| --------------------------------- | ---------------- | ------------------------------------------------------------------- |
+| API key `29962844-…` referrers    | API Keys         | `auth/requests-from-referer-<origin>-are-blocked` (403)             |
+| Firebase Auth `authorizedDomains` | Identity Toolkit | `auth/unauthorized-domain`                                          |
+| OAuth client redirect URIs        | Google OAuth     | `Error 400: redirect_uri_mismatch`                                  |
+| Google provider ID + secret       | Identity Toolkit | `auth/invalid-credential`, wrapping a 401 from `oauth2/v1/userinfo` |
 
 The third only applies to whichever origin `VITE_FIREBASE_AUTH_DOMAIN` names, since that
 is the domain whose `/__/auth/handler` Google redirects back to. Point it at the domain
@@ -296,7 +302,7 @@ Step 3 is console-only — there is no gcloud surface for a non-IAP OAuth client
 https://console.cloud.google.com/apis/credentials/oauthclient/614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com?project=fluted-citizen-269819
 ```
 
-Verify all three without a browser. Each probe isolates one layer, and each takes a few
+Verify all four without a browser. Each probe isolates one layer, and each takes a few
 minutes to propagate after a change — an immediate retest looks like failure.
 
 ```bash
@@ -308,12 +314,60 @@ curl -s -X POST -H "Referer: https://play.topherhooper.com/" -H "Content-Type: a
 
 # 3. Unregistered redirect URIs come back as redirect_uri_mismatch; registered ones
 #    reach the sign-in page. Check an origin you did NOT register too — if that also
-#    passes, the probe is broken, not the config.
+#    passes, the probe is broken, not the config. A DELETED client answers this same
+#    call with "Error 401: deleted_client", which is worth knowing because Google
+#    auto-deletes OAuth clients inactive for 5 months and mails a 30-day warning first.
 curl -s -L "https://accounts.google.com/o/oauth2/v2/auth\
 ?client_id=614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7.apps.googleusercontent.com\
 &response_type=code&scope=email\
 &redirect_uri=https://play.topherhooper.com/__/auth/handler" | grep -c redirect_uri_mismatch
+
+# 4. Whether the Google provider is enabled at all. A deliberately bogus token is enough:
+#    INVALID_IDP_RESPONSE means enabled and parsing normally, so the fault is the secret;
+#    OPERATION_NOT_ALLOWED means the provider itself is off. This does NOT test the
+#    secret — nothing outside the project can, see below.
+curl -s -X POST -H "Referer: https://play.topherhooper.com/" -H "Content-Type: application/json" \
+  --data '{"postBody":"id_token=bogus.token.value&providerId=google.com","requestUri":"https://play.topherhooper.com","returnSecureToken":true,"returnIdpCredential":true}' \
+  "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=AIzaSyDsG81Moo9f3vgnYiWfdZDHT7QrBFuL0Sc"
 ```
+
+#### The fourth layer: the Google provider's client secret
+
+`signInWithPopup` hands Google's authorization code to Identity Toolkit, which exchanges
+it for tokens using the client ID **and secret** stored under **Firebase Console → Auth →
+Sign-in method → Google → Web SDK configuration**. A wrong secret makes that exchange
+return no access token, Identity Toolkit then calls `oauth2/v1/userinfo` with nothing in
+hand, and the browser sees a 400 on `accounts:signInWithIdp` whose body reads:
+
+```
+Failed to fetch resource from https://www.googleapis.com/oauth2/v1/userinfo,
+http status: 401 ... "Expected OAuth 2 access token, login cookie or other valid
+authentication credential" (auth/invalid-credential)
+```
+
+Read that error correctly: it is Google talking to Google. Nothing about it is reachable
+from the browser, from `gcloud`, or from any probe above — the secret is the one part of
+the sign-in path with no external observable. When the three origin probes pass and
+sign-in still fails, **this is the answer**, and the fix is to paste a fresh secret from
+the Cloud Console client into that Firebase field.
+
+Two traps make a rotation silently half-complete:
+
+- **Google shows a client secret exactly once**, at creation. Clicking _Add secret_
+  without copying it in that moment leaves nothing to paste, and the Firebase side is
+  unchanged. Confirm the save by navigating away and reopening the panel.
+- **Adding a secret does not replace the old one.** A client holds several, and Firebase
+  keeps its own copy. Deleting an old secret while Firebase still holds it breaks a
+  working site with no deploy and no code change — which is how this one broke.
+
+Nothing here needs a rebuild or deploy. Identity Toolkit reads the provider config live,
+so a corrected secret takes effect within seconds.
+
+Finally, when debugging: **test in a private window**. Firebase persists auth state in
+IndexedDB per origin, so failed attempts accumulate and a fixed backend can still fail in
+the window you were debugging in. `Cross-Origin-Opener-Policy policy would block the
+window.closed call` in the console is unrelated noise from the popup poller — it is not
+the failure, and chasing it wastes time.
 
 ## DNS
 
