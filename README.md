@@ -54,16 +54,42 @@ Early development. The engine and procedural map generator come first and are pl
 terminal before any server or UI exists — the point is to tune game feel against simulation data
 rather than intuition.
 
+## The Dinner Party
+
+A second game lives in the same app, for a room rather than a group chat: **Sleeping Beauty as
+an assembly puzzle**, for up to twenty guests on their phones at a real party. Someone at the
+christening laid the curse, every guest wears a public costume, and the clues constrain the
+culprit's costume rather than naming anyone — so the hall solves it by talking, and only the
+curser's phone can hand over something untrue.
+
+It is built so a five-year-old is genuinely playing rather than being kept busy. Children hold
+clues sealed behind a pretend-favour, so the grown-ups cannot finish their puzzle without
+kneeling to a child first — two coupled games, one of which needs no reading at all.
+
+Both shapes start from the same grid and share the ordinary `/g/:id` invite link. **Dinner
+Party** is the hunt and needs three grown-ups or more; with two, the innocent one can never
+carry a vote. **Bedtime Party** is co-operative — nobody present laid the curse, the culprit is
+a courtier who went home, and a family of four can finish in about ten minutes. Either way the
+host deals the roles whenever the guest list is settled, and each guest's page becomes their
+private invitation: their character, their costume, their ability, and one guest's secret.
+
+Design and decisions: [docs/design/dinner-party.md](docs/design/dinner-party.md).
+
 ## Repository layout
 
 ```
 packages/engine/   Pure rules: map generation, orders, pact contest, resolution, bots
+packages/engine/src/party/   The dinner party: the tale, the evening, and its redactor
+packages/server/   Fastify API over Firestore: lobbies, turn resolution, the deadline sweep
+packages/web/      React client: the map, the orders panel, and the invitation
 tools/simulate/    Balance harness — runs seeded bot games and reports fairness/social metrics
 tools/mapviz/      Renders generated maps to SVG so the generator can be eyeballed
 ```
 
 The engine is a pure function of `(state, orders, ctx)` with no clock, no I/O, and no ambient
-randomness — a constraint enforced by ESLint, not convention. That purity is what makes replays
+randomness — a constraint enforced by ESLint, not convention. The party lives inside that same
+package for exactly that reason: it inherits the purity rules by path, so its deal replays
+bit-for-bit too. That purity is what makes replays
 exact, makes crash recovery a matter of simply re-running the turn, and lets the browser run the
 identical code to preview orders.
 

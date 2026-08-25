@@ -2,7 +2,7 @@
  * Every move a guest can make, as one pure function.
  *
  * The prototype had eight HTTP handlers doing their own validation
- * (`server.mjs:473-627`). They collapse to one switch here for two reasons:
+ * (in the prototype). They collapse to one switch here for two reasons:
  * the server then has a single transaction shape, and every rule becomes
  * testable without an emulator.
  *

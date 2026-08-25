@@ -53,7 +53,7 @@ export function burnCandle(state: PartyState, why: string): void {
  *
  * The majority is measured against **every voice still in the room**, not
  * against the voices actually raised. The prototype's comment claimed the
- * latter and its code did the former (`server.mjs:141` against `:180`); this
+ * latter and its code did the former (the prototype against `:180`); this
  * keeps the code, because that is the rule two thousand simulated parties were
  * checked under, and because a hall of twenty where six people are holding
  * drinks should not be able to banish somebody on four votes. Deal-ahead makes

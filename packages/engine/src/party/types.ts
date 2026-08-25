@@ -6,7 +6,7 @@
  * the discipline: state is a plain value, every draw comes from a named
  * substream, and nothing reaches a client except through a redactor.
  *
- * Two structural departures from the prototype in `prototypes/dinner-party/`:
+ * Two structural departures from the prototype (`git show b298e05`):
  *
  * 1. **Guests are integers, not names.** There, pairs were matched on a typed-in
  *    name (`allyName` / `byName` / `allyOf`) and votes were keyed by name in an

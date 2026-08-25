@@ -7,7 +7,8 @@
  * guest is left, because costumes are dealt distinct. That is what makes it
  * solvable by talking rather than by luck.
  *
- * Ported from `prototypes/dinner-party/tale.mjs`, where every shuffle read
+ * Ported from `tale.mjs` in the prototype (deleted; `git show b298e05`),
+ * where every shuffle read
  * `Math.random()`. Here each draws from a named substream, so a party replays
  * exactly and adding a draw to one step cannot silently shift another.
  */
@@ -200,7 +201,7 @@ function buildDeck(state: PartyState, culprit: PartyGuest, rng: Rng): Piece[] {
  * advance interleaved between two encounters cannot shift the stream. The
  * budget only ever falls, so the key is fresh by construction.
  *
- * **The prototype's sixth variant is gone.** `tale.mjs:170` could produce
+ * **The prototype's sixth variant is gone.** the prototype could produce
  * `"<innocent> never left the hall. It was not them."` — which is *true*, and
  * already in the deck for every innocent. Handing it over spent one of the
  * curser's two or three falsehoods, marked them in the lie ledger for the

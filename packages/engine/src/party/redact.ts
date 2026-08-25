@@ -1,8 +1,9 @@
 /**
  * The single choke point through which a party reaches a guest.
  *
- * This is `viewFor` (`prototypes/dinner-party/server.mjs:238-371`) moved into
- * the engine beside `redact.ts`, keyed on a seat rather than an opaque token.
+ * This is `viewFor` from the prototype (`git show b298e05 -- prototypes`),
+ * moved into the engine beside `redact.ts` and keyed on a seat rather than an
+ * opaque token.
  * The property that matters is the one the prototype's own header claimed and
  * this must not lose: **it assembles, it does not filter.** Anything not
  * addressed to the viewer is never built, rather than built and stripped.
