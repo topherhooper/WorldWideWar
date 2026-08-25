@@ -79,6 +79,11 @@ export function Home() {
             <span className="muted">3&ndash;20 guests · one evening</span>
           </button>
 
+          {/* Named as its own game, not as a diff against the card above it. The
+              grid is scanned rather than read in order, so "the same tale" only
+              means anything to somebody who happened to read Dinner Party first
+              — and it left the one card aimed at a family never naming the
+              story it tells. */}
           <button
             data-testid="bedtime-party"
             className="preset-card"
@@ -86,7 +91,7 @@ export function Home() {
             onClick={() => void create({ kind: 'party', mode: 'together' })}
           >
             <strong>Bedtime Party</strong>
-            <span>The same tale, but nobody here did it — work it out together.</span>
+            <span>Sleeping Beauty — nobody here laid the curse, so solve it together.</span>
             <span className="muted">from 2 people · about ten minutes</span>
           </button>
         </div>

@@ -53,4 +53,22 @@ describe('Home', () => {
     );
     cleanup();
   });
+
+  // Each mode is a separate game, so each card has to stand on its own. The
+  // bedtime card used to read "the same tale, but nobody here did it", which
+  // names no story at all unless you read the card beside it first.
+  it.each(['dinner-party', 'bedtime-party'])(
+    'describes %s without leaning on another card',
+    (testId) => {
+      render(
+        <MemoryRouter>
+          <Home />
+        </MemoryRouter>,
+      );
+      const text = screen.getByTestId(testId).textContent ?? '';
+      expect(text).toContain('Sleeping Beauty');
+      expect(text).not.toMatch(/the same|as above|like the other/i);
+      cleanup();
+    },
+  );
 });
