@@ -140,6 +140,83 @@ minutes; `MIN_TURN_MINUTES` is 5) for a saving of $0.00. Don't.
 **Cloud DNS** is $0.20/month for the `topherhooper-com` zone, and is the price of the
 domain working.
 
+## Setting the budget to a reasonable level
+
+The $15 budget was not wrong so much as **aimed at the wrong thing**. It is scoped to the
+whole billing account, so it cannot distinguish "the game is misbehaving" from "something
+else on the account is." That is exactly how a Cloud SQL instance came to read as "the
+site is too expensive." One account-wide number cannot answer a per-project question.
+
+The fix is two budgets, not a bigger one.
+
+### What this site actually costs
+
+Once the baseline is gone, everything World Wide War does lands inside a free tier except
+DNS. Free tiers are **per billing account**, not per project, so these hold only while
+nothing else on the account is eating the same allowance:
+
+| Service           | What we use                    | Free tier                  | Cost   |
+| ----------------- | ------------------------------ | -------------------------- | ------ |
+| Cloud Run         | ~13k vCPU-s, ~90k requests     | 180k vCPU-s, 2M requests   | $0     |
+| Firestore         | ~5k reads/day                  | 50k reads, 20k writes /day | $0     |
+| Cloud Build       | ~20 builds/month               | 2,500 min (restored)       | $0     |
+| Firebase Hosting  | one small bundle, five players | 10GB stored, 360MB/day out | $0     |
+| Artifact Registry | ~1GB with a cleanup policy     | 0.5GB                      | ~$0.05 |
+| Secret Manager    | 2 secrets                      | 6 active versions          | $0     |
+| Cloud Scheduler   | 1 job                          | 3 jobs                     | $0     |
+| Cloud Logging     | small                          | 50GB                       | $0     |
+| Cloud DNS         | one zone                       | none                       | $0.20  |
+
+**Roughly $0.30–0.60/month.** The honest number for running this game is well under a
+dollar, and nearly all of it is the DNS zone that makes the domain work.
+
+### The two budgets
+
+**Project-scoped, $3.** The "is the game misbehaving" alarm. Against ~$0.50 of expected
+spend that is 5x headroom, so any alert from it is genuinely anomalous and worth opening.
+
+**Account-wide, set to what you actually expect the account to total.** $5 once the
+baseline is deleted; ~$15 if it stays. This is the "is anything misbehaving" alarm, and
+keeping it separate is the entire point — it can fire without implicating this repo.
+
+```bash
+BILLING=00E12D-1377B4-9CA7C4
+
+gcloud billing budgets create \
+  --billing-account=$BILLING \
+  --display-name="worldwidewar - 3" \
+  --budget-amount=3USD \
+  --filter-projects="projects/fluted-citizen-269819" \
+  --threshold-rule=percent=0.5 \
+  --threshold-rule=percent=1.0 \
+  --threshold-rule=percent=1.0,basis=forecasted-spend
+
+gcloud billing budgets list --billing-account=$BILLING   # then update 'low cost - 15'
+```
+
+### Add a forecast rule, which is the part that actually helps
+
+Every alert this account has ever sent is an **actual-spend** alert, and actual spend is a
+lagging indicator. The launch-week spike ran Aug 12–17; the 90% alert landed Aug 17 and
+100% on Aug 22, days after the spending had already stopped. An alert that arrives after
+the money is gone is a receipt, not a warning.
+
+`basis=forecasted-spend` fires when the _projected_ month-end total crosses the threshold,
+which on that same spike would have been about Aug 14 — while it was still happening. It
+is one extra `--threshold-rule` and it is the single highest-value change here.
+
+Note that `--threshold-rule` replaces the whole rule set on an update rather than merging
+into it, the same trap as the API key referrers in `deployment.md`: restate every rule you
+want to keep.
+
+### The ceiling you already have
+
+Worth knowing, because it bounds the worst case: `--max-instances=1` in `cloudbuild.yaml`
+is a real spend cap, and the only hard one in this system. One Cloud Run instance
+saturated continuously for a month is ~$65 — that is the architectural worst case for a
+runaway, not an unbounded bill. Five friends cannot reach it. Do not raise `max-instances`
+without re-reading this line.
+
 ## If the budget needs to be a cap
 
 There is no built-in way. The only real mechanism is a budget → Pub/Sub → Cloud Function
