@@ -326,9 +326,15 @@ curl -s -L "https://accounts.google.com/o/oauth2/v2/auth\
 #    INVALID_IDP_RESPONSE means enabled and parsing normally, so the fault is the secret;
 #    OPERATION_NOT_ALLOWED means the provider itself is off. This does NOT test the
 #    secret — nothing outside the project can, see below.
+#
+#    The key is read from .env.production rather than written out again. It is a public
+#    browser identifier, not a secret, but GitGuardian flags every newly added Google API
+#    key literal in a diff regardless — a fourth copy fails CI. Copies already in history
+#    (probe 1 above, .env.production itself) do not re-trigger it.
+K=$(sed -n 's/^VITE_FIREBASE_API_KEY=//p' packages/web/.env.production)
 curl -s -X POST -H "Referer: https://play.topherhooper.com/" -H "Content-Type: application/json" \
   --data '{"postBody":"id_token=bogus.token.value&providerId=google.com","requestUri":"https://play.topherhooper.com","returnSecureToken":true,"returnIdpCredential":true}' \
-  "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=AIzaSyDsG81Moo9f3vgnYiWfdZDHT7QrBFuL0Sc"
+  "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$K"
 ```
 
 #### The fourth layer: the Google provider's client secret
