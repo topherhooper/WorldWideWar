@@ -78,13 +78,6 @@ function allyOf(room, player) {
 }
 
 /**
- * Vote weight. A grown-up carries one voice, plus one for every grown-up who has knelt
- * to a child of theirs, capped so a popular five-year-old is decisive but not a dictator.
- * This is where the two games meet: playing pretend well is what wins the argument.
- */
-const CROWN_CAP = 3;
-
-/**
  * The candles are the curser's clock, and the reason a wrongful banishment hurts.
  * One burns at the end of every round. Banishing an innocent burns a second, because
  * the hall spent its accusation on the wrong neck. When the last one goes out, Aurora
@@ -94,16 +87,19 @@ const CANDLES = 5;
 /** How long the hall has to nominate and speak once the bell has rung. */
 const VOTE_SECONDS = 90;
 const voteWindow = (room) => (room.voteSeconds > 0 ? room.voteSeconds : VOTE_SECONDS);
+
+/**
+ * Vote weight. A guest speaks with one voice; a duo speaks with two, because they are
+ * one character with two people in it. Nothing else moves the number.
+ *
+ * An earlier version scaled weight with the child's crowns, which made the pretend game
+ * decide the argument but also put a well-liked five-year-old's grown-up at six voices
+ * against a plain guest's one -- decisive alone in a hall of twelve, and a number no
+ * amount of simulation could settle. A flat two is a rule anybody can hold in their head
+ * at a party, which matters more here than the extra texture did.
+ */
 function weightOf(room, player) {
-  const crowns = room.players
-    .filter((p) => p.young && allyOf(room, p) === player)
-    .reduce((n, child) => n + child.curtsies.length, 0);
-  // The Godmother's whole character: her godchild's crowns count twice, so she reaches
-  // the ceiling on half the kneeling. The ceiling itself barely moves -- doubling the
-  // count *and* the cap put her at six voices against a plain guest's one, which decides
-  // a hall of twelve on its own. Untested against real players; a guess, not a finding.
-  const doubled = player.duo?.id === 'godmother' ? crowns * 2 : crowns;
-  return 1 + Math.min(doubled, player.duo?.id === 'godmother' ? CROWN_CAP + 1 : CROWN_CAP);
+  return player.duo === null ? 1 : 2;
 }
 
 /**
@@ -324,8 +320,12 @@ function viewFor(room, token) {
       part: me.part,
       costume: me.costume,
       favour: me.favour === null ? null : me.favour.kid,
-      // Your pieces, unattributed and unlabelled. Nothing here says which are true.
-      pieces: me.pieces.map((p) => p.text),
+      // Your pieces, unattributed. Nothing marks a falsehood -- unless you are the
+      // Godmother, whose whole character is being able to tell.
+      pieces: me.pieces.map((p) => ({
+        text: p.text,
+        fake: me.duo?.id === 'godmother' ? p.fake === true : null,
+      })),
       met: me.met,
       curtsies: me.curtsies,
       ally: ally === null ? null : { name: ally.name, part: ally.part },

@@ -363,7 +363,13 @@
       function grownView(v) {
         const me = v.me;
         if (me.lies === 0) armed = false;
-        const pieces = me.pieces.map((x) => `<li>${esc(x)}</li>`).join('');
+        // A piece reads the same to everyone. Only the Godmother is told which are false.
+        const pieces = me.pieces
+          .map(
+            (x) =>
+              `<li>${esc(x.text)}${x.fake === true ? ' <span class="fib">a lie</span>' : ''}</li>`,
+          )
+          .join('');
 
         const queue = me.toConfirm
           .map(
