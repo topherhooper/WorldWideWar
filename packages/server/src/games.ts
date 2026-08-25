@@ -36,6 +36,7 @@ import {
   effectiveRules,
   games,
   humanSlots,
+  isPartyDoc,
   liveHumanSlots,
   ordersCol,
   orderDocId,
@@ -47,6 +48,7 @@ import {
   usersCol,
   type GameDoc,
   type OrderDoc,
+  type WarGameDoc,
 } from './store.js';
 
 export interface AuthedUser {
@@ -124,6 +126,16 @@ async function loadGame(db: Firestore, gameId: string): Promise<GameDoc> {
   return snap.data() as GameDoc;
 }
 
+/**
+ * The war game's half of every endpoint that predates the party. A party
+ * reaching one of these is a routing mistake, not a user error, but it answers
+ * as a 409 rather than a 500 because a stale web bundle can genuinely send one.
+ */
+export function asWarDoc(doc: GameDoc, what = 'that'): WarGameDoc {
+  if (isPartyDoc(doc)) throw new HttpError(409, `a dinner party has no ${what}`);
+  return doc;
+}
+
 function slotOf(doc: GameDoc, uid: string): number | null {
   const slot = doc.seats.findIndex((s) => s !== null && s.uid === uid);
   return slot === -1 ? null : slot;
@@ -152,9 +164,9 @@ export async function getView(
   db: Firestore,
   gameId: string,
   user: AuthedUser,
-  doc?: GameDoc,
+  doc?: WarGameDoc,
 ): Promise<GameView> {
-  const game = doc ?? (await loadGame(db, gameId));
+  const game = doc ?? asWarDoc(await loadGame(db, gameId), 'map');
   const mySlot = slotOf(game, user.uid);
   const state = parseState(game);
 
@@ -196,6 +208,7 @@ export async function getView(
   }
 
   return {
+    kind: 'war',
     id: gameId,
     status: game.status,
     playerCount: game.playerCount,
@@ -241,7 +254,7 @@ async function readLobbyLists(
   tx: FirebaseFirestore.Transaction,
   db: Firestore,
   gameId: string,
-  game: GameDoc,
+  game: WarGameDoc,
 ): Promise<(string[] | null)[]> {
   const lists: (string[] | null)[] = new Array(game.playerCount).fill(null);
   if ((game.rules.contest ?? 'pact') !== 'tiers') return lists;
@@ -258,7 +271,7 @@ async function readLobbyLists(
   return lists;
 }
 
-function canActivate(game: GameDoc, lobbyLists: readonly (string[] | null)[]): boolean {
+function canActivate(game: WarGameDoc, lobbyLists: readonly (string[] | null)[]): boolean {
   if (!game.seats.every((seat) => seat !== null)) return false;
   if ((game.rules.contest ?? 'pact') !== 'tiers') return true;
   // A seat is not ready until its first list is in.
@@ -266,7 +279,7 @@ function canActivate(game: GameDoc, lobbyLists: readonly (string[] | null)[]): b
 }
 
 /** Mutates `doc` in place: the game begins now. */
-function activate(doc: GameDoc, now: Timestamp, lobbyLists: readonly (string[] | null)[]): void {
+function activate(doc: WarGameDoc, now: Timestamp, lobbyLists: readonly (string[] | null)[]): void {
   doc.status = 'active';
   const map = parseMap(doc);
   const state = createInitialState(map, effectiveRules(doc));
@@ -304,7 +317,7 @@ export async function joinGame(db: Firestore, gameId: string, user: AuthedUser):
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
-    const game = snap.data() as GameDoc;
+    const game = asWarDoc(snap.data() as GameDoc, 'seat to claim this way');
     if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
     if (slotOf(game, user.uid) !== null) throw new HttpError(409, 'already seated');
     const lobbyLists = await readLobbyLists(tx, db, gameId, game);
@@ -331,7 +344,7 @@ export async function startGame(
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
-    const game = snap.data() as GameDoc;
+    const game = asWarDoc(snap.data() as GameDoc, 'start — a party is dealt, then rung in');
     if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can start');
     if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
     const lobbyLists = await readLobbyLists(tx, db, gameId, game);
@@ -362,7 +375,7 @@ export async function updateConfig(
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
-    const game = snap.data() as GameDoc;
+    const game = asWarDoc(snap.data() as GameDoc, 'table size or turn length');
     if (game.createdBy !== user.uid) throw new HttpError(403, 'only the creator can configure');
     if (game.status !== 'lobby') throw new HttpError(409, 'game already started');
 
@@ -442,7 +455,7 @@ export async function submitLobbyList(
   const doc = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
-    const game = snap.data() as GameDoc;
+    const game = asWarDoc(snap.data() as GameDoc, 'tier lists');
     if ((game.rules.contest ?? 'pact') !== 'tiers') {
       throw new HttpError(409, 'this game has no tier lists');
     }
@@ -484,7 +497,10 @@ export async function submitOrders(
   const { turn, allLocked, warnings } = await db.runTransaction(async (tx) => {
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) throw new HttpError(404, 'game not found');
-    const game = snap.data() as GameDoc;
+    const game = asWarDoc(
+      snap.data() as GameDoc,
+      'orders — a party is played by acting, not by submitting',
+    );
     if (game.status !== 'active') throw new HttpError(409, 'game is not active');
     const mySlot = slotOf(game, user.uid);
     if (mySlot === null) throw new HttpError(403, 'not seated in this game');
@@ -552,6 +568,7 @@ export async function listGames(db: Firestore, user: AuthedUser): Promise<GameSu
 
   return rows.map(({ id, doc, mySlot }) => ({
     id,
+    kind: isPartyDoc(doc) ? ('party' as const) : ('war' as const),
     status: doc.status,
     playerCount: doc.playerCount,
     seatsFilled: doc.seats.filter((s) => s !== null).length,

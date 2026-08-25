@@ -24,6 +24,7 @@ import {
   serializeState,
   type GameDoc,
   type OrderDoc,
+  isPartyDoc,
 } from './store.js';
 
 export interface ResolutionOutcome {
@@ -49,6 +50,10 @@ export async function resolveGameTurn(
     const snap = await tx.get(games(db).doc(gameId));
     if (!snap.exists) return null;
     const game = snap.data() as GameDoc;
+    // A dinner party has no turns to resolve. `tick.ts` already routes them
+    // elsewhere; this is the second lock, so no future caller can reach the war
+    // resolver with a document that has no map and no war state.
+    if (isPartyDoc(game)) return null;
     if (game.status !== 'active' || game.turn !== expectedTurn) return null;
 
     const state = parseState(game);
