@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sleeping Beauty</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        background: #161022;
+        color: #f2ecf7;
+        display: flex;
+        justify-content: center;
+      }
+      main {
+        width: min(430px, 100vw);
+        padding: 22px 18px 70px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      p.sub {
+        margin: 0 0 20px;
+        color: #a396b5;
+        font-size: 14px;
+      }
+      button {
+        font: inherit;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 0;
+        width: 100%;
+        background: #8b4fa8;
+        color: #fff;
+        margin-top: 10px;
+        cursor: pointer;
+      }
+      button.ghost {
+        background: #2a2137;
+        color: #f2ecf7;
+      }
+      button.small {
+        width: auto;
+        padding: 7px 12px;
+        margin: 0;
+        font-size: 14px;
+        background: #3d2f52;
+      }
+      input[type='text'] {
+        font: inherit;
+        padding: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid #3a3050;
+        background: #1e1830;
+        color: inherit;
+      }
+      label.check {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 14px 0;
+        font-size: 15px;
+      }
+      .code {
+        font-size: 44px;
+        letter-spacing: 0.22em;
+        font-weight: 700;
+        text-align: center;
+        margin: 16px 0 2px;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 14px 0;
+      }
+      li {
+        padding: 10px 12px;
+        background: #1e1830;
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .muted {
+        color: #a396b5;
+        font-size: 13px;
+      }
+      .card {
+        border-radius: 14px;
+        padding: 20px;
+        margin: 16px 0;
+      }
+      .card.clue {
+        background: #1b2f2a;
+        border: 1px solid #2f6b5a;
+      }
+      .banner {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        color: #c9a6e0;
+      }
+      .err {
+        color: #f39;
+        font-size: 14px;
+        margin-top: 10px;
+      }
+      .kid {
+        text-align: center;
+      }
+      .kid .part {
+        font-size: 34px;
+        font-weight: 800;
+        margin: 10px 0 2px;
+        line-height: 1.15;
+      }
+      .crowns {
+        font-size: 36px;
+        line-height: 1.35;
+        word-break: break-word;
+        margin: 12px 0 4px;
+      }
+      .kidnum {
+        font-size: 64px;
+        font-weight: 800;
+        margin: 0;
+      }
+      .quest {
+        background: #3a2352;
+        border-radius: 14px;
+        padding: 18px;
+        font-size: 19px;
+        margin-top: 18px;
+      }
+      .win {
+        background: #2f6b45;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+      .lose {
+        background: #6b2f3f;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script>
+      const app = document.getElementById('app');
+      let token = sessionStorage.getItem('tok') || '';
+      let code = location.pathname.startsWith('/r/')
+        ? location.pathname.slice(3).toUpperCase()
+        : sessionStorage.getItem('code') || '';
+      let err = '';
+      const esc = (s) =>
+        String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+      const api = async (path, opts) => {
+        const r = await fetch(path, opts);
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || 'something broke');
+        return body;
+      };
+      const post = (action, data) =>
+        api('/api/rooms/' + code + '/' + action, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token, ...data }),
+        });
+
+      function remember(t) {
+        token = t;
+        sessionStorage.setItem('tok', t);
+        sessionStorage.setItem('code', code);
+      }
+
+      async function host(name, young) {
+        const r = await api('/api/rooms', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name, young }),
+        });
+        code = r.code;
+        remember(r.token);
+        tick();
+      }
+
+      function landing() {
+        app.innerHTML = `
+          <h1>Sleeping Beauty</h1>
+          <p class="sub">A christening, and somebody in the room laid a curse.</p>
+          <input type="text" id="hn" placeholder="Your name" />
+          <label class="check"><input type="checkbox" id="hy" /> I'm a little kid</label>
+          <button id="h">I'm hosting</button>
+          <p class="sub" style="margin:22px 0 8px">or type the code the host read out</p>
+          <input type="text" id="c" maxlength="4" placeholder="ABCD" style="text-transform:uppercase" />
+          <button class="ghost" id="j">Join</button>`;
+        document.getElementById('h').onclick = () =>
+          host(document.getElementById('hn').value, document.getElementById('hy').checked);
+        document.getElementById('j').onclick = () => {
+          code = document.getElementById('c').value.toUpperCase();
+          if (code.length === 4) {
+            sessionStorage.setItem('code', code);
+            tick();
+          }
+        };
+      }
+
+      function nameForm(v) {
+        const grownups = (v ? v.roster : []).filter((p) => !p.young).map((p) => p.name);
+        app.innerHTML = `
+          <h1>Room ${code}</h1>
+          <p class="sub">Who has come to the christening?</p>
+          <input type="text" id="n" placeholder="Your name" />
+          <label class="check"><input type="checkbox" id="y" /> I'm a little kid</label>
+          <div id="ally" style="display:none">
+            <p class="sub" style="margin:4px 0">Which grown-up are you here with? They'll be your secret ally.</p>
+            <input type="text" id="a" placeholder="${esc(grownups[0] || 'their name')}" />
+          </div>
+          <button id="go">I'm in</button><div class="err">${esc(err)}</div>`;
+        const y = document.getElementById('y');
+        y.onchange = () => {
+          document.getElementById('ally').style.display = y.checked ? 'block' : 'none';
+        };
+        document.getElementById('go').onclick = () => {
+          post('join', {
+            name: document.getElementById('n').value,
+            young: y.checked,
+            allyName: document.getElementById('a').value,
+          })
+            .then((r) => {
+              remember(r.token);
+              render(r.view);
+            })
+            .catch((x) => {
+              err = x.message;
+              nameForm(v);
+            });
+        };
+      }
+
+      function lobby(v) {
+        const seats = v.roster
+          .map(
+            (p) =>
+              `<li class="row"><span>${esc(p.name)}</span>${p.young ? '<span class="muted">little kid</span>' : ''}</li>`,
+          )
+          .join('');
+        app.innerHTML = `
+          <h1>${v.isHost ? 'You are hosting' : 'Waiting for the host'}</h1>
+          <p class="sub">${v.isHost ? 'Read this out loud:' : 'Room'}</p>
+          <div class="code">${v.code}</div>
+          <p class="sub" style="text-align:center">${v.roster.length} of 20 guests</p>
+          <ul>${seats}</ul>
+          ${v.isHost ? '<button id="d">Begin the christening</button><div class="err">' + esc(err) + '</div>' : ''}`;
+        const d = document.getElementById('d');
+        if (d)
+          d.onclick = () => {
+            err = '';
+            post('deal')
+              .then(render)
+              .catch((x) => {
+                err = x.message;
+                tick();
+              });
+          };
+      }
+
+      // The child's screen. Big, and nothing on it needs to be read to be played.
+      function kidView(v) {
+        const me = v.me;
+        app.innerHTML = `
+          <div class="kid">
+            <p class="banner">you are</p>
+            <div class="part">${esc(me.part)}</div>
+            <p class="sub">in a ${esc(me.costume.gown)} gown, holding ${esc(me.costume.gift)}</p>
+            <div class="quest">The grown-ups need what you know.<br />They must <b>${esc(me.favour)}</b> first.</div>
+            <p class="banner" style="margin-top:26px">grown-ups who have knelt to you</p>
+            <p class="kidnum">${me.curtsies.length}</p>
+            <div class="crowns">${'\u{1F451}'.repeat(me.curtsies.length) || '—'}</div>
+            <ul>${me.curtsies.map((n) => '<li>' + esc(n) + '</li>').join('')}</ul>
+            ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. Nobody else knows.</p>' : ''}
+          </div>`;
+      }
+
+      // The grown-up's screen: one clue of your own, and a board to reason over.
+      function grownView(v) {
+        const me = v.me;
+        const guests = v.roster
+          .map(
+            (
+              p,
+            ) => `<li><div class="row"><b>${esc(p.name)}</b><span class="muted">${esc(p.part)}</span></div>
+              <div class="muted">${esc(p.costume.gown)} gown · ${esc(p.costume.gift)} · ${esc(p.costume.place)}</div></li>`,
+          )
+          .join('');
+        const sealed = me.sealed
+          .map((s) =>
+            s.open
+              ? `<li><div class="muted">from ${esc(s.part)} (${esc(s.holder)})</div>${esc(s.clue)}</li>`
+              : `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
+                   <button class="small" data-holder="${esc(s.holder)}">Done</button></div>
+                 <div class="muted">sealed — you must ${esc(s.favour)}</div></li>`,
+          )
+          .join('');
+
+        const verdict =
+          me.accusedName === null
+            ? ''
+            : me.correct
+              ? `<div class="win">You named <b>${esc(me.accusedName)}</b>, and you were right.</div>`
+              : `<div class="lose">You named <b>${esc(me.accusedName)}</b>. It was not them.</div>`;
+
+        app.innerHTML = `
+          <h1>${esc(me.part)}</h1>
+          <p class="sub">${esc(me.costume.gown)} gown · ${esc(me.costume.gift)} · ${esc(me.costume.place)}</p>
+          <div class="card clue"><div class="banner">what you know</div>${esc(me.clue || 'nothing at all')}</div>
+          ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. You win or lose together.</p>' : ''}
+          <p class="banner" style="margin-top:22px">the children hold clues</p>
+          <ul>${sealed || '<li class="muted">no children at this christening</li>'}</ul>
+          <p class="banner" style="margin-top:22px">who was at the christening</p>
+          <ul>${guests}</ul>
+          ${v.over ? '<div class="win">It was <b>' + esc(v.culprit) + '</b>.</div>' : ''}
+          ${verdict}
+          ${
+            me.accusedName === null && !v.over
+              ? '<input type="text" id="s" placeholder="Name the one who cursed her" /><button id="acc">Accuse</button>'
+              : ''
+          }
+          <div class="err">${esc(err)}</div>`;
+
+        app.querySelectorAll('button[data-holder]').forEach((b) => {
+          b.onclick = () =>
+            post('unseal', { holder: b.dataset.holder })
+              .then(render)
+              .catch((x) => {
+                err = x.message;
+                tick();
+              });
+        });
+        const acc = document.getElementById('acc');
+        if (acc)
+          acc.onclick = () => {
+            err = '';
+            post('accuse', { suspect: document.getElementById('s').value })
+              .then(render)
+              .catch((x) => {
+                err = x.message;
+                tick();
+              });
+          };
+      }
+
+      function render(v) {
+        if (!v.dealt || v.me === null || v.me.part === null) return lobby(v);
+        return v.me.young ? kidView(v) : grownView(v);
+      }
+
+      async function tick() {
+        if (!code) return landing();
+        let v;
+        try {
+          v = await api('/api/rooms/' + code + '/view?token=' + encodeURIComponent(token));
+        } catch {
+          sessionStorage.clear();
+          code = '';
+          token = '';
+          return landing();
+        }
+        if (!v.seated) return nameForm(v);
+        render(v);
+      }
+
+      tick();
+      setInterval(() => {
+        if (code && !document.querySelector('input:focus')) tick();
+      }, 2000);
+    </script>
+  </body>
+</html>

@@ -3,73 +3,25 @@
 //
 //   node prototypes/dinner-party/server.mjs      # then open http://localhost:8787
 //
+// Two games in one room (decision 6). The grown-ups assemble the tale from clues; the
+// children hold clues that are sealed until a grown-up plays pretend with them. Neither
+// half can finish alone.
+//
 // The one thing here that is trying to be right is `viewFor` -- the single function a
-// role can pass through on its way to a client, the way `packages/engine/src/redact.ts`
+// secret can pass through on its way to a client, the way `packages/engine/src/redact.ts`
 // is the single exit for game state.
 
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
-import { PAGE } from './page.mjs';
+const PAGE = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+import { buildTale } from './tale.mjs';
 
 const PORT = Number(process.env.PORT ?? 8787);
+const MAX_PLAYERS = 20;
 
-// ─── The cast ────────────────────────────────────────────────────────────────
-//
-// Two pools, and which one you are dealt from depends on age, not luck. A player who
-// cannot hold a secret for an hour is never dealt one: the kid pool is all public jobs
-// with something concrete to DO, and every kid card is safe to read aloud.
-
-const SECRET_ROLES = [
-  {
-    name: 'The Murderer',
-    secret: true,
-    card: 'You did it. The pudding was yours. Do not get caught.',
-  },
-  {
-    name: 'The Detective',
-    secret: true,
-    card: 'You are on the case. You may ask one person a direct question each course.',
-  },
-  {
-    name: 'The Heir',
-    secret: true,
-    card: 'You needed the money. You are innocent, and it looks terrible.',
-  },
-  {
-    name: 'The Old Friend',
-    secret: true,
-    card: 'You know a secret about the Heir. You are innocent.',
-  },
-  {
-    name: 'The Rival',
-    secret: true,
-    card: 'You argued with the victim tonight. You are innocent.',
-  },
-  { name: 'The Neighbour', secret: true, card: 'You saw someone in the garden. You are innocent.' },
-];
-
-const KID_ROLES = [
-  {
-    name: 'The Bell-Ringer',
-    secret: false,
-    card: 'Your job: ring the bell whenever you want. Everyone must stop and say where they were. Tell people your job -- it is not a secret.',
-  },
-  {
-    name: 'The Dog',
-    secret: false,
-    card: 'Your job: you saw everything, but you can only bark. Bark twice when someone says something untrue. Tell people your job -- it is not a secret.',
-  },
-  {
-    name: 'The Waiter',
-    secret: false,
-    card: 'Your job: bring one person a napkin whenever you like. That person must then say one true thing. Tell people your job -- it is not a secret.',
-  },
-];
-
-// ─── State ───────────────────────────────────────────────────────────────────
-
-/** code -> { hostToken, dealt, players: [{ id, token, name, young, role }] } */
+/** code -> room */
 const rooms = new Map();
 
 function makeCode() {
@@ -79,66 +31,107 @@ function makeCode() {
   return rooms.has(code) ? makeCode() : code;
 }
 
-function shuffled(list) {
-  const out = list.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+function newPlayer(name, young, allyName) {
+  return {
+    id: randomUUID(),
+    token: randomUUID(),
+    name,
+    young,
+    allyName: allyName || null,
+    part: null,
+    costume: null,
+    clue: null,
+    favour: null,
+    /** ids of players whose sealed clue this player has unlocked. */
+    unsealed: [],
+    /** names of grown-ups who have played pretend with this child. */
+    curtsies: [],
+    accusedName: null,
+    correct: null,
+  };
 }
 
-function deal(room) {
-  const kids = room.players.filter((p) => p.young);
-  const grownups = room.players.filter((p) => !p.young);
-  if (grownups.length < 2)
-    return { error: 'need at least two grown-ups -- somebody has to be the murderer' };
+const byName = (room, name) =>
+  room.players.find((p) => p.name.toLowerCase() === String(name ?? '').toLowerCase()) ?? null;
 
-  const kidPool = shuffled(KID_ROLES);
-  kids.forEach((p, i) => (p.role = kidPool[i % kidPool.length]));
-
-  // The murderer is always dealt to a grown-up. That is the whole age rule.
-  const grownPool = shuffled(SECRET_ROLES.slice(1)); // everything but the murderer
-  const cast = [SECRET_ROLES[0], ...grownPool].slice(0, grownups.length);
-  shuffled(cast).forEach((role, i) => (grownups[i].role = role));
-
-  room.dealt = true;
-  return { ok: true };
+/** Pairs are mutual: a child names their grown-up, and the link points both ways. */
+function allyOf(room, player) {
+  if (player.allyName) return byName(room, player.allyName);
+  return (
+    room.players.find(
+      (p) => p.allyName && p.allyName.toLowerCase() === player.name.toLowerCase(),
+    ) ?? null
+  );
 }
 
 // ─── The choke point ─────────────────────────────────────────────────────────
 //
-// Every byte a client receives about roles comes from here. A caller identifies itself
-// with a token; anything not addressed to that token is never assembled, not filtered
-// out later. Nothing else in this file serialises a `role`.
+// Every byte a client receives about parts, clues and the culprit comes from here. A
+// caller identifies itself with a token; anything not addressed to that token is never
+// assembled, not filtered out afterwards.
 
 function viewFor(room, token) {
   const me = room.players.find((p) => p.token === token) ?? null;
   const isHost = token === room.hostToken;
 
-  return {
+  const base = {
     code: room.code,
     dealt: room.dealt,
+    over: room.over,
     isHost,
-    // Whether this token belongs to somebody at the table. The client needs to know
-    // before roles exist, so it cannot infer it from `me` alone.
     seated: me !== null,
-    // The roster is public: names, and who is playing as a kid. Never roles.
-    roster: room.players.map((p) => ({ name: p.name, young: p.young, ready: p.role !== null })),
-    // Your own card, and only if you are a seated player who has been dealt one.
-    me:
-      me === null || me.role === null
-        ? null
-        : { name: me.name, role: me.role.name, card: me.role.card, secret: me.role.secret },
+    tale: room.tale === null ? null : { title: room.tale.title, prompt: room.tale.prompt },
+    // Costumes are public on purpose: the puzzle is the culprit's costume, so the guests
+    // have to be readable or there is nothing to deduce.
+    roster: room.players.map((p) => ({
+      name: p.name,
+      young: p.young,
+      part: p.part,
+      costume: p.costume,
+      // How many grown-ups have knelt to this child. The child's whole scoreboard.
+      curtsies: p.young ? p.curtsies.length : null,
+    })),
+  };
+
+  if (me === null) return { ...base, me: null };
+
+  const ally = allyOf(room, me);
+  const sealed = room.players
+    .filter((p) => p.young && p.clue !== null && p !== me)
+    .map((p) => ({
+      holder: p.name,
+      part: p.part,
+      favour: p.favour.grown,
+      open: me.unsealed.includes(p.id),
+      clue: me.unsealed.includes(p.id) ? p.clue.text : null,
+    }));
+
+  return {
+    ...base,
+    me: {
+      name: me.name,
+      young: me.young,
+      part: me.part,
+      costume: me.costume,
+      clue: me.clue === null ? null : me.clue.text,
+      favour: me.favour === null ? null : me.favour.kid,
+      curtsies: me.curtsies,
+      // Your ally, and only yours. The rest of the table is not told you are a pair.
+      ally: ally === null ? null : { name: ally.name, part: ally.part },
+      sealed,
+      accusedName: me.accusedName,
+      correct: me.correct,
+    },
+    // Revealed to everyone only once the game is over.
+    culprit: room.over ? room.players.find((p) => p.id === room.tale.culpritId).name : null,
   };
 }
 
 // ─── HTTP ────────────────────────────────────────────────────────────────────
 
 function send(res, status, body) {
-  const json = JSON.stringify(body);
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  res.end(json);
+  res.end(JSON.stringify(body));
 }
 
 async function readBody(req) {
@@ -152,6 +145,11 @@ async function readBody(req) {
   }
 }
 
+const cleanName = (raw) =>
+  String(raw ?? '')
+    .trim()
+    .slice(0, 24);
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const path = url.pathname;
@@ -162,26 +160,26 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/rooms -- the host, before anyone has arrived
   if (path === '/api/rooms' && req.method === 'POST') {
     const body = await readBody(req);
     const code = makeCode();
-    // SURPRISE 1, worked around: the host is a player too, so one token has to carry both
-    // capabilities -- authority to deal, and a seat that gets dealt to. Splitting them
-    // made the host a game master who sits out their own dinner.
-    const token = randomUUID();
-    const name =
-      String(body.name ?? '')
-        .trim()
-        .slice(0, 24) || 'The Host';
-    const room = { code, hostToken: token, dealt: false, players: [] };
-    room.players.push({ id: randomUUID(), token, name, young: body.young === true, role: null });
+    // The host is a player too, so one token carries both capabilities: authority to
+    // deal, and a seat to be dealt to.
+    const player = newPlayer(cleanName(body.name) || 'The Host', body.young === true, null);
+    const room = {
+      code,
+      hostToken: player.token,
+      dealt: false,
+      over: false,
+      tale: null,
+      players: [player],
+    };
     rooms.set(code, room);
-    send(res, 200, { code, token });
+    send(res, 200, { code, token: player.token });
     return;
   }
 
-  const match = /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view)$/.exec(path);
+  const match = /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|unseal|accuse)$/.exec(path);
   if (match === null) {
     send(res, 404, { error: 'not found' });
     return;
@@ -193,52 +191,65 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (action === 'view' && req.method === 'GET') {
+    send(res, 200, viewFor(room, url.searchParams.get('token') ?? ''));
+    return;
+  }
+
+  const body = await readBody(req);
+
   if (action === 'join' && req.method === 'POST') {
-    if (room.dealt) {
-      send(res, 409, { error: 'roles are already out' });
-      return;
-    }
-    const body = await readBody(req);
-    const name = String(body.name ?? '')
-      .trim()
-      .slice(0, 24);
-    if (name === '') {
-      send(res, 400, { error: 'need a name' });
-      return;
-    }
-    const player = {
-      id: randomUUID(),
-      token: randomUUID(),
-      name,
-      young: body.young === true,
-      role: null,
-    };
+    if (room.dealt) return send(res, 409, { error: 'the christening has already begun' });
+    if (room.players.length >= MAX_PLAYERS)
+      return send(res, 409, { error: `${MAX_PLAYERS} guests is a full hall` });
+    const name = cleanName(body.name);
+    if (name === '') return send(res, 400, { error: 'need a name' });
+    if (byName(room, name) !== null)
+      return send(res, 409, { error: 'somebody here is already called that' });
+    const player = newPlayer(name, body.young === true, cleanName(body.allyName));
     room.players.push(player);
     send(res, 200, { token: player.token, view: viewFor(room, player.token) });
     return;
   }
 
+  const me = room.players.find((p) => p.token === body.token) ?? null;
+
   if (action === 'deal' && req.method === 'POST') {
-    const body = await readBody(req);
-    if (body.token !== room.hostToken) {
-      send(res, 403, { error: 'only the host deals' });
-      return;
-    }
-    if (room.dealt) {
-      send(res, 409, { error: 'already dealt' });
-      return;
-    }
-    const result = deal(room);
-    if (result.error) {
-      send(res, 400, result);
-      return;
-    }
+    if (body.token !== room.hostToken) return send(res, 403, { error: 'only the host deals' });
+    if (room.dealt) return send(res, 409, { error: 'already dealt' });
+    const grownups = room.players.filter((p) => !p.young).length;
+    if (grownups < 2)
+      return send(res, 400, { error: 'need at least two grown-ups -- one of them did it' });
+    room.tale = buildTale(room.players);
+    room.dealt = true;
     send(res, 200, viewFor(room, body.token));
     return;
   }
 
-  if (action === 'view' && req.method === 'GET') {
-    send(res, 200, viewFor(room, url.searchParams.get('token') ?? ''));
+  if (action === 'unseal' && req.method === 'POST') {
+    if (me === null) return send(res, 403, { error: 'not at this party' });
+    if (!room.dealt) return send(res, 409, { error: 'nothing dealt yet' });
+    const child = byName(room, body.holder);
+    if (child === null || !child.young) return send(res, 404, { error: 'no such child' });
+    if (!me.unsealed.includes(child.id)) me.unsealed.push(child.id);
+    // The child's scoreboard: the grown-ups who played along.
+    if (!child.curtsies.includes(me.name)) child.curtsies.push(me.name);
+    send(res, 200, viewFor(room, body.token));
+    return;
+  }
+
+  if (action === 'accuse' && req.method === 'POST') {
+    if (me === null) return send(res, 403, { error: 'not at this party' });
+    if (!room.dealt) return send(res, 409, { error: 'nothing dealt yet' });
+    if (me.accusedName !== null)
+      return send(res, 409, { error: 'you have already accused someone' });
+    const suspect = byName(room, body.suspect);
+    if (suspect === null) return send(res, 404, { error: 'nobody here by that name' });
+    me.accusedName = suspect.name;
+    me.correct = suspect.id === room.tale.culpritId;
+    // One correct accusation ends the christening.
+    if (me.correct) room.over = true;
+    send(res, 200, viewFor(room, body.token));
     return;
   }
 
