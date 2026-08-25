@@ -21,6 +21,10 @@ Push to `main` fires the Cloud Build trigger (`Sample`, us-central1) → `cloudb
 docker build/push → `gcloud run deploy www-api` → the same again for `www-party` → vite
 build → `firebase deploy --only hosting`.
 
+The trigger runs as `cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com`
+(roles: run.admin, artifactregistry.writer, firebasehosting.admin, logging.logWriter,
+serviceAccountUser on the compute SA). CI checks stay in GitHub Actions and do not deploy.
+
 ### The Dinner Party service
 
 `www-party` is a second, deliberately unentangled service: its own tiny Dockerfile in
@@ -40,9 +44,6 @@ the reason not to push to `main` on an evening somebody is playing.
 
 Making it durable means moving rooms into Firestore, at which point the service could scale
 normally. That is the work, and it has not been done.
-The trigger runs as `cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com`
-(roles: run.admin, artifactregistry.writer, firebasehosting.admin, logging.logWriter,
-serviceAccountUser on the compute SA). CI checks stay in GitHub Actions and do not deploy.
 
 Documentation-only pushes do not deploy. The trigger carries an `ignoredFiles` filter; when
 every path in a push matches it, Cloud Build never queues a build at all. The globs are the

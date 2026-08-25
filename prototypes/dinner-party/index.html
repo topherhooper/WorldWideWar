@@ -173,6 +173,16 @@
       // The curser arms a falsehood, then chooses who receives it. Client-side only --
       // the server is told at the moment of the encounter, and tells nobody else.
       let armed = false;
+
+      // Polling keeps every phone in step, and is also the only thing this service costs
+      // money for. A tab left open on a finished party would poll forever: one of them is
+      // ~1.3M requests and ~65k vCPU-seconds a month, a third of the Cloud Run free tier,
+      // with nobody playing. So it stops when the page is hidden, stops once the night is
+      // over, and gives up after a long stretch in which nothing changed.
+      const IDLE_GIVE_UP_MS = 45 * 60 * 1000;
+      let lastChange = Date.now();
+      let lastSeen = '';
+      let finished = false;
       const esc = (s) =>
         String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
@@ -518,14 +528,34 @@
           token = '';
           return landing();
         }
+        // Any change at all resets the idle clock; a party that is genuinely quiet for
+        // three quarters of an hour is over whether or not anyone pressed anything.
+        const fingerprint = JSON.stringify(v);
+        if (fingerprint !== lastSeen) {
+          lastSeen = fingerprint;
+          lastChange = Date.now();
+        }
+        if (v.over) finished = true;
         if (!v.seated) return nameForm(v);
         render(v);
       }
 
       tick();
+
       setInterval(() => {
-        if (code && !document.querySelector('input:focus')) tick();
+        if (!code || finished || document.hidden) return;
+        if (Date.now() - lastChange > IDLE_GIVE_UP_MS) return;
+        if (document.querySelector('input:focus')) return;
+        void tick();
       }, 2000);
+
+      // A hidden tab stops polling entirely; catch up the moment it comes back.
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && code && !finished) {
+          lastChange = Date.now();
+          void tick();
+        }
+      });
     </script>
   </body>
 </html>
