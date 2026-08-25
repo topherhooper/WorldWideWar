@@ -42,10 +42,13 @@ function newPlayer(name, young, allyName) {
     costume: null,
     clue: null,
     favour: null,
-    /** ids of players whose sealed clue this player has unlocked. */
+    /** ids of children whose sealed clue this player has unlocked. */
     unsealed: [],
-    /** names of grown-ups who have played pretend with this child. */
+    /** names of grown-ups who have played pretend with this child, as confirmed by
+     *  their partner. A child never confirms their own favours -- their grown-up does. */
     curtsies: [],
+    /** names of grown-ups claiming they have done this child's favour, not yet confirmed. */
+    claims: [],
     accusedName: null,
     correct: null,
   };
@@ -96,15 +99,29 @@ function viewFor(room, token) {
   if (me === null) return { ...base, me: null };
 
   const ally = allyOf(room, me);
+  const myChildren = room.players.filter((p) => p.young && allyOf(room, p) === me);
+
   const sealed = room.players
     .filter((p) => p.young && p.clue !== null && p !== me)
-    .map((p) => ({
-      holder: p.name,
-      part: p.part,
-      favour: p.favour.grown,
-      open: me.unsealed.includes(p.id),
-      clue: me.unsealed.includes(p.id) ? p.clue.text : null,
-    }));
+    .map((p) => {
+      // Your own child's clue is simply yours -- you are a team (decision 2).
+      const mine = myChildren.includes(p);
+      const open = mine || me.unsealed.includes(p.id);
+      return {
+        holder: p.name,
+        part: p.part,
+        favour: p.favour.grown,
+        state: open ? 'open' : p.claims.includes(me.name) ? 'pending' : 'sealed',
+        // Who has to vouch for you, so you know whose sleeve to tug.
+        vouches: allyOf(room, p)?.name ?? null,
+        clue: open ? p.clue.text : null,
+      };
+    });
+
+  // Claims waiting on this player, because they are the grown-up for that child.
+  const toConfirm = myChildren.flatMap((child) =>
+    child.claims.map((claimant) => ({ claimant, child: child.name, favour: child.favour.grown })),
+  );
 
   return {
     ...base,
@@ -119,6 +136,8 @@ function viewFor(room, token) {
       // Your ally, and only yours. The rest of the table is not told you are a pair.
       ally: ally === null ? null : { name: ally.name, part: ally.part },
       sealed,
+      toConfirm,
+      mine: myChildren.map((c) => ({ name: c.name, part: c.part, crowns: c.curtsies.length })),
       accusedName: me.accusedName,
       correct: me.correct,
     },
@@ -179,7 +198,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  const match = /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|unseal|accuse)$/.exec(path);
+  const match = /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|claim|confirm|deny|accuse)$/.exec(path);
   if (match === null) {
     send(res, 404, { error: 'not found' });
     return;
@@ -206,7 +225,18 @@ const server = createServer(async (req, res) => {
     if (name === '') return send(res, 400, { error: 'need a name' });
     if (byName(room, name) !== null)
       return send(res, 409, { error: 'somebody here is already called that' });
-    const player = newPlayer(name, body.young === true, cleanName(body.allyName));
+    const young = body.young === true;
+    const allyName = cleanName(body.allyName);
+    // Every child has a grown-up, because the grown-up is who reports their favours.
+    if (young) {
+      if (allyName === '')
+        return send(res, 400, { error: 'a little kid needs a grown-up with them' });
+      const ally = byName(room, allyName);
+      if (ally === null) return send(res, 404, { error: `nobody here is called ${allyName}` });
+      if (ally.young)
+        return send(res, 400, { error: `${ally.name} is a kid too -- name a grown-up` });
+    }
+    const player = newPlayer(name, young, young ? allyName : '');
     room.players.push(player);
     send(res, 200, { token: player.token, view: viewFor(room, player.token) });
     return;
@@ -226,16 +256,34 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (action === 'unseal' && req.method === 'POST') {
+  // A grown-up says they did the favour. It counts for nothing until the child's own
+  // grown-up vouches for it -- the child never has to adjudicate, and never holds a phone.
+  if (action === 'claim' && req.method === 'POST') {
     if (me === null) return send(res, 403, { error: 'not at this party' });
     if (!room.dealt) return send(res, 409, { error: 'nothing dealt yet' });
     const child = byName(room, body.holder);
     if (child === null || !child.young) return send(res, 404, { error: 'no such child' });
-    if (!me.unsealed.includes(child.id)) me.unsealed.push(child.id);
-    // The child's scoreboard: the grown-ups who played along.
-    if (!child.curtsies.includes(me.name)) child.curtsies.push(me.name);
-    send(res, 200, viewFor(room, body.token));
-    return;
+    if (allyOf(room, child) === me)
+      return send(res, 409, { error: 'that is your own child -- you already have it' });
+    if (!child.claims.includes(me.name) && !me.unsealed.includes(child.id))
+      child.claims.push(me.name);
+    return send(res, 200, viewFor(room, body.token));
+  }
+
+  if ((action === 'confirm' || action === 'deny') && req.method === 'POST') {
+    if (me === null) return send(res, 403, { error: 'not at this party' });
+    const child = byName(room, body.child);
+    if (child === null || !child.young) return send(res, 404, { error: 'no such child' });
+    if (allyOf(room, child) !== me)
+      return send(res, 403, { error: `you are not ${child.name}'s grown-up` });
+    const claimant = byName(room, body.claimant);
+    if (claimant === null) return send(res, 404, { error: 'nobody here by that name' });
+    child.claims = child.claims.filter((n) => n !== claimant.name);
+    if (action === 'confirm') {
+      if (!claimant.unsealed.includes(child.id)) claimant.unsealed.push(child.id);
+      if (!child.curtsies.includes(claimant.name)) child.curtsies.push(claimant.name);
+    }
+    return send(res, 200, viewFor(room, body.token));
   }
 
   if (action === 'accuse' && req.method === 'POST') {

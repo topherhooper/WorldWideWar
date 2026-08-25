@@ -230,7 +230,7 @@
           <input type="text" id="n" placeholder="Your name" />
           <label class="check"><input type="checkbox" id="y" /> I'm a little kid</label>
           <div id="ally" style="display:none">
-            <p class="sub" style="margin:4px 0">Which grown-up are you here with? They'll be your secret ally.</p>
+            <p class="sub" style="margin:4px 0">Which grown-up are you here with? They are your secret ally, and they are the one who says whether a grown-up really knelt to you.</p>
             <input type="text" id="a" placeholder="${esc(grownups[0] || 'their name')}" />
           </div>
           <button id="go">I'm in</button><div class="err">${esc(err)}</div>`;
@@ -310,13 +310,38 @@
               <div class="muted">${esc(p.costume.gown)} gown · ${esc(p.costume.gift)} · ${esc(p.costume.place)}</div></li>`,
           )
           .join('');
+        const label = { open: '', pending: 'waiting', sealed: 'sealed' };
         const sealed = me.sealed
-          .map((s) =>
-            s.open
-              ? `<li><div class="muted">from ${esc(s.part)} (${esc(s.holder)})</div>${esc(s.clue)}</li>`
-              : `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
-                   <button class="small" data-holder="${esc(s.holder)}">Done</button></div>
-                 <div class="muted">sealed — you must ${esc(s.favour)}</div></li>`,
+          .map((s) => {
+            if (s.state === 'open')
+              return `<li><div class="muted">from ${esc(s.part)} (${esc(s.holder)})</div>${esc(s.clue)}</li>`;
+            if (s.state === 'pending')
+              return `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
+                       <span class="muted">waiting</span></div>
+                     <div class="muted">you said you did it — ${esc(s.vouches)} has to vouch for you</div></li>`;
+            return `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
+                     <button class="small" data-holder="${esc(s.holder)}">I did it</button></div>
+                   <div class="muted">sealed — you must ${esc(s.favour)}, then ${esc(s.vouches)} vouches for you</div></li>`;
+          })
+          .join('');
+
+        // If you brought a child, you are the one who says whether a grown-up really knelt.
+        const queue = me.toConfirm
+          .map(
+            (q) => `<li><b>${esc(q.claimant)}</b> says they did <b>${esc(q.child)}</b>'s favour
+              <div class="muted">${esc(q.favour)}</div>
+              <div class="row" style="margin-top:8px">
+                <button class="small yes" data-claim="${esc(q.claimant)}" data-child="${esc(q.child)}">They did</button>
+                <button class="small no" data-claim="${esc(q.claimant)}" data-child="${esc(q.child)}">Not yet</button>
+              </div></li>`,
+          )
+          .join('');
+        const mine = me.mine
+          .map(
+            (
+              c,
+            ) => `<li class="row"><span><b>${esc(c.name)}</b> <span class="muted">— ${esc(c.part)}</span></span>
+            <span>${'\u{1F451}'.repeat(c.crowns) || '<span class="muted">no crowns yet</span>'}</span></li>`,
           )
           .join('');
 
@@ -332,6 +357,8 @@
           <p class="sub">${esc(me.costume.gown)} gown · ${esc(me.costume.gift)} · ${esc(me.costume.place)}</p>
           <div class="card clue"><div class="banner">what you know</div>${esc(me.clue || 'nothing at all')}</div>
           ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. You win or lose together.</p>' : ''}
+          ${mine ? '<p class="banner" style="margin-top:22px">your little one</p><ul>' + mine + '</ul>' : ''}
+          ${queue ? '<p class="banner" style="margin-top:22px">did they really?</p><ul>' + queue + '</ul>' : ''}
           <p class="banner" style="margin-top:22px">the children hold clues</p>
           <ul>${sealed || '<li class="muted">no children at this christening</li>'}</ul>
           <p class="banner" style="margin-top:22px">who was at the christening</p>
@@ -345,9 +372,21 @@
           }
           <div class="err">${esc(err)}</div>`;
 
+        app.querySelectorAll('button[data-claim]').forEach((b) => {
+          b.onclick = () =>
+            post(b.classList.contains('yes') ? 'confirm' : 'deny', {
+              claimant: b.dataset.claim,
+              child: b.dataset.child,
+            })
+              .then(render)
+              .catch((x) => {
+                err = x.message;
+                tick();
+              });
+        });
         app.querySelectorAll('button[data-holder]').forEach((b) => {
           b.onclick = () =>
-            post('unseal', { holder: b.dataset.holder })
+            post('claim', { holder: b.dataset.holder })
               .then(render)
               .catch((x) => {
                 err = x.message;
