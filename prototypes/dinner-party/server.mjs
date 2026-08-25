@@ -79,6 +79,17 @@ function allyOf(room, player) {
  * This is where the two games meet: playing pretend well is what wins the argument.
  */
 const CROWN_CAP = 3;
+
+/**
+ * The candles are the curser's clock, and the reason a wrongful banishment hurts.
+ * One burns at the end of every round. Banishing an innocent burns a second, because
+ * the hall spent its accusation on the wrong neck. When the last one goes out, Aurora
+ * sleeps and the curser has won.
+ */
+const CANDLES = 5;
+/** How long the hall has to nominate and speak once the bell has rung. */
+const VOTE_SECONDS = 90;
+const voteWindow = (room) => (room.voteSeconds > 0 ? room.voteSeconds : VOTE_SECONDS);
 function weightOf(room, player) {
   const crowns = room.players
     .filter((p) => p.young && allyOf(room, p) === player)
@@ -86,14 +97,52 @@ function weightOf(room, player) {
   return 1 + Math.min(crowns, CROWN_CAP);
 }
 
+/**
+ * The curser and, per decision 2, whichever child is bound to them. A pair wins or loses
+ * together, so a curser who came to the party with their five-year-old drags her onto
+ * their side of the ledger without either of them being told during the night.
+ */
+function cursedSide(room) {
+  if (room.tale === null) return [];
+  const curser = room.players.find((p) => p.id === room.tale.culpritId);
+  const ally = allyOf(room, curser);
+  return ally === null ? [curser] : [curser, ally];
+}
+
 /** Grown-ups vote. A banished one has a single voice left for the rest of the night. */
 const canVote = (p) => !p.young && !(p.banished && p.lastVoteSpent);
 
 /** The clock is lazy: nothing ticks, but every request notices what time it is. */
 function advanceClock(room, now) {
+  if (room.over) return;
   if (room.phase === 'mingle' && now >= room.endsAt) {
     room.phase = 'vote';
+    room.endsAt = now + voteWindow(room) * 1000;
     room.nomination = null;
+    return;
+  }
+  if (room.phase === 'vote' && now >= room.endsAt) {
+    // Time is up. A nomination on the floor settles on the voices actually raised;
+    // an empty floor simply costs the hall a candle.
+    if (room.nomination !== null) {
+      const nom = room.nomination;
+      settleVote(room, now);
+      room.lastResult = { suspect: nom.suspect, by: nom.by, tally: nom.tally };
+    } else {
+      burnCandle(room, 'the hall said nothing');
+      if (!room.over) beginRound(room, now);
+    }
+  }
+}
+
+function burnCandle(room, why) {
+  room.candles -= 1;
+  room.snuffed = why;
+  if (room.candles <= 0) {
+    room.candles = 0;
+    room.over = true;
+    room.phase = 'over';
+    room.outcome = 'the last candle went out — Aurora sleeps';
   }
 }
 
@@ -127,10 +176,16 @@ function settleVote(room, now) {
     if (suspect.id === room.tale.culpritId) {
       room.over = true;
       room.phase = 'over';
-      room.outcome = 'the christening is saved';
+      room.outcome = 'the curse is broken — you named the one who laid it';
       return;
     }
+    // Wrong neck. The hall spent its accusation, and a candle with it.
+    burnCandle(room, `${suspect.name} was banished, and was innocent`);
+    if (room.over) return;
   }
+
+  burnCandle(room, 'the round ended');
+  if (room.over) return;
   beginRound(room, now);
 }
 
@@ -172,6 +227,15 @@ function viewFor(room, token) {
     msLeft: room.phase === 'mingle' ? Math.max(0, room.endsAt - Date.now()) : 0,
     banished: room.banished,
     outcome: room.outcome,
+    candles: room.candles,
+    // Why the last one went out, so the hall can see what it cost them.
+    snuffed: room.snuffed,
+    // Only meaningful once it is over: who the room was hunting.
+    culprit:
+      room.over && room.tale !== null
+        ? room.players.find((p) => p.id === room.tale.culpritId).name
+        : null,
+    cursed: room.over ? cursedSide(room).map((p) => p.name) : null,
     lastResult: room.lastResult ?? null,
     nomination:
       room.nomination === null
@@ -258,9 +322,9 @@ function viewFor(room, token) {
       voted: room.nomination === null ? null : (room.nomination.votes[me.name]?.yes ?? null),
       // Anyone still un-banished may be put on the floor. Children never can.
       nominable: room.players.filter((p) => !p.young && !p.banished).map((p) => p.name),
+      // Only ever set once the night is over.
+      won: room.over ? cursedSide(room).includes(me) === (room.candles === 0) : null,
     },
-    // Revealed to everyone only once the game is over.
-    culprit: room.over ? room.players.find((p) => p.id === room.tale.culpritId).name : null,
   };
 }
 
@@ -313,11 +377,14 @@ const server = createServer(async (req, res) => {
       phase: 'lobby',
       round: 0,
       roundMinutes: Number(body.roundMinutes) > 0 ? Number(body.roundMinutes) : 5,
+      voteSeconds: Number(body.voteSeconds) > 0 ? Number(body.voteSeconds) : VOTE_SECONDS,
       endsAt: 0,
       nomination: null,
       banished: [],
       lastResult: null,
       outcome: null,
+      candles: CANDLES,
+      snuffed: null,
     };
     rooms.set(code, room);
     send(res, 200, { code, token: player.token });
@@ -449,6 +516,7 @@ const server = createServer(async (req, res) => {
       return send(res, 403, { error: 'only the host rings the bell' });
     if (room.phase !== 'mingle') return send(res, 409, { error: 'the bell has already rung' });
     room.phase = 'vote';
+    room.endsAt = Date.now() + voteWindow(room) * 1000;
     room.nomination = null;
     return send(res, 200, viewFor(room, body.token));
   }

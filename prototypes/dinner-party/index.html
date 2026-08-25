@@ -294,6 +294,9 @@
             <div class="part">${esc(me.part)}</div>
             <p class="sub">in a ${esc(me.costume.gown)} gown, holding ${esc(me.costume.gift)}</p>
             <div class="quest">The grown-ups need what you know.<br />They must <b>${esc(me.favour)}</b> first.</div>
+            <div class="crowns">${candles(v.candles)}</div>
+            <p class="sub">${v.candles} candle${v.candles === 1 ? '' : 's'} left</p>
+            ${v.over ? '<div class="' + (me.won ? 'win' : 'lose') + '"><b>' + (me.won ? 'You won!' : 'You lost.') + '</b><br />' + esc(v.outcome) + '.<br />It was ' + esc(v.culprit) + '.</div>' : ''}
             <p class="banner" style="margin-top:26px">grown-ups who have knelt to you</p>
             <p class="kidnum">${me.curtsies.length}</p>
             <div class="crowns">${'\u{1F451}'.repeat(me.curtsies.length) || '—'}</div>
@@ -307,13 +310,17 @@
         return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
       };
 
-      // What is happening right now, and how long is left of it.
+      const candles = (n) => '\u{1F56F}\uFE0F'.repeat(n) || '\u{1F319}';
+
+      // What is happening right now, how long is left of it, and how many candles remain.
       function roundBar(v) {
+        const lit = `<span class="candles" title="${v.candles} candles left">${candles(v.candles)}</span>`;
         if (v.phase === 'mingle')
           return `<div class="row bar"><span class="banner">round ${v.round} · mingling</span>
-                    <b class="clock">${mmss(v.msLeft)}</b></div>`;
+                    <span>${lit} <b class="clock">${mmss(v.msLeft)}</b></span></div>`;
         if (v.phase === 'vote')
-          return `<div class="row bar vote"><span class="banner">round ${v.round} · the bell has rung</span></div>`;
+          return `<div class="row bar vote"><span class="banner">round ${v.round} · the bell has rung</span>
+                    <span>${lit} <b class="clock">${mmss(v.msLeft)}</b></span></div>`;
         return '';
       }
 
@@ -413,7 +420,14 @@
           ${queue ? '<p class="banner" style="margin-top:22px">did they really?</p><ul>' + queue + '</ul>' : ''}
           ${people ? '<p class="banner" style="margin-top:22px">go and meet them (' + me.met.length + ' met)</p><ul>' + people + '</ul>' : ''}
           ${v.isHost && v.phase === 'mingle' ? '<button id="bell">Ring the bell</button>' : ''}
-          ${v.over ? '<div class="win"><b>' + esc(v.outcome) + '</b><br />It was ' + esc(v.culprit) + '.</div>' : ''}
+          ${v.snuffed && !v.over ? '<p class="sub">A candle went out: ' + esc(v.snuffed) + '.</p>' : ''}
+          ${
+            v.over
+              ? `<div class="${me.won ? 'win' : 'lose'}"><b>${me.won ? 'You won.' : 'You lost.'}</b><br />
+                   ${esc(v.outcome)}. It was ${esc(v.culprit)}.
+                   ${v.cursed.length > 1 ? '<div class="muted">' + esc(v.cursed.join(' and ')) + ' were in it together.</div>' : ''}</div>`
+              : ''
+          }
           <div class="err">${esc(err)}</div>`;
 
         const fail = (x) => {
