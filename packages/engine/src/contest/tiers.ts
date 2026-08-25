@@ -17,6 +17,7 @@
  * shuffle applied when a new list is installed.
  */
 
+import { inContest as isInContest } from '../participation.js';
 import { substream, type Rng } from '../rng.js';
 import type { TiersTopic } from './topics.js';
 import type {
@@ -156,8 +157,7 @@ export function resolveTiers(
   // still writes a list and still reads their allies, and both still pay. It is
   // the only thing they can do, and it is worth doing — which is the whole
   // reason elimination does not park somebody for a fortnight of an async game.
-  const inContest = (slot: Slot): boolean =>
-    context.rules.coop ? state.status[slot] !== 'resigned' : state.status[slot] === 'active';
+  const inContest = (slot: Slot): boolean => isInContest(state, slot, context.rules);
 
   const validGuesses: TiersGuess[][] = Array.from({ length: playerCount }, () => []);
   for (let slot = 0; slot < playerCount; slot++) {

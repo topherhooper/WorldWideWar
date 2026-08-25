@@ -16,6 +16,8 @@ import { rulesFor } from './constants.js';
 import { decideTiersList, decideTiersOrders, makeTiersList } from './contest/tiers.js';
 import { topicForTurn } from './contest/topics.js';
 import { generateMap } from './mapgen/generate.js';
+import { emptyOrders } from './orders.js';
+import { commandsArmies, inContest } from './participation.js';
 import { redact } from './redact.js';
 import { substream } from './rng.js';
 import { createInitialState } from './setup.js';
@@ -113,7 +115,8 @@ export function playBotGame(options: SimulateOptions): GameSummary {
     const submissions: (OrderSet | null)[] = [];
 
     for (let slot = 0; slot < playerCount; slot++) {
-      if (state.status[slot] !== 'active') {
+      const contesting = inContest(state, slot, rules);
+      if (!contesting) {
         submissions.push(null);
         continue;
       }
@@ -121,7 +124,13 @@ export function playBotGame(options: SimulateOptions): GameSummary {
       // human in the same seat could not.
       const view = redact(state, slot);
       const rng = substream(seed, state.turn, 'bot', slot);
-      const orderSet = decideOrders(view, map, slot, rng, personalities[slot]);
+      // Co-op keeps the landless in the contest, and they must be measured
+      // there: reads pay the coalition pool, so a harness that skipped them
+      // would tune difficulty against a pool the real game does not have.
+      // They still get no army orders — there is nothing left to order.
+      const orderSet = commandsArmies(state, slot)
+        ? decideOrders(view, map, slot, rng, personalities[slot])
+        : emptyOrders(slot);
       if (rules.contest === 'tiers') {
         orderSet.tiers = decideTiersOrders(
           view,
