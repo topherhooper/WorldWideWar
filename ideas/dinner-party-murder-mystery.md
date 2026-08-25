@@ -105,3 +105,14 @@ No links were mentioned, so none were opened.
   whether that is a difficulty setting, a separate role pool, or something the game infers.
 - **"Some players could be 5yo" means mixed ages at one table**, not a separate under-6
   edition. The adults still want a real game.
+
+## Prototype goal
+
+With the host on one browser window and four guests on four more — one of them marked as a
+little kid — the host taps Deal once, and every window then shows exactly one role, its own,
+the kid's window showing a public job instead of a secret, and no guest able to obtain
+another guest's role from the server by any request they are able to make.
+
+That last clause is the half worth building. Dealing roles is a shuffle; the thing this repo
+already knows how to get right, and the thing a dinner party would be ruined by getting
+wrong, is that a secret has exactly one way out to exactly one viewer.
