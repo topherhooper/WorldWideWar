@@ -168,6 +168,9 @@
         ? location.pathname.slice(3).toUpperCase()
         : sessionStorage.getItem('code') || '';
       let err = '';
+      // The curser arms a falsehood, then chooses who receives it. Client-side only --
+      // the server is told at the moment of the encounter, and tells nobody else.
+      let armed = false;
       const esc = (s) =>
         String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
@@ -299,111 +302,141 @@
           </div>`;
       }
 
-      // The grown-up's screen: one clue of your own, and a board to reason over.
+      const mmss = (ms) => {
+        const s = Math.ceil(ms / 1000);
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      };
+
+      // What is happening right now, and how long is left of it.
+      function roundBar(v) {
+        if (v.phase === 'mingle')
+          return `<div class="row bar"><span class="banner">round ${v.round} · mingling</span>
+                    <b class="clock">${mmss(v.msLeft)}</b></div>`;
+        if (v.phase === 'vote')
+          return `<div class="row bar vote"><span class="banner">round ${v.round} · the bell has rung</span></div>`;
+        return '';
+      }
+
+      // The floor: one name at a time, everyone with a voice speaks, weight decides it.
+      function voteFloor(v) {
+        const me = v.me;
+        if (v.phase !== 'vote') return '';
+        if (v.nomination === null) {
+          const names = me.nominable
+            .filter((n) => n !== me.name)
+            .map((n) => `<button class="small nom" data-nom="${esc(n)}">${esc(n)}</button>`)
+            .join(' ');
+          return `<div class="card floor"><div class="banner">who do you say it was?</div>
+            <div class="muted">Somebody has to put a name up. Then everyone speaks.</div>
+            <div class="noms">${names}</div></div>`;
+        }
+        const n = v.nomination;
+        if (n.tally)
+          return `<div class="card floor"><div class="banner">the hall has spoken</div>
+            <b>${esc(n.suspect)}</b> — ${n.tally.yes} of ${n.tally.total} voices.
+            ${n.tally.carried ? 'Banished.' : 'Let off.'}</div>`;
+        const mine = me.voted === null ? '' : me.voted ? ' — you said yes' : ' — you said no';
+        return `<div class="card floor"><div class="banner">on the floor</div>
+          <b>${esc(n.suspect)}</b> <span class="muted">put up by ${esc(n.by)}</span>
+          <div class="muted">${n.cast} spoken · waiting on ${n.waitingOn.length}${esc(mine)}</div>
+          ${
+            me.canVote && me.voted === null
+              ? `<div class="row" style="margin-top:10px">
+                   <button class="small yes-v">It was them (${me.weight} ${me.weight === 1 ? 'voice' : 'voices'})</button>
+                   <button class="small no-v">It was not</button></div>`
+              : me.canVote
+                ? ''
+                : `<div class="muted">${me.young ? 'your grown-up carries your voice' : 'you have spent your last voice'}</div>`
+          }</div>`;
+      }
+
+      // The grown-up's screen: your pieces, who you have yet to meet, whatever waits on
+      // your word, and the floor when the bell rings.
       function grownView(v) {
         const me = v.me;
-        const guests = v.roster
-          .map(
-            (
-              p,
-            ) => `<li><div class="row"><b>${esc(p.name)}</b><span class="muted">${esc(p.part)}</span></div>
-              <div class="muted">${esc(p.costume.gown)} gown · ${esc(p.costume.gift)} · ${esc(p.costume.place)}</div></li>`,
-          )
-          .join('');
-        const label = { open: '', pending: 'waiting', sealed: 'sealed' };
-        const sealed = me.sealed
-          .map((s) => {
-            if (s.state === 'open')
-              return `<li><div class="muted">from ${esc(s.part)} (${esc(s.holder)})</div>${esc(s.clue)}</li>`;
-            if (s.state === 'pending')
-              return `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
-                       <span class="muted">waiting</span></div>
-                     <div class="muted">you said you did it — ${esc(s.vouches)} has to vouch for you</div></li>`;
-            return `<li><div class="row"><span><b>${esc(s.part)}</b> <span class="muted">— ${esc(s.holder)}</span></span>
-                     <button class="small" data-holder="${esc(s.holder)}">I did it</button></div>
-                   <div class="muted">sealed — you must ${esc(s.favour)}, then ${esc(s.vouches)} vouches for you</div></li>`;
-          })
-          .join('');
+        if (me.lies === 0) armed = false;
+        const pieces = me.pieces.map((x) => `<li>${esc(x)}</li>`).join('');
 
-        // If you brought a child, you are the one who says whether a grown-up really knelt.
         const queue = me.toConfirm
           .map(
-            (q) => `<li><b>${esc(q.claimant)}</b> says they did <b>${esc(q.child)}</b>'s favour
-              <div class="muted">${esc(q.favour)}</div>
+            (q) => `<li><b>${esc(q.claimant)}</b> says they met
+              ${q.about === me.name ? 'you' : '<b>' + esc(q.about) + '</b>'}
+              ${q.favour ? '<div class="muted">they had to ' + esc(q.favour) + '</div>' : ''}
               <div class="row" style="margin-top:8px">
-                <button class="small yes" data-claim="${esc(q.claimant)}" data-child="${esc(q.child)}">They did</button>
-                <button class="small no" data-claim="${esc(q.claimant)}" data-child="${esc(q.child)}">Not yet</button>
+                <button class="small yes" data-claim="${esc(q.claimant)}" data-about="${esc(q.about)}">They did</button>
+                <button class="small no" data-claim="${esc(q.claimant)}" data-about="${esc(q.about)}">Not yet</button>
               </div></li>`,
           )
           .join('');
+
+        const people =
+          v.phase !== 'mingle'
+            ? ''
+            : me.canMeet
+                .map((c) => {
+                  const who = `<b>${esc(c.name)}</b> <span class="muted">— ${esc(c.part)}</span>`;
+                  if (c.state === 'met')
+                    return `<li class="row"><span>${who}</span><span class="muted">met</span></li>`;
+                  if (c.state === 'pending')
+                    return `<li class="row"><span>${who}</span><span class="muted">waiting on ${esc(c.signer)}</span></li>`;
+                  return `<li><div class="row"><span>${who}</span>
+                      <button class="small${armed ? ' lie' : ''}" data-meet="${esc(c.name)}">${armed ? 'Met — and lie' : 'We met'}</button></div>
+                    ${c.favour ? '<div class="muted">you must ' + esc(c.favour) + ' first, and ' + esc(c.signer) + ' vouches</div>' : ''}</li>`;
+                })
+                .join('');
+
         const mine = me.mine
           .map(
             (
               c,
             ) => `<li class="row"><span><b>${esc(c.name)}</b> <span class="muted">— ${esc(c.part)}</span></span>
-            <span>${'\u{1F451}'.repeat(c.crowns) || '<span class="muted">no crowns yet</span>'}</span></li>`,
+              <span>${'\u{1F451}'.repeat(c.crowns) || '<span class="muted">no crowns yet</span>'}</span></li>`,
           )
           .join('');
 
-        const verdict =
-          me.accusedName === null
-            ? ''
-            : me.correct
-              ? `<div class="win">You named <b>${esc(me.accusedName)}</b>, and you were right.</div>`
-              : `<div class="lose">You named <b>${esc(me.accusedName)}</b>. It was not them.</div>`;
-
         app.innerHTML = `
+          ${roundBar(v)}
           <h1>${esc(me.part)}</h1>
           <p class="sub">${esc(me.costume.gown)} gown · ${esc(me.costume.gift)} · ${esc(me.costume.place)}</p>
-          <div class="card clue"><div class="banner">what you know</div>${esc(me.clue || 'nothing at all')}</div>
+          ${me.banished ? '<div class="lose"><b>You have been banished.</b><br />You are still at the party. You still hear everything, you still gather pieces, and you still have one voice left to spend.</div>' : ''}
+          ${
+            me.lies > 0
+              ? `<div class="lose"><b>You laid the curse.</b><br />${me.lies} falsehood${me.lies === 1 ? '' : 's'} left. Nobody is ever told where a piece came from.
+                   <button class="small arm" style="margin-top:10px">${armed ? 'Armed — the next person you meet gets it' : 'Plant one on the next person I meet'}</button></div>`
+              : ''
+          }
+          ${voteFloor(v)}
+          ${v.lastResult && v.phase === 'mingle' ? '<div class="card floor"><div class="banner">last round</div><b>' + esc(v.lastResult.suspect) + '</b> — ' + v.lastResult.tally.yes + ' of ' + v.lastResult.tally.total + ' voices. ' + (v.lastResult.tally.carried ? 'Banished, and still here.' : 'Let off.') + '</div>' : ''}
+          <div class="card clue"><div class="banner">pieces you hold (${me.pieces.length})</div><ul>${pieces}</ul></div>
           ${me.ally ? '<p class="sub">Your secret ally is <b>' + esc(me.ally.name) + '</b>. You win or lose together.</p>' : ''}
           ${mine ? '<p class="banner" style="margin-top:22px">your little one</p><ul>' + mine + '</ul>' : ''}
           ${queue ? '<p class="banner" style="margin-top:22px">did they really?</p><ul>' + queue + '</ul>' : ''}
-          <p class="banner" style="margin-top:22px">the children hold clues</p>
-          <ul>${sealed || '<li class="muted">no children at this christening</li>'}</ul>
-          <p class="banner" style="margin-top:22px">who was at the christening</p>
-          <ul>${guests}</ul>
-          ${v.over ? '<div class="win">It was <b>' + esc(v.culprit) + '</b>.</div>' : ''}
-          ${verdict}
-          ${
-            me.accusedName === null && !v.over
-              ? '<input type="text" id="s" placeholder="Name the one who cursed her" /><button id="acc">Accuse</button>'
-              : ''
-          }
+          ${people ? '<p class="banner" style="margin-top:22px">go and meet them (' + me.met.length + ' met)</p><ul>' + people + '</ul>' : ''}
+          ${v.isHost && v.phase === 'mingle' ? '<button id="bell">Ring the bell</button>' : ''}
+          ${v.over ? '<div class="win"><b>' + esc(v.outcome) + '</b><br />It was ' + esc(v.culprit) + '.</div>' : ''}
           <div class="err">${esc(err)}</div>`;
 
-        app.querySelectorAll('button[data-claim]').forEach((b) => {
-          b.onclick = () =>
-            post(b.classList.contains('yes') ? 'confirm' : 'deny', {
-              claimant: b.dataset.claim,
-              child: b.dataset.child,
-            })
-              .then(render)
-              .catch((x) => {
-                err = x.message;
-                tick();
-              });
-        });
-        app.querySelectorAll('button[data-holder]').forEach((b) => {
-          b.onclick = () =>
-            post('claim', { holder: b.dataset.holder })
-              .then(render)
-              .catch((x) => {
-                err = x.message;
-                tick();
-              });
-        });
-        const acc = document.getElementById('acc');
-        if (acc)
-          acc.onclick = () => {
-            err = '';
-            post('accuse', { suspect: document.getElementById('s').value })
-              .then(render)
-              .catch((x) => {
-                err = x.message;
-                tick();
-              });
-          };
+        const fail = (x) => {
+          err = x.message;
+          tick();
+        };
+        const go = (sel, fn) =>
+          app
+            .querySelectorAll(sel)
+            .forEach((b) => (b.onclick = () => fn(b).then(render).catch(fail)));
+        go('button[data-claim]', (b) =>
+          post(b.classList.contains('yes') ? 'confirm' : 'deny', {
+            claimant: b.dataset.claim,
+            about: b.dataset.about,
+          }),
+        );
+        go('button[data-meet]', (b) =>
+          post('meet', { who: b.dataset.meet, lie: b.classList.contains('lie') }),
+        );
+        go('button[data-nom]', (b) => post('nominate', { suspect: b.dataset.nom }));
+        go('button.yes-v', () => post('vote', { yes: true }));
+        go('button.no-v', () => post('vote', { yes: false }));
+        go('#bell', () => post('bell'));
       }
 
       function render(v) {

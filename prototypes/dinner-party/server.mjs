@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const PAGE = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-import { buildTale } from './tale.mjs';
+import { buildTale, makeLie } from './tale.mjs';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_PLAYERS = 20;
@@ -40,17 +40,23 @@ function newPlayer(name, young, allyName) {
     allyName: allyName || null,
     part: null,
     costume: null,
-    clue: null,
     favour: null,
-    /** ids of children whose sealed clue this player has unlocked. */
-    unsealed: [],
-    /** names of grown-ups who have played pretend with this child, as confirmed by
-     *  their partner. A child never confirms their own favours -- their grown-up does. */
-    curtsies: [],
-    /** names of grown-ups claiming they have done this child's favour, not yet confirmed. */
+    /** Pieces of the puzzle this player holds. Never attributed -- you are not told who
+     *  a piece came from, only that you got one. */
+    pieces: [],
+    /** Names this player has confirmably met. Public: the encounter log is the evidence. */
+    met: [],
+    /** Encounters claimed against this player, awaiting their confirmation.
+     *  { from, lie } -- `lie` is the curser's, and never leaves the server. */
     claims: [],
-    accusedName: null,
-    correct: null,
+    /** Grown-ups who have played pretend with this child, confirmed by their grown-up. */
+    curtsies: [],
+    /** Falsehoods this player may still plant. Only ever non-zero for the curser. */
+    lies: 0,
+    /** Banished players keep playing -- they mingle, collect and argue. They just have
+     *  one vote left between here and the end, and cannot be nominated again. */
+    banished: false,
+    lastVoteSpent: false,
   };
 }
 
@@ -65,6 +71,84 @@ function allyOf(room, player) {
       (p) => p.allyName && p.allyName.toLowerCase() === player.name.toLowerCase(),
     ) ?? null
   );
+}
+
+/**
+ * Vote weight. A grown-up carries one voice, plus one for every grown-up who has knelt
+ * to a child of theirs, capped so a popular five-year-old is decisive but not a dictator.
+ * This is where the two games meet: playing pretend well is what wins the argument.
+ */
+const CROWN_CAP = 3;
+function weightOf(room, player) {
+  const crowns = room.players
+    .filter((p) => p.young && allyOf(room, p) === player)
+    .reduce((n, child) => n + child.curtsies.length, 0);
+  return 1 + Math.min(crowns, CROWN_CAP);
+}
+
+/** Grown-ups vote. A banished one has a single voice left for the rest of the night. */
+const canVote = (p) => !p.young && !(p.banished && p.lastVoteSpent);
+
+/** The clock is lazy: nothing ticks, but every request notices what time it is. */
+function advanceClock(room, now) {
+  if (room.phase === 'mingle' && now >= room.endsAt) {
+    room.phase = 'vote';
+    room.nomination = null;
+  }
+}
+
+function beginRound(room, now) {
+  room.round += 1;
+  room.phase = 'mingle';
+  room.endsAt = now + room.roundMinutes * 60_000;
+  room.nomination = null;
+}
+
+/** Settle the nomination on the floor: banish, or let them off. */
+function settleVote(room, now) {
+  const nom = room.nomination;
+  // Who was already a ghost when this vote was cast. Somebody banished *by* this vote
+  // was alive when they spoke, so it does not cost them their last voice.
+  const wereGhosts = new Set(room.players.filter((p) => p.banished).map((p) => p.name));
+  const suspect = room.players.find((p) => p.name === nom.suspect);
+  const yes = Object.entries(nom.votes)
+    .filter(([, v]) => v.yes)
+    .reduce((n, [, v]) => n + v.weight, 0);
+  const total = room.players.filter(canVote).reduce((n, p) => n + weightOf(room, p), 0);
+  nom.tally = { yes, total, carried: yes * 2 > total };
+
+  if (nom.tally.carried) {
+    suspect.banished = true;
+    room.banished.push(suspect.name);
+    // Banishment does not remove anybody. It spends their voice.
+    for (const name of Object.keys(nom.votes)) {
+      if (wereGhosts.has(name)) room.players.find((p) => p.name === name).lastVoteSpent = true;
+    }
+    if (suspect.id === room.tale.culpritId) {
+      room.over = true;
+      room.phase = 'over';
+      room.outcome = 'the christening is saved';
+      return;
+    }
+  }
+  beginRound(room, now);
+}
+
+/** A child never confirms anything themselves -- their grown-up answers for them. */
+function signerFor(room, player) {
+  return player.young ? allyOf(room, player) : player;
+}
+
+/** Deal one piece the receiver does not already hold. Attribution is never recorded. */
+function dealPiece(room, to, lie) {
+  if (lie) {
+    to.pieces.push({ id: -1, text: lie, fake: true });
+    return;
+  }
+  const held = new Set(to.pieces.map((p) => p.text));
+  const fresh = room.tale.deck.filter((c) => !held.has(c.text));
+  if (fresh.length === 0) return;
+  to.pieces.push({ ...fresh[Math.floor(Math.random() * fresh.length)] });
 }
 
 // ─── The choke point ─────────────────────────────────────────────────────────
@@ -82,6 +166,25 @@ function viewFor(room, token) {
     dealt: room.dealt,
     over: room.over,
     isHost,
+    phase: room.phase,
+    round: room.round,
+    // Milliseconds left in this round, so the client can count down without a clock of its own.
+    msLeft: room.phase === 'mingle' ? Math.max(0, room.endsAt - Date.now()) : 0,
+    banished: room.banished,
+    outcome: room.outcome,
+    lastResult: room.lastResult ?? null,
+    nomination:
+      room.nomination === null
+        ? null
+        : {
+            suspect: room.nomination.suspect,
+            by: room.nomination.by,
+            cast: Object.keys(room.nomination.votes).length,
+            waitingOn: room.players
+              .filter((p) => canVote(p) && !(p.name in room.nomination.votes))
+              .map((p) => p.name),
+            tally: room.nomination.tally ?? null,
+          },
     seated: me !== null,
     tale: room.tale === null ? null : { title: room.tale.title, prompt: room.tale.prompt },
     // Costumes are public on purpose: the puzzle is the culprit's costume, so the guests
@@ -93,6 +196,8 @@ function viewFor(room, token) {
       costume: p.costume,
       // How many grown-ups have knelt to this child. The child's whole scoreboard.
       curtsies: p.young ? p.curtsies.length : null,
+      banished: p.banished,
+      weight: p.young ? null : weightOf(room, p),
     })),
   };
 
@@ -101,27 +206,33 @@ function viewFor(room, token) {
   const ally = allyOf(room, me);
   const myChildren = room.players.filter((p) => p.young && allyOf(room, p) === me);
 
-  const sealed = room.players
-    .filter((p) => p.young && p.clue !== null && p !== me)
-    .map((p) => {
-      // Your own child's clue is simply yours -- you are a team (decision 2).
-      const mine = myChildren.includes(p);
-      const open = mine || me.unsealed.includes(p.id);
-      return {
-        holder: p.name,
-        part: p.part,
-        favour: p.favour.grown,
-        state: open ? 'open' : p.claims.includes(me.name) ? 'pending' : 'sealed',
-        // Who has to vouch for you, so you know whose sleeve to tug.
-        vouches: allyOf(room, p)?.name ?? null,
-        clue: open ? p.clue.text : null,
-      };
-    });
-
-  // Claims waiting on this player, because they are the grown-up for that child.
-  const toConfirm = myChildren.flatMap((child) =>
-    child.claims.map((claimant) => ({ claimant, child: child.name, favour: child.favour.grown })),
+  // Everything waiting on this player's word: encounters claimed against them, plus
+  // encounters claimed against any child they are the grown-up for.
+  const toConfirm = [me, ...myChildren].flatMap((who) =>
+    who.claims.map((c) => ({
+      claimant: c.from,
+      about: who.name,
+      isChild: who.young,
+      favour: who.young && who.favour !== null ? who.favour.grown : null,
+    })),
   );
+
+  // Who you may still go and meet: everyone but yourself, your own children, and
+  // anyone you have already met or already claimed.
+  const claimedByMe = new Set(
+    room.players.flatMap((p) => p.claims.filter((c) => c.from === me.name).map(() => p.name)),
+  );
+  const canMeet = (room.dealt ? room.players : [])
+    .filter((p) => p !== me && !myChildren.includes(p))
+    .map((p) => ({
+      name: p.name,
+      part: p.part,
+      young: p.young,
+      state: me.met.includes(p.name) ? 'met' : claimedByMe.has(p.name) ? 'pending' : 'open',
+      // Meeting a child costs a favour; meeting a grown-up costs nothing but the walk.
+      favour: p.young && p.favour !== null ? p.favour.grown : null,
+      signer: signerFor(room, p)?.name ?? null,
+    }));
 
   return {
     ...base,
@@ -130,16 +241,23 @@ function viewFor(room, token) {
       young: me.young,
       part: me.part,
       costume: me.costume,
-      clue: me.clue === null ? null : me.clue.text,
       favour: me.favour === null ? null : me.favour.kid,
+      // Your pieces, unattributed and unlabelled. Nothing here says which are true.
+      pieces: me.pieces.map((p) => p.text),
+      met: me.met,
       curtsies: me.curtsies,
-      // Your ally, and only yours. The rest of the table is not told you are a pair.
       ally: ally === null ? null : { name: ally.name, part: ally.part },
-      sealed,
+      canMeet,
       toConfirm,
       mine: myChildren.map((c) => ({ name: c.name, part: c.part, crowns: c.curtsies.length })),
-      accusedName: me.accusedName,
-      correct: me.correct,
+      // Only the curser is ever told they may lie, and only about their own budget.
+      lies: me.lies,
+      banished: me.banished,
+      weight: weightOf(room, me),
+      canVote: canVote(me),
+      voted: room.nomination === null ? null : (room.nomination.votes[me.name]?.yes ?? null),
+      // Anyone still un-banished may be put on the floor. Children never can.
+      nominable: room.players.filter((p) => !p.young && !p.banished).map((p) => p.name),
     },
     // Revealed to everyone only once the game is over.
     culprit: room.over ? room.players.find((p) => p.id === room.tale.culpritId).name : null,
@@ -192,13 +310,22 @@ const server = createServer(async (req, res) => {
       over: false,
       tale: null,
       players: [player],
+      phase: 'lobby',
+      round: 0,
+      roundMinutes: Number(body.roundMinutes) > 0 ? Number(body.roundMinutes) : 5,
+      endsAt: 0,
+      nomination: null,
+      banished: [],
+      lastResult: null,
+      outcome: null,
     };
     rooms.set(code, room);
     send(res, 200, { code, token: player.token });
     return;
   }
 
-  const match = /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|claim|confirm|deny|accuse)$/.exec(path);
+  const match =
+    /^\/api\/rooms\/([A-Z]{4})\/(join|deal|view|meet|confirm|deny|bell|nominate|vote)$/.exec(path);
   if (match === null) {
     send(res, 404, { error: 'not found' });
     return;
@@ -209,6 +336,8 @@ const server = createServer(async (req, res) => {
     send(res, 404, { error: 'no such room' });
     return;
   }
+
+  advanceClock(room, Date.now());
 
   if (action === 'view' && req.method === 'GET') {
     send(res, 200, viewFor(room, url.searchParams.get('token') ?? ''));
@@ -251,54 +380,116 @@ const server = createServer(async (req, res) => {
     if (grownups < 2)
       return send(res, 400, { error: 'need at least two grown-ups -- one of them did it' });
     room.tale = buildTale(room.players);
+    room.players.forEach((p) => (p.lies = p.id === room.tale.culpritId ? room.tale.lies : 0));
     room.dealt = true;
+    beginRound(room, Date.now());
     send(res, 200, viewFor(room, body.token));
     return;
   }
 
-  // A grown-up says they did the favour. It counts for nothing until the child's own
-  // grown-up vouches for it -- the child never has to adjudicate, and never holds a phone.
-  if (action === 'claim' && req.method === 'POST') {
+  // You say you met someone. It counts for nothing until they say so too -- and if they
+  // are a child, their grown-up says it for them. The curser may ride a falsehood in on
+  // the encounter; nobody but the server ever knows which piece was the lie.
+  if (action === 'meet' && req.method === 'POST') {
     if (me === null) return send(res, 403, { error: 'not at this party' });
     if (!room.dealt) return send(res, 409, { error: 'nothing dealt yet' });
-    const child = byName(room, body.holder);
-    if (child === null || !child.young) return send(res, 404, { error: 'no such child' });
-    if (allyOf(room, child) === me)
-      return send(res, 409, { error: 'that is your own child -- you already have it' });
-    if (!child.claims.includes(me.name) && !me.unsealed.includes(child.id))
-      child.claims.push(me.name);
+    if (room.over) return send(res, 409, { error: 'the christening is over' });
+    if (room.phase !== 'mingle')
+      return send(res, 409, { error: 'the bell has rung -- the hall is voting' });
+    const them = byName(room, body.who);
+    if (them === null) return send(res, 404, { error: 'nobody here by that name' });
+    if (them === me) return send(res, 400, { error: 'you cannot meet yourself' });
+    if (them.young && allyOf(room, them) === me) {
+      return send(res, 409, { error: 'that is your own child -- you are already a team' });
+    }
+    if (me.met.includes(them.name))
+      return send(res, 409, { error: `you have already met ${them.name}` });
+    if (them.claims.some((c) => c.from === me.name))
+      return send(res, 409, { error: 'already waiting on them' });
+
+    const wantsLie = body.lie === true;
+    if (wantsLie && me.lies <= 0) return send(res, 403, { error: 'you have no falsehoods left' });
+    if (wantsLie) me.lies -= 1;
+    them.claims.push({ from: me.name, lie: wantsLie ? makeLie(me, room.players) : null });
     return send(res, 200, viewFor(room, body.token));
   }
 
   if ((action === 'confirm' || action === 'deny') && req.method === 'POST') {
     if (me === null) return send(res, 403, { error: 'not at this party' });
-    const child = byName(room, body.child);
-    if (child === null || !child.young) return send(res, 404, { error: 'no such child' });
-    if (allyOf(room, child) !== me)
-      return send(res, 403, { error: `you are not ${child.name}'s grown-up` });
-    const claimant = byName(room, body.claimant);
-    if (claimant === null) return send(res, 404, { error: 'nobody here by that name' });
-    child.claims = child.claims.filter((n) => n !== claimant.name);
-    if (action === 'confirm') {
-      if (!claimant.unsealed.includes(child.id)) claimant.unsealed.push(child.id);
-      if (!child.curtsies.includes(claimant.name)) child.curtsies.push(claimant.name);
+    const about = byName(room, body.about);
+    if (about === null) return send(res, 404, { error: 'nobody here by that name' });
+    const signer = signerFor(room, about);
+    if (signer !== me) {
+      return send(res, 403, {
+        error:
+          signer === null
+            ? 'nobody can answer for them'
+            : `only ${signer.name} can answer for ${about.name}`,
+      });
     }
+    const claim = about.claims.find((c) => c.from === body.claimant);
+    if (claim === undefined) return send(res, 404, { error: 'no such claim' });
+    about.claims = about.claims.filter((c) => c !== claim);
+
+    if (action === 'deny') return send(res, 200, viewFor(room, body.token));
+
+    const claimant = byName(room, claim.from);
+    if (!about.met.includes(claimant.name)) about.met.push(claimant.name);
+    if (!claimant.met.includes(about.name)) claimant.met.push(about.name);
+    // The encounter pays both sides a piece. The claimant's may be a falsehood.
+    dealPiece(room, claimant, null);
+    dealPiece(room, about, claim.lie);
+    if (about.young && !about.curtsies.includes(claimant.name)) about.curtsies.push(claimant.name);
     return send(res, 200, viewFor(room, body.token));
   }
 
-  if (action === 'accuse' && req.method === 'POST') {
+  // The host may ring the bell early rather than waiting out the round.
+  if (action === 'bell' && req.method === 'POST') {
+    if (body.token !== room.hostToken)
+      return send(res, 403, { error: 'only the host rings the bell' });
+    if (room.phase !== 'mingle') return send(res, 409, { error: 'the bell has already rung' });
+    room.phase = 'vote';
+    room.nomination = null;
+    return send(res, 200, viewFor(room, body.token));
+  }
+
+  if (action === 'nominate' && req.method === 'POST') {
     if (me === null) return send(res, 403, { error: 'not at this party' });
-    if (!room.dealt) return send(res, 409, { error: 'nothing dealt yet' });
-    if (me.accusedName !== null)
-      return send(res, 409, { error: 'you have already accused someone' });
+    if (room.phase !== 'vote') return send(res, 409, { error: 'nobody is voting yet' });
+    if (room.nomination !== null)
+      return send(res, 409, { error: 'somebody is already on the floor' });
+    if (me.young) return send(res, 403, { error: 'a grown-up has to say it out loud' });
     const suspect = byName(room, body.suspect);
     if (suspect === null) return send(res, 404, { error: 'nobody here by that name' });
-    me.accusedName = suspect.name;
-    me.correct = suspect.id === room.tale.culpritId;
-    // One correct accusation ends the christening.
-    if (me.correct) room.over = true;
-    send(res, 200, viewFor(room, body.token));
-    return;
+    if (suspect.young) return send(res, 400, { error: 'no child laid that curse' });
+    if (suspect.banished)
+      return send(res, 409, { error: `${suspect.name} has already been banished` });
+    room.nomination = { suspect: suspect.name, by: me.name, votes: {}, tally: null };
+    room.lastResult = null;
+    return send(res, 200, viewFor(room, body.token));
+  }
+
+  if (action === 'vote' && req.method === 'POST') {
+    if (me === null) return send(res, 403, { error: 'not at this party' });
+    if (room.phase !== 'vote' || room.nomination === null)
+      return send(res, 409, { error: 'nothing on the floor' });
+    if (!canVote(me)) {
+      return send(res, 403, {
+        error: me.young ? 'your grown-up carries your voice' : 'you have spent your last voice',
+      });
+    }
+    if (me.name in room.nomination.votes)
+      return send(res, 409, { error: 'you have already spoken' });
+    room.nomination.votes[me.name] = { yes: body.yes === true, weight: weightOf(room, me) };
+    // Everyone who still has a voice has used it: settle.
+    if (room.players.filter(canVote).every((p) => p.name in room.nomination.votes)) {
+      const nom = room.nomination;
+      settleVote(room, Date.now());
+      // settleVote writes the tally onto the nomination it settled, and then clears the
+      // floor -- so keep the reference, not a copy, or the result reads back empty.
+      room.lastResult = { suspect: nom.suspect, by: nom.by, tally: nom.tally };
+    }
+    return send(res, 200, viewFor(room, body.token));
   }
 
   send(res, 405, { error: 'method not allowed' });

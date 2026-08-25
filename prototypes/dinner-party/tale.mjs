@@ -91,38 +91,53 @@ function dealCostumes(players) {
 }
 
 /**
- * Clues are dealt one per player. Three of them pin the culprit's costume outright; the
- * rest chip away, so a guest who only ever collects eliminations still converges.
+ * The deck every guest draws from. The three clues that pin the culprit's costume are
+ * always in it -- costumes are distinct, so those three alone name exactly one guest,
+ * and the tale is solvable by construction rather than by luck.
  */
-/**
- * Clues are dealt one per player. The three that pin the culprit's costume are always
- * dealt -- costumes are distinct, so those three alone name exactly one guest, and the
- * puzzle is solvable by construction rather than by luck. Everything after them chips
- * away, so a guest who only ever collects eliminations still converges.
- */
-function buildClues(players, culprit) {
+function buildDeck(players, culprit) {
   const c = culprit.costume;
   const pinning = [
-    { text: `The one who cursed her wore ${c.gown}.` },
-    { text: `The one who cursed her brought ${c.gift}.` },
-    { text: `The one who cursed her stood ${c.place}.` },
+    `The one who cursed her wore ${c.gown}.`,
+    `The one who cursed her brought ${c.gift}.`,
+    `The one who cursed her stood ${c.place}.`,
   ];
-
   const chipping = [];
   for (const gown of GOWNS)
-    if (gown !== c.gown)
-      chipping.push({ text: `Whoever cursed her, it was not the one in ${gown}.` });
+    if (gown !== c.gown) chipping.push(`Whoever cursed her, it was not the one in ${gown}.`);
   for (const gift of GIFTS)
-    if (gift !== c.gift) chipping.push({ text: `No one who brought ${gift} laid the curse.` });
+    if (gift !== c.gift) chipping.push(`No one who brought ${gift} laid the curse.`);
   for (const place of PLACES)
-    if (place !== c.place) chipping.push({ text: `Nobody standing ${place} could have done it.` });
+    if (place !== c.place) chipping.push(`Nobody standing ${place} could have done it.`);
   for (const p of shuffle(players.filter((p) => p !== culprit))) {
-    chipping.push({ text: `${p.name} never left the hall. It was not them.` });
+    chipping.push(`${p.name} never left the hall. It was not them.`);
   }
-
-  const dealt = [...pinning, ...shuffle(chipping)].slice(0, players.length);
-  return shuffle(dealt).map((clue, i) => ({ ...clue, id: i }));
+  return [...pinning, ...shuffle(chipping)].map((text, id) => ({ id, text, fake: false }));
 }
+
+/**
+ * A lie the curser can hand over. Same grammar as a true clue and pointing at a costume
+ * that is not theirs, so it is indistinguishable in form and catchable only by
+ * contradicting something else in the room.
+ */
+export function makeLie(culprit, players) {
+  const c = culprit.costume;
+  const wrong = (list, mine) => shuffle(list.filter((x) => x !== mine))[0];
+  const innocent = shuffle(players.filter((p) => p !== culprit && !p.young))[0];
+  return shuffle(
+    [
+      `The one who cursed her wore ${wrong(GOWNS, c.gown)}.`,
+      `The one who cursed her brought ${wrong(GIFTS, c.gift)}.`,
+      `The one who cursed her stood ${wrong(PLACES, c.place)}.`,
+      `Whoever cursed her, it was not the one in ${c.gown}.`,
+      `No one who brought ${c.gift} laid the curse.`,
+      innocent ? `${innocent.name} never left the hall. It was not them.` : null,
+    ].filter(Boolean),
+  )[0];
+}
+
+/** How many falsehoods the curser may plant. Enough to matter, few enough to be caught. */
+export const lieBudget = (playerCount) => (playerCount >= 12 ? 3 : 2);
 
 export function buildTale(players) {
   dealCostumes(players);
@@ -134,12 +149,13 @@ export function buildTale(players) {
   dealParts(GROWN_PARTS, grownups);
   dealParts(KID_PARTS, kids);
 
-  const clues = buildClues(players, culprit);
-  // A child's clue is sealed behind a favour. A grown-up's is theirs to give away or hoard.
+  const deck = buildDeck(players, culprit);
+  // Everyone starts holding one piece. A child's is sealed behind a favour.
+  const opening = shuffle(deck);
   const favours = shuffle(FAVOURS);
   let nthKid = 0;
   players.forEach((p, i) => {
-    p.clue = clues[i] ?? null;
+    p.pieces = opening[i] ? [{ ...opening[i] }] : [];
     p.favour = p.young ? favours[nthKid++ % favours.length] : null;
   });
 
@@ -148,5 +164,7 @@ export function buildTale(players) {
     prompt:
       'Someone at this christening cursed the baby. Find out who before the last candle goes out.',
     culpritId: culprit.id,
+    deck,
+    lies: lieBudget(players.length),
   };
 }
