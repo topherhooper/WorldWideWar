@@ -163,9 +163,9 @@ export function MapView({ map, state, rules, mySlot, selected, mode, onTerritory
             y1={0}
             x2={0}
             y2={hatchStep}
-            stroke="#ff6b3d"
-            strokeOpacity={0.95}
-            strokeWidth={hatchStep * 0.34}
+            stroke="#f2e4d8"
+            strokeOpacity={0.92}
+            strokeWidth={hatchStep * 0.3}
           />
         </pattern>
       </defs>
