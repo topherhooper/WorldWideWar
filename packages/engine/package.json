@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./party": {
+      "types": "./dist/party/index.d.ts",
+      "default": "./dist/party/index.js"
     }
   },
   "scripts": {
