@@ -9,8 +9,24 @@ import type {
   TurnReport,
   GameResult,
 } from '@www/engine';
+import type { PartyAction, PartyMode, PartyView } from '@www/engine/party';
+
+import type { Dependent } from './store.js';
+
+export type { Dependent };
 
 export type GameStatus = 'lobby' | 'active' | 'finished';
+
+/**
+ * Which game this is. Absent means war, because every document written before
+ * the party existed lacks it — and because a stale web bundle sends no kind.
+ *
+ * The party deliberately does *not* add a fourth `GameStatus`. A dealt-but-not-
+ * begun party is `status: 'active'` with `phase: 'invited'` and no deadline: a
+ * status is a wire value that a cached bundle would render as "Turn 0", and two
+ * enums that can disagree about the same game are worse than one.
+ */
+export type GameKind = 'war' | 'party';
 
 /** Which emails a player wants. Every kind defaults to on. */
 export type NotifyKind = 'turnResolved' | 'gameOver' | 'reminder';
@@ -28,6 +44,7 @@ export interface SeatView {
 
 export interface GameSummaryView {
   id: string;
+  kind: GameKind;
   status: GameStatus;
   playerCount: number;
   seatsFilled: number;
@@ -37,7 +54,8 @@ export interface GameSummaryView {
   myLocked: boolean;
 }
 
-export interface GameView {
+export interface WarGameView {
+  kind: 'war';
   id: string;
   status: GameStatus;
   playerCount: number;
@@ -71,7 +89,59 @@ export interface GameView {
   result: GameResult | null;
 }
 
+export interface PartySeatView {
+  slot: number;
+  name: string;
+  taken: boolean;
+  isHost: boolean;
+  /** Guests on this seat with no account of their own. */
+  dependents: Dependent[];
+}
+
+export interface PartyGameView {
+  kind: 'party';
+  id: string;
+  status: GameStatus;
+  tale: 'sleeping-beauty';
+  seats: PartySeatView[];
+  maxSeats: number;
+  mySlot: number | null;
+  isHost: boolean;
+  /**
+   * ISO, mirroring the party state's `phaseEndsAt`. A remaining-milliseconds
+   * field would change on every poll and defeat the client's change detection,
+   * so the client counts down itself.
+   */
+  phaseEndsAt: string | null;
+  /** Redacted for the viewer. Never null — a lobby has a view too. */
+  party: PartyView;
+  /** Why the last action was turned away, if it was. */
+  note: string | null;
+}
+
+/** Discriminated on `kind`, so a party can never be read as a war game. */
+export type AnyGameView = WarGameView | PartyGameView;
+
+export interface TakePartySeatRequest {
+  /** Everyone arriving on this seat without a Google account of their own. */
+  dependents?: Dependent[];
+}
+
+export interface PartyActionRequest {
+  action: PartyAction;
+}
+
+export interface UpdatePartyConfigRequest {
+  roundMinutes?: number;
+  voteSeconds?: number;
+  candles?: number;
+}
+
 export interface CreateGameRequest {
+  /** Absent means war, which is what a web bundle cached across a deploy sends. */
+  kind?: GameKind;
+  /** Party only. Absent means the hunt; `together` is the family-sized tale. */
+  mode?: PartyMode;
   /** One of the engine's PRESETS ids; the preset is immutable after creation. */
   presetId?: string;
   /**
@@ -101,3 +171,9 @@ export interface SubmitOrdersResponse {
   resolved: boolean;
   view: GameView;
 }
+
+/**
+ * The war view under its old name, so the many web components that predate the
+ * party keep compiling unchanged. New code should say which it means.
+ */
+export type GameView = WarGameView;

@@ -3,9 +3,12 @@ import type { Firestore } from 'firebase-admin/firestore';
 
 import type {
   CreateGameRequest,
+  PartyActionRequest,
   SubmitLobbyListRequest,
   SubmitOrdersRequest,
+  TakePartySeatRequest,
   UpdateConfigRequest,
+  UpdatePartyConfigRequest,
   UpdatePrefsRequest,
 } from './api-types.js';
 import type { Verifiers } from './auth.js';
@@ -27,6 +30,15 @@ import {
 import type { Mailer } from './mailer.js';
 import { NOTIFY_KINDS, readPrefs, writePrefs, type NotifyDeps } from './notify.js';
 import { runTick } from './tick.js';
+import {
+  actOnParty,
+  createPartyGame,
+  dropPartySeat,
+  getPartyView,
+  takePartySeat,
+  updatePartyConfig,
+} from './party.js';
+import { games, isPartyDoc, type GameDoc } from './store.js';
 import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
@@ -42,6 +54,19 @@ export interface AppDeps {
   baseUrl: string;
   signer: UnsubSigner;
 }
+
+/**
+ * One extra read on the shared `GET /games/:id`, so the route can dispatch to
+ * the right view builder. Cheap against a document Firestore has cached, and it
+ * keeps `kind` out of the URL — an invite link is the same shape for both games,
+ * which is the entire point of this mode living behind `/g/:id`.
+ */
+async function peekKind(db: FirebaseFirestore.Firestore, gameId: string): Promise<GameDoc | null> {
+  const snap = await games(db).doc(gameId).get();
+  return snap.exists ? (snap.data() as GameDoc) : null;
+}
+
+const isParty = (doc: GameDoc | null): boolean => doc !== null && isPartyDoc(doc);
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const { db, verifiers } = deps;
@@ -138,7 +163,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       });
 
       api.post('/games', async (req) => {
-        const id = await createGame(db, req.user, req.body as CreateGameRequest);
+        const body = (req.body ?? {}) as CreateGameRequest;
+        const id =
+          body.kind === 'party'
+            ? await createPartyGame(db, req.user, body)
+            : await createGame(db, req.user, body);
         return { id };
       });
 
@@ -158,9 +187,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         return writePrefs(db, req.user.uid, patch);
       });
 
+      // The one read both games share. It dispatches rather than branching
+      // inside `getView`, because a party's view is assembled from a different
+      // redactor and never touches the orders collection.
       api.get('/games/:id', async (req) => {
         const { id } = req.params as { id: string };
-        return getView(db, id, req.user);
+        return isParty(await peekKind(db, id))
+          ? getPartyView(db, id, req.user)
+          : getView(db, id, req.user);
       });
 
       api.delete('/games/:id', async (req) => {
@@ -177,6 +211,29 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/start', async (req) => {
         const { id } = req.params as { id: string };
         return startGame(db, id, req.user);
+      });
+
+      api.post('/games/:id/party/seat', async (req) => {
+        const { id } = req.params as { id: string };
+        return takePartySeat(db, id, req.user, (req.body ?? {}) as TakePartySeatRequest);
+      });
+
+      api.delete('/games/:id/party/seat/:slot', async (req) => {
+        const { id, slot } = req.params as { id: string; slot: string };
+        return dropPartySeat(db, id, req.user, Number(slot));
+      });
+
+      api.post('/games/:id/party/config', async (req) => {
+        const { id } = req.params as { id: string };
+        return updatePartyConfig(db, id, req.user, (req.body ?? {}) as UpdatePartyConfigRequest);
+      });
+
+      // Deal, bell, meet, confirm, deny, sniff, nominate and vote all arrive
+      // here. The prototype gave each its own route and its own validation; the
+      // rules live in the engine now, so the server needs one door.
+      api.post('/games/:id/party/act', async (req) => {
+        const { id } = req.params as { id: string };
+        return actOnParty(db, id, req.user, (req.body ?? {}) as PartyActionRequest);
       });
 
       api.post('/games/:id/config', async (req) => {

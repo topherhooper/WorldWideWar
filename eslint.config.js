@@ -66,21 +66,6 @@ export default tseslint.config(
     },
   },
 
-  // Prototype scratch space (CLAUDE.md, stage 2a). Plain Node ESM, no build step and no
-  // tsconfig, so the Node globals have to be declared. Kept under lint rather than
-  // ignored: notebook code is allowed to be embarrassing, not allowed to be undefined.
-  {
-    files: ['prototypes/**/*.mjs'],
-    languageOptions: {
-      globals: {
-        Buffer: 'readonly',
-        URL: 'readonly',
-        console: 'readonly',
-        process: 'readonly',
-      },
-    },
-  },
-
   // Tests and fixtures may use wall-clock and unseeded randomness freely.
   {
     files: ['**/*.test.ts', '**/*.spec.ts', '**/test/**/*.ts'],

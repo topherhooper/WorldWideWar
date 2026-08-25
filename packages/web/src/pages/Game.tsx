@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { emptyOrders } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
+import type { WarGameView } from '@www/server/api-types';
 
 import { GameHud } from '../game/GameHud.js';
 import { HowCombatWorks } from '../game/HowCombatWorks.js';
@@ -13,7 +14,8 @@ import { ResolveNow } from '../game/ResolveNow.js';
 import { OrdersPanel, type EntryMode } from '../game/OrdersPanel.js';
 import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
-import { useGame } from '../useGame.js';
+import { useGame, type UseGame } from '../useGame.js';
+import { PartyGame } from '../party/PartyGame.js';
 import { Lobby } from './Lobby.js';
 
 const AUTOSAVE_MS = 800;
@@ -24,9 +26,42 @@ export function Game() {
   return <GameInner key={id} id={id} />;
 }
 
+/**
+ * The fork between the two games, above everything war-shaped.
+ *
+ * `kind` is read with a `?? 'war'` fallback for the same reason `contest` is —
+ * Cloud Run deploys ahead of Hosting, so a tab loaded before this shipped keeps
+ * its old bundle and a document written by the new server must still render.
+ */
 function GameInner({ id }: { id: string }) {
-  const { view, error, refresh, saveOrders } = useGame(id);
+  const game = useGame(id);
+  if (game.view === null) {
+    return <main className="panel">{game.error ?? 'Loading…'}</main>;
+  }
+  if (game.view.kind === 'party') {
+    return <PartyGame view={game.view} act={game.refresh} id={id} />;
+  }
+  return (
+    <WarGame
+      view={game.view}
+      error={game.error}
+      refresh={game.refresh}
+      saveOrders={game.saveOrders}
+    />
+  );
+}
 
+function WarGame({
+  view,
+  error,
+  refresh,
+  saveOrders,
+}: {
+  view: WarGameView;
+  error: string | null;
+  refresh: () => Promise<unknown>;
+  saveOrders: UseGame['saveOrders'];
+}) {
   const [draft, setDraft] = useState<OrderSet | null>(null);
   const [selected, setSelected] = useState<TerritoryId | null>(null);
   const [mode, setMode] = useState<EntryMode>('deploy');
@@ -39,7 +74,7 @@ function GameInner({ id }: { id: string }) {
 
   // Re-seed the draft at first load and at every turn boundary.
   useEffect(() => {
-    if (view === null || view.mySlot === null || view.state === null) return;
+    if (view.mySlot === null || view.state === null) return;
     if (draftTurn.current === view.turn) return;
     draftTurn.current = view.turn;
     dirty.current = false;
@@ -54,7 +89,7 @@ function GameInner({ id }: { id: string }) {
 
   // Debounced autosave of dirty drafts while unlocked.
   useEffect(() => {
-    if (draft === null || view === null || view.myLocked || !dirty.current) return;
+    if (draft === null || view.myLocked || !dirty.current) return;
     const timer = setTimeout(() => {
       dirty.current = false;
       void saveOrders(draft, false).then(setWarnings);
@@ -62,9 +97,6 @@ function GameInner({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [draft, view, saveOrders]);
 
-  if (view === null) {
-    return <main className="panel">{error ?? 'Loading…'}</main>;
-  }
   if (view.status === 'lobby') {
     return <Lobby view={view} onChanged={refresh} />;
   }

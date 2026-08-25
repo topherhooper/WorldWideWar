@@ -3,6 +3,7 @@ import { getFirestore, type CollectionReference, type Firestore } from 'firebase
 import type { Timestamp } from 'firebase-admin/firestore';
 import { canonicalJson, rulesFor } from '@www/engine';
 import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
+import type { PartyState } from '@www/engine/party';
 
 import type { GameStatus, NotifyKind } from './api-types.js';
 
@@ -11,6 +12,22 @@ export interface Seat {
   name: string;
   email: string | null;
   isBot: boolean;
+  /**
+   * Party only. Guests with no Google account who arrived on this seat.
+   *
+   * `young: true` is a child, who never touches a phone by design. `young:
+   * false` is the same mechanism for a grown-up without an account — a
+   * grandparent whose phone will not finish an OAuth redirect on somebody's
+   * guest wifi. The prototype's clearest finding was that a dinner party does
+   * not want the account model at all; this is how much of that survives being
+   * a mode inside an app that does.
+   */
+  dependents?: Dependent[];
+}
+
+export interface Dependent {
+  name: string;
+  young: boolean;
 }
 
 export interface UserDoc {
@@ -21,7 +38,8 @@ export interface UserDoc {
   notify?: Partial<Record<NotifyKind, boolean>>;
 }
 
-export interface GameDoc {
+/** What the lobby, the seats and the deadline sweep need, whichever game it is. */
+interface GameDocBase {
   status: GameStatus;
   createdBy: string;
   createdAt: Timestamp;
@@ -31,14 +49,41 @@ export interface GameDoc {
   deadlineAt: Timestamp | null;
   turnMinutes: number;
   remindedTurn: number;
-  /** Drives combat RNG; never leaves the server. */
+  /** Drives combat RNG, and the party's deal; never leaves the server. */
   seed: string;
+}
+
+export interface WarGameDoc extends GameDocBase {
+  /**
+   * Absent on every document written before the party existed, which is
+   * precisely what makes those documents keep working: `kind === 'party'` is
+   * false for them, and every war-only field is still there.
+   */
+  kind?: 'war';
   presetId?: string;
   rules: RuleConfig;
   /** Canonical JSON; null until the game starts. */
   stateJson: string | null;
   mapJson: string;
 }
+
+export interface PartyGameDoc extends GameDocBase {
+  kind: 'party';
+  /** A tale is code, not data, so there will only ever be two or three. */
+  tale: 'sleeping-beauty';
+  /** Canonical JSON; null until the host deals. */
+  partyJson: string | null;
+}
+
+/**
+ * A union rather than a wide record with everything optional, so the compiler
+ * finds every war-only read — `rules`, `mapJson`, `stateJson` — instead of one
+ * of them surfacing at runtime as a party game with no map.
+ */
+export type GameDoc = WarGameDoc | PartyGameDoc;
+
+export const isPartyDoc = (doc: GameDoc): doc is PartyGameDoc => doc.kind === 'party';
+export const isWarDoc = (doc: GameDoc): doc is WarGameDoc => doc.kind !== 'party';
 
 export interface OrderDoc {
   ordersJson: string;
@@ -70,22 +115,26 @@ export const orderDocId = (turn: number, slot: number): string => `${turn}-${slo
 
 export const serializeState = (state: GameState): string => canonicalJson(state);
 export const serializeMap = (map: GeneratedMap): string => canonicalJson(map);
+export const serializeParty = (state: PartyState): string => canonicalJson(state);
 
-export const parseState = (doc: GameDoc): GameState | null => {
+export const parseState = (doc: WarGameDoc): GameState | null => {
   if (doc.stateJson === null) return null;
   const state = JSON.parse(doc.stateJson) as GameState;
   // Games stored before the tiers contest lack the field.
   state.tiersLists ??= new Array<TiersList | null>(state.playerCount).fill(null);
   return state;
 };
-export const parseMap = (doc: GameDoc): GeneratedMap => JSON.parse(doc.mapJson) as GeneratedMap;
+export const parseMap = (doc: WarGameDoc): GeneratedMap => JSON.parse(doc.mapJson) as GeneratedMap;
+
+export const parseParty = (doc: PartyGameDoc): PartyState | null =>
+  doc.partyJson === null ? null : (JSON.parse(doc.partyJson) as PartyState);
 
 /**
  * The rules a game actually plays under. Stored rules win; rulesFor only
  * fills fields that games predating them never stored — the legacy-defaults
  * layer that keeps active games resolving exactly as they always did.
  */
-export function effectiveRules(doc: GameDoc): RuleConfig {
+export function effectiveRules(doc: WarGameDoc): RuleConfig {
   return {
     ...rulesFor(doc.playerCount, doc.rules.turnCap, doc.rules.contest ?? 'pact'),
     ...doc.rules,

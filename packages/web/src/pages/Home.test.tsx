@@ -32,4 +32,25 @@ describe('Home', () => {
       expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'tiers-v2' }),
     );
   });
+
+  // Restored from #30, which #31 removed along with the standalone service.
+  // A button this time, not an anchor: the party creates a game and lands on
+  // /g/:id like every other mode, so it needs no route of its own.
+  // One render per card: the first click sets `creating`, which disables the
+  // whole grid, so a second click in the same tree is correctly a no-op.
+  it.each([
+    ['dinner-party', 'traitor'],
+    ['bedtime-party', 'together'],
+  ])('creates the %s from the same grid, on the ordinary link', async (testId, mode) => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId(testId));
+    await waitFor(() =>
+      expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ kind: 'party', mode }),
+    );
+    cleanup();
+  });
 });

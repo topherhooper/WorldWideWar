@@ -10,7 +10,7 @@ import {
   parseState,
   parseMap,
   effectiveRules,
-  type GameDoc,
+  type WarGameDoc,
 } from './store.js';
 
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
@@ -20,7 +20,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
     const db = emulatorDb();
     const map = generateMap('round-trip', 4);
     const state = createInitialState(map, rulesFor(4));
-    const doc: GameDoc = {
+    const doc: WarGameDoc = {
       status: 'active',
       createdBy: 'u1',
       createdAt: Timestamp.now(),
@@ -36,7 +36,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('store', () => {
       mapJson: serializeMap(map),
     };
     await games(db).doc('g1').set(doc);
-    const got = (await games(db).doc('g1').get()).data() as GameDoc;
+    const got = (await games(db).doc('g1').get()).data() as WarGameDoc;
     expect(parseState(got)).toEqual(state);
     expect(parseMap(got)).toEqual(map);
     expect(got.seats).toEqual(doc.seats);
@@ -49,7 +49,7 @@ describe('effectiveRules', () => {
     const doc = {
       playerCount: 4,
       rules: { contest: 'pact', turnCap: 25, dominationShare: 0.7 },
-    } as unknown as GameDoc;
+    } as unknown as WarGameDoc;
     const rules = effectiveRules(doc);
     expect(rules.warEconomyInterval).toBe(5);
     expect(rules.neutralGrowthInterval).toBe(3);
