@@ -11,6 +11,7 @@
  */
 
 import {
+  DEFAULT_RULES,
   playBotGame,
   presetById,
   presetRules,
@@ -123,7 +124,7 @@ function main(): void {
 
     const elapsed = Date.now() - started;
     const stats = aggregate(summaries);
-    const gates = gatesFor(stats);
+    const gates = gatesFor(stats, rules?.turnCap ?? DEFAULT_RULES.turnCap);
 
     console.log(`\n${'='.repeat(72)}`);
     if (preset !== null) {

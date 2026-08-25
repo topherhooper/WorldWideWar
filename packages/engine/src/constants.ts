@@ -56,7 +56,10 @@ export const TERRITORIES_PER_INCOME = 3;
 export const CAPTURED_CAPITAL_INCOME = 1;
 
 /** Creation-time bounds on the configurable game length. */
-export const MIN_TURN_CAP = 10;
+// Five, not ten. The game is played once or twice a day in a group chat, so a
+// 25-turn match is a month of real time and the table loses the thread long
+// before the storm does. Short games are the format, not a variant of it.
+export const MIN_TURN_CAP = 5;
 export const MAX_TURN_CAP = 50;
 
 export const DEFAULT_RULES: RuleConfig = {
@@ -133,6 +136,11 @@ export const DEFAULT_RULES: RuleConfig = {
   plunderIncome: 0,
   plunderCap: 3,
   tiersPayout: 'multiplier',
+  // Competitive by default. Both fields exist so the stored-rules merge in the
+  // server backfills every game created before cooperative mode with the
+  // behaviour it has always had.
+  coop: false,
+  stormRaiders: 0,
 };
 
 /**
@@ -165,6 +173,31 @@ export const MIN_CONCORDAT_PLAYERS = 4;
  * So the domination bar falls and the storm bites earlier as players are added.
  * All values below come from the balance harness, not from intuition.
  */
+/** Mapgen caps radial collapse at six waves; the schedule has to assume them. */
+const MAX_COLLAPSE_WAVES = 6;
+
+function stormIntervalFor(playerCount: number, turnCap: number): number {
+  return playerCount <= 6 ? (turnCap <= 15 ? 1 : 2) : 1;
+}
+
+/**
+ * When the first wave lands.
+ *
+ * The fraction sets the pace, but the schedule is then pulled earlier if the
+ * last wave would fall outside the game. That clamp is what makes short caps
+ * viable: at a cap of 8 the unclamped fraction starts the storm on turn 4 and
+ * the final two waves never fire, which leaves the map half-burnt at the end
+ * and makes a cooperative "outlast the storm" unwinnable by construction.
+ *
+ * It is inert at the caps that existed before short games: 25 turns still
+ * starts on 10 and 15 still starts on 6.
+ */
+function stormFirstWaveFor(turnCap: number, fraction: number, interval: number): number {
+  const byPace = Math.max(4, Math.round(turnCap * fraction));
+  const latestStart = turnCap - (MAX_COLLAPSE_WAVES - 1) * interval;
+  return Math.max(2, Math.min(byPace, latestStart));
+}
+
 export function rulesFor(
   playerCount: number,
   turnCap: number = DEFAULT_RULES.turnCap,
@@ -188,8 +221,12 @@ export function rulesFor(
     // unreachable: half of twenty-five regions is not a strategy, and hegemony
     // simply stopped existing above six players.
     hegemonyShare: playerCount <= 4 ? 0.5 : playerCount <= 6 ? 0.45 : playerCount <= 9 ? 0.4 : 0.45,
-    stormFirstWave: Math.max(4, Math.round(turnCap * firstWaveFraction)),
-    stormInterval: playerCount <= 6 ? (turnCap <= 15 ? 1 : 2) : 1,
+    stormFirstWave: stormFirstWaveFor(
+      turnCap,
+      firstWaveFraction,
+      stormIntervalFor(playerCount, turnCap),
+    ),
+    stormInterval: stormIntervalFor(playerCount, turnCap),
     // "Recent cooperation" must never mean a third of the game ago.
     concordatWindow: Math.min(5, Math.max(2, Math.round(turnCap / 3))),
   };

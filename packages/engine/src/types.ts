@@ -175,7 +175,11 @@ export type VictoryKind =
   /** Three players bound pairwise by recent concord, none having betrayed. */
   | 'concordat'
   /** Nobody closed it out; standings decide. */
-  | 'turn_cap';
+  | 'turn_cap'
+  /** Cooperative: the coalition outlasted the storm. Winners are the survivors. */
+  | 'survival'
+  /** Cooperative: the world took everyone. Nobody wins. */
+  | 'extinction';
 
 export interface GameResult {
   kind: VictoryKind;
@@ -331,8 +335,15 @@ export interface TurnReport {
 /** Which social contest drives combat multipliers. */
 export type ContestKind = 'pact' | 'tiers';
 
-/** How tiers scores land on the game. */
-export type TiersPayout = 'multiplier' | 'income';
+/**
+ * How tiers scores land on the game.
+ *
+ * `pooled` is the cooperative payout: every read scored this turn — including
+ * those made by eliminated players — sums into one coalition pool that is then
+ * split among the living. Reading your allies well is how the coalition pays
+ * for the war.
+ */
+export type TiersPayout = 'multiplier' | 'income' | 'pooled';
 
 export interface RuleConfig {
   /** Which social contest drives combat multipliers. */
@@ -378,8 +389,20 @@ export interface RuleConfig {
   plunderIncome: number;
   /** Most captures that pay plunder in one turn. */
   plunderCap: number;
-  /** Whether tiers scores set a combat multiplier (v1) or pay income (v2). */
+  /** Whether tiers scores set a combat multiplier (v1), pay income (v2), or pool (co-op). */
   tiersPayout: TiersPayout;
+  /**
+   * Cooperative mode: there are no rivals, only the world. Elimination stops
+   * ending a player's participation in the contest, the solo and shared victory
+   * routes are switched off, and the game resolves to `survival` or
+   * `extinction` when the storm has finished.
+   */
+  coop: boolean;
+  /**
+   * Armies the storm drives onto surviving land bordering a fresh collapse.
+   * 0 disables raiders, which is what every competitive game gets.
+   */
+  stormRaiders: number;
 }
 
 export interface ResolveContext {
