@@ -9,9 +9,11 @@ import type {
   TurnReport,
   GameResult,
 } from '@www/engine';
-import type { PartyAction, PartyView } from '@www/engine/party';
+import type { PartyAction, PartyMode, PartyView } from '@www/engine/party';
 
 import type { Dependent } from './store.js';
+
+export type { Dependent };
 
 export type GameStatus = 'lobby' | 'active' | 'finished';
 
@@ -138,6 +140,8 @@ export interface UpdatePartyConfigRequest {
 export interface CreateGameRequest {
   /** Absent means war, which is what a web bundle cached across a deploy sends. */
   kind?: GameKind;
+  /** Party only. Absent means the hunt; `together` is the family-sized tale. */
+  mode?: PartyMode;
   /** One of the engine's PRESETS ids; the preset is immutable after creation. */
   presetId?: string;
   /**
