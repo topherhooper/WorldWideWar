@@ -25,8 +25,8 @@ a secret, it is not this game.
 
 ## What this collides with
 
-This repo's whole spec is one sentence in `CLAUDE.md`: *five friends in a group chat each
-open the site once or twice a day, take two minutes to submit orders*. A dinner party
+This repo's whole spec is one sentence in `CLAUDE.md`: _five friends in a group chat each
+open the site once or twice a day, take two minutes to submit orders_. A dinner party
 inverts every clause of it — same room instead of a group chat, one sitting instead of
 twice a day, forty continuous minutes instead of two.
 
@@ -54,7 +54,7 @@ Where the existing shape helps, and where it is in the way.
 **"Game type" is already a first-class concept, but shallower than this needs.**
 `PresetId = 'pact' | 'tiers' | 'pact-blitz' | 'tiers-v2'` (`packages/engine/src/presets.ts:24`)
 and `ContestKind = 'pact' | 'tiers'` (`packages/engine/src/types.ts:332`). Every one of
-those is a *combat multiplier variant* of the same territory game. They share a map, armies
+those is a _combat multiplier variant_ of the same territory game. They share a map, armies
 and orders. A murder mystery is not a fifth entry in that union — the union is one level
 too deep.
 
@@ -86,7 +86,7 @@ No links were mentioned, so none were opened.
 
 ## Assumed, not asked
 
-- **This is a new game *type*, a sibling of the war game, not a fifth preset inside it.**
+- **This is a new game _type_, a sibling of the war game, not a fifth preset inside it.**
   Shared account/lobby/redaction plumbing, different rules package. If it is meant to be a
   mode of the war game, this doc is wrong from the top.
 - **The host is a player too**, not a neutral game master — they have a role like everyone
