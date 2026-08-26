@@ -184,3 +184,29 @@ Cheap to correct here, expensive to correct after code exists.
    the card box is rotated 45° each round as a round counter; the losers exclaim "Sacré bleu!"
    None of the three survives the trip to a browser as written, and the third one is the game's
    whole personality.
+
+## Prototype goal
+
+> `pnpm sacre --seed <s>` prints a complete 4-player, 8-round game of S.A.C.R.E. — every turn's
+> chosen option and the final scores — and the same seed prints the same game.
+
+**What it buys.** It forces all five options, the whole scoring rule (same-suit runs, the Ace
+looping to 2, Jokers at zero), the round-8 exceptions, and determinism through `substream` into
+code that runs. Bots playing eight rounds will hit the interesting holes on their own: deck
+exhaustion, the under-3-cards exit, and the preclude-winning rule. `pnpm lint` is the real check
+on the last of those, since ESLint enforces engine purity by path.
+
+**What it deliberately does not test: async.** Assumption 2 above is the load-bearing one, and
+this prototype does not touch it. That is the right order — if the rules cannot be expressed as a
+pure engine, the async question never arises — but it means a green run here is not evidence
+about the harder question, and should not later be read as any.
+
+**The shortest path, and what it licenses.** Pure rules in `packages/engine/src/sacre/`, the CLI
+outside it in `tools/sacre/`, mirroring `simulate.ts` + `tools/simulate/` because the engine may
+not touch `process` or `console` (`eslint.config.js:36-46`). Four players hardcoded, bots only,
+no UI, no server, no persistence, no redaction — Advertise's private proof and Exchange's peek
+are direct reads, because it is one process. No tests except one: same seed twice, identical
+transcript, because determinism is half the outcome above. Preclude-winning gets the cheap
+reading rather than a solver — a Score is disallowed if it leaves you under 3 cards and does not
+leave you leading — which covers the document's own example; whether that is the intended reading
+is a finding for the write-up, not something to stall on mid-run.
