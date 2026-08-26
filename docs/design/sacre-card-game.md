@@ -5,7 +5,8 @@ A rules sheet for a 2–7 player, 8-round card game arrived as a bare Google Doc
 it, publishing it or naming it is agreed. That is the first fact about this and it gates
 everything below.
 
-The prototype answers one question and one only: **can these rules be a pure engine?** They can.
+The prototype answers one question and one only: **can these rules be a pure engine?** Mostly — see
+"What the prototype does not implement" for the two rules it leaves out and why.
 `pnpm sacre --seed s1` plays a complete 4-round-order, 8-round, 4-player game to a scored winner,
 and the same seed plays the same game. What it does not answer is whether anyone enjoys playing it — see
 "Still open".
@@ -40,6 +41,36 @@ worth keeping.
 **Purity cost nothing.** `pnpm lint` passed first time. Deriving a substream per `(round, seat)`
 means every turn is independently reproducible, so a replay does not depend on replaying the
 turns before it.
+
+## What the prototype does not implement
+
+Found by auditing the code against the rules sheet rather than trusting the run. Recorded rather
+than fixed, because guessing an answer into prototype code is worse than leaving the question
+where whoever builds this will read it.
+
+- **"Extending an already scored set is not allowed."** There is no table state at all — scored
+  cards simply leave the hand — so nothing stops a player scoring 5-6-7♣ and later 8-9-10♣. Left
+  open on purpose: the rule is genuinely ambiguous about whether that second run _is_ an
+  extension, and it needs settling with the author, not by a coin flip in code.
+- **Advertise's "reveal their hand privately to you as proof."** Players with no eligible card are
+  silently skipped. With bots in one process that changes nothing, which is exactly why it is
+  worth flagging: it is the one step that has no shape in `redact()`, so the prototype skipped
+  past the hardest part of the eventual mode without noticing.
+
+Two more that are bot policy rather than missing rules, so nobody reads them as coverage: in
+round 8 the bot always takes Return-then-bonus-Score, so the Advertise- and Exchange-plus-bonus
+paths never execute; and `lastCycleSeat` is never cleared, so the no-Cycle-twice-in-a-row check
+can fire on a stale seat.
+
+**One thing that was broken and is now fixed.** Seven players crashed. The rules put a Joker into
+each of piles 1 and 2 at a full table precisely because those piles hold six cards (Q, K, A across
+two suits) and seven players need one from each; the prototype had left both Jokers in pile 4. The
+rule whose entire purpose is to make 7 players work was the rule that had been skipped.
+
+**What is confirmed working**, so nobody re-derives it: all five options occur across five seeds
+(Return 78, Exchange 26, Advertise 19, Score 19, Cycle 15); every player count from 2 to 7 plays
+to a winner; the same seed replays the same game; and both worked scoring examples from the
+document match.
 
 ## Still open
 

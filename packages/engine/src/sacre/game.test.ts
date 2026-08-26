@@ -10,6 +10,16 @@ describe('sacre prototype', () => {
     expect(a.scores).toEqual(b.scores);
   });
 
+  it('deals every supported player count', () => {
+    // 7 is the one that needs the rules' Joker split: piles 1 and 2 hold six
+    // cards each, and a full table wants seven from each.
+    for (let players = 2; players <= 7; players++) {
+      const game = playSacreGame('t1', players);
+      expect(game.scores).toHaveLength(players);
+      expect(game.winner).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('scores the Ace loop the way the rules sheet does', () => {
     // 9, 10, J, Q, K, A, 2 of spades = 61, straight from the document.
     const hand = [9, 10, 11, 12, 13, 14, 2].map((rank) => ({

@@ -56,10 +56,20 @@ export function setup(seed: string, players: number): SacreState {
   const deck = buildDeck();
 
   const isHigh = (c: Card): boolean => c.rank !== null && c.rank >= 12;
-  const pile1 = rng.shuffle(deck.filter((c) => isHigh(c) && RED.includes(c.suit as Suit)));
-  const pile2 = rng.shuffle(deck.filter((c) => isHigh(c) && BLACK.includes(c.suit as Suit)));
+  const jokers = deck.filter((c) => c.rank === null);
+
+  // Piles 1 and 2 hold six cards each -- Q, K, A across two suits -- and every
+  // player is dealt one from each. At a full table that is one short, which is
+  // exactly why the rules move a Joker into each pile at 7 players instead of
+  // leaving both in pile 4.
+  const full = players === 7;
+  const red = deck.filter((c) => isHigh(c) && RED.includes(c.suit as Suit));
+  const black = deck.filter((c) => isHigh(c) && BLACK.includes(c.suit as Suit));
+
+  const pile1 = rng.shuffle(full ? [...red, jokers[0]] : red);
+  const pile2 = rng.shuffle(full ? [...black, jokers[1]] : black);
   const pile3 = rng.shuffle(deck.filter((c) => c.rank !== null && c.rank <= 10));
-  const pile4 = deck.filter((c) => c.rank === 11 || c.rank === null);
+  const pile4 = deck.filter((c) => c.rank === 11 || (c.rank === null && !full));
 
   const perPlayer = PILE3_BY_PLAYERS[players];
   const hands: Card[][] = [];
