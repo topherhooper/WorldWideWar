@@ -25,7 +25,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "sim": "tsx tools/simulate/src/main.ts",
-    "mapviz": "tsx tools/mapviz/src/main.ts"
+    "mapviz": "tsx tools/mapviz/src/main.ts",
+    "sacre": "tsx tools/sacre/src/main.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
