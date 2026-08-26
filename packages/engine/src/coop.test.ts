@@ -16,6 +16,7 @@ import { rulesFor } from './constants.js';
 import { resolveTiers, splitPool } from './contest/tiers.js';
 import { applyStorm } from './storm.js';
 import { makeTestMap, scenario } from './testing.js';
+import { commandsArmies, inContest } from './participation.js';
 import { checkVictory } from './victory.js';
 import type { RuleConfig, TiersList, WorldEvent } from './types.js';
 
@@ -223,5 +224,58 @@ describe('survival victory', () => {
 
     const result = checkVictory(state, map, rules);
     expect(result?.kind).toBe('conquest');
+  });
+});
+
+
+/**
+ * The rule that decides who may still submit. It lived as a closure inside
+ * resolveTiers while the harness, the server and the client each re-derived it
+ * from `status === 'active'`, which is how a scored mechanic ended up with
+ * nothing ever feeding it. These assertions are the contract those four now
+ * share.
+ */
+describe('inContest', () => {
+  const competitive = rulesFor(3, 8, 'tiers');
+  const map = makeTestMap({
+    playerCount: 3,
+    territoryCount: 3,
+    edges: [
+      [0, 1],
+      [1, 2],
+    ],
+  });
+  const landless = () => {
+    const state = scenario(map, { owner: [0, 1, null], armies: [3, 3, 1] });
+    state.status[2] = 'eliminated';
+    return state;
+  };
+
+  it('keeps a landless co-op player in the contest, and out of the army orders', () => {
+    const state = landless();
+
+    expect(inContest(state, 2, coopRules(3))).toBe(true);
+    expect(commandsArmies(state, 2)).toBe(false);
+  });
+
+  it('drops the same player from a competitive game entirely', () => {
+    expect(inContest(landless(), 2, competitive)).toBe(false);
+  });
+
+  it('lets resignation mean it in both modes', () => {
+    const state = landless();
+    state.status[2] = 'resigned';
+
+    // A resigned seat that still had to be waited on would stall every
+    // remaining turn until the deadline.
+    expect(inContest(state, 2, coopRules(3))).toBe(false);
+    expect(inContest(state, 2, competitive)).toBe(false);
+  });
+
+  it('agrees with itself for a player who still holds ground', () => {
+    const state = landless();
+
+    expect(inContest(state, 0, coopRules(3))).toBe(true);
+    expect(commandsArmies(state, 0)).toBe(true);
   });
 });

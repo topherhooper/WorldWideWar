@@ -71,6 +71,29 @@ export function ReportView({ view, map, report }: Props) {
       {(report.tiers ?? []).length > 0 && (
         <div className="tiers-report">
           <h4>Tier lists revealed{report.revealedTopic ? ` — ${report.revealedTopic}` : ''}</h4>
+          {view.rules.tiersPayout === 'pooled' &&
+            (() => {
+              // The pool is the sum of what everyone put in — including players
+              // with no land left, whose reads are the only thing they can still
+              // contribute. Splitting it is the engine's job; showing the total
+              // is what tells the table whether the round paid for itself.
+              const pool = (report.tiers ?? []).reduce(
+                (sum: number, r: TiersResult) => sum + (r.incomeDelta ?? 0),
+                0,
+              );
+              const holders =
+                view.state?.status.filter((st) => st === 'active').length ?? 0;
+              return (
+                <p className={pool >= 0 ? 'concord' : 'betrayal'}>
+                  The coalition read itself for <strong>{pool}</strong>{' '}
+                  {Math.abs(pool) === 1 ? 'army' : 'armies'}
+                  {holders > 0 && pool !== 0
+                    ? `, split among the ${holders} still holding ground`
+                    : ''}
+                  .
+                </p>
+              );
+            })()}
           <ul className="report-list">
             {(report.tiers ?? []).map((t: TiersResult) => (
               <li key={`t${t.slot}`}>
@@ -95,6 +118,12 @@ export function ReportView({ view, map, report }: Props) {
                   <div className={(t.incomeDelta ?? 0) > 0 ? 'concord' : 'betrayal'}>
                     {(t.incomeDelta ?? 0) > 0 ? '+' : ''}
                     {t.incomeDelta ?? 0} armies from the tiers
+                  </div>
+                )}
+                {view.rules.tiersPayout === 'pooled' && (t.incomeDelta ?? 0) !== 0 && (
+                  <div className={(t.incomeDelta ?? 0) > 0 ? 'concord' : 'betrayal'}>
+                    {(t.incomeDelta ?? 0) > 0 ? '+' : ''}
+                    {t.incomeDelta ?? 0} to the coalition
                   </div>
                 )}
               </li>

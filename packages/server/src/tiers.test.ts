@@ -40,11 +40,13 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers game creation', () 
     expect(rules.turnCap).toBe(15);
   });
 
-  it('defaults to pact at 25 turns', async () => {
+  it('defaults to pact at its preset cap', async () => {
     const id = await createTestGame(db, alice, { playerCount: 4, turnMinutes: 60 });
     const view = await getView(db, id, alice);
     expect(view.contest).toBe('pact');
-    expect(view.turnCap).toBe(25);
+    // Every preset targets a 5-10 turn game; 25 turns at a turn a day was a
+    // month of real time. See docs/design/coop-survival.md.
+    expect(view.turnCap).toBe(10);
     expect(view.tiersTopic).toBeNull();
   });
 
@@ -155,5 +157,79 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('tiers turn resolution', (
       locked: true,
     });
     expect(res.warnings.some((w) => w.includes('tier list'))).toBe(true);
+  });
+});
+
+/**
+ * Cooperative Survival: the landless keep contesting.
+ *
+ * The engine has scored an eliminated co-op player's reads into the coalition
+ * pool since the mode was written, but the order route answered 403 to anyone
+ * whose status was not 'active', so nothing ever reached it. These pin the
+ * route open — and pin it shut in a competitive game, where the same player
+ * genuinely is finished.
+ */
+describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('co-op keeps the landless playing', () => {
+  const db = emulatorDb();
+  beforeEach(clearFirestore);
+
+  /** Start a two-hander on the given preset and take slot 1's last province. */
+  const eliminatedBob = async (presetId: 'survival' | 'tiers'): Promise<string> => {
+    const id = await createTestGame(db, alice, { presetId, playerCount: 2, turnMinutes: 60 });
+    await joinGame(db, id, bob);
+    await submitLobbyList(db, id, alice, LIST);
+    // The last list on a full table auto-starts the game; calling startGame
+    // after that is a 409.
+    const started = await submitLobbyList(db, id, bob, LIST2);
+    expect(started.status).toBe('active');
+
+    const snap = await games(db).doc(id).get();
+    const state = JSON.parse(snap.get('stateJson') as string) as {
+      status: string[];
+      owner: (number | null)[];
+      eliminatedTurn: (number | null)[];
+    };
+    // Take Bob's ground the way the storm would, rather than resolving turns
+    // until it happens: what is under test is the gate, not the elimination.
+    state.owner = state.owner.map((slot) => (slot === 1 ? null : slot));
+    state.status[1] = 'eliminated';
+    state.eliminatedTurn[1] = 1;
+    await games(db).doc(id).update({ stateJson: JSON.stringify(state) });
+    return id;
+  };
+
+  it('accepts a landless player’s tier orders, and drops the armies they no longer have', async () => {
+    const mailer = new LogMailer();
+    const id = await eliminatedBob('survival');
+
+    const res = await submitOrders(testDeps(db, mailer), id, bob, {
+      orders: {
+        slot: 1,
+        pledge: null,
+        deploys: [{ to: 0, count: 1 }],
+        units: [],
+        tiers: { list: LIST2, guesses: [{ target: 0, order: [0, 1, 2, 3, 4, 5] }] },
+      },
+      locked: true,
+    });
+
+    // The read is banked; the deploy onto ground they do not own degrades to a
+    // warning rather than a rejected turn.
+    expect(res.warnings.some((w) => w.includes('not held'))).toBe(true);
+    const view = await getView(db, id, bob);
+    expect(view.myLocked).toBe(true);
+    expect(view.myOrders?.tiers?.guesses).toHaveLength(1);
+  });
+
+  it('still shuts the door on an eliminated player in a competitive game', async () => {
+    const mailer = new LogMailer();
+    const id = await eliminatedBob('tiers');
+
+    await expect(
+      submitOrders(testDeps(db, mailer), id, bob, {
+        orders: { slot: 1, pledge: null, deploys: [], units: [] },
+        locked: false,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 });
