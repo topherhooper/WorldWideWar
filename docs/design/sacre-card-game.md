@@ -7,17 +7,17 @@ everything below.
 
 The prototype answers one question and one only: **can these rules be a pure engine?** They can.
 `pnpm sacre --seed s1` plays a complete 4-round-order, 8-round, 4-player game to a scored winner,
-and the same seed plays the same game. What it does not answer is the question that actually
-decides whether this ships — see "Still open".
+and the same seed plays the same game. What it does not answer is whether anyone enjoys playing it — see
+"Still open".
 
 ## Decisions
 
-| Decision                   | Chose                                                                                               | Rejected, and why                                                                                                                                                                                                                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Which axis in `game-modes` | A third `kind`, if it is ever built for real                                                        | Preset and contest, because S.A.C.R.E. shares no map, no armies, no orders pipeline and no contest. `docs/game-modes.md:218` — if it shares nothing at all it is a different site, and this shares only lobby, seats, invite link and deadline, which is exactly what the party shares. |
-| Where the prototype lives  | Pure rules in `packages/engine/src/sacre/`, CLI in `tools/sacre/`                                   | A standalone throwaway script outside the workspace. The engine's ESLint purity rule is enforced by path, so putting the rules inside `packages/engine` buys the invariant check for free — which is the thing worth testing.                                                           |
-| "Precludes winning"        | The cheap reading: a Score is illegal if it leaves you under 3 cards and does not leave you leading | A solver over remaining winning lines. The document's own example is exactly the cheap case (trail by 10, cannot dump your last three low cards), the cheap version is four lines, and a solver would collide with "invalid input degrades, never throws".                              |
-| Async vs synchronous       | **Not decided.** Deliberately untouched by the prototype                                            | Deciding it on paper. Advertise and Cycle are blocking sub-turns and every other design question hangs off this one; it wants a brainstorm, not a guess.                                                                                                                                |
+| Decision                   | Chose                                                                                                         | Rejected, and why                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which axis in `game-modes` | A third `kind`, if it is ever built for real                                                                  | Preset and contest, because S.A.C.R.E. shares no map, no armies, no orders pipeline and no contest. `docs/game-modes.md:218` — if it shares nothing at all it is a different site, and this shares only lobby, seats, invite link and deadline, which is exactly what the party shares.                                                                                                                                                                                             |
+| Where the prototype lives  | Pure rules in `packages/engine/src/sacre/`, CLI in `tools/sacre/`                                             | A standalone throwaway script outside the workspace. The engine's ESLint purity rule is enforced by path, so putting the rules inside `packages/engine` buys the invariant check for free — which is the thing worth testing.                                                                                                                                                                                                                                                       |
+| "Precludes winning"        | The cheap reading: a Score is illegal if it leaves you under 3 cards and does not leave you leading           | A solver over remaining winning lines. The document's own example is exactly the cheap case (trail by 10, cannot dump your last three low cards), the cheap version is four lines, and a solver would collide with "invalid input degrades, never throws".                                                                                                                                                                                                                          |
+| Turn model                 | **Live and co-present, party-shaped** — everyone at the table at once, fast poll, phases advancing in minutes | Async simultaneous, the war game's model, because the rules are strictly sequential: "the shortest player goes first and turns rotate to the left". And async _sequential_, because at 4 players that is 32 blocking turns each waiting on one named person, Advertise and Cycle block on everyone else inside a single turn, and there is no sane auto-play — a war-game no-show submits nothing and the turn still resolves, but "did not pick an option" has no equivalent here. |
 
 ## What the running game taught
 
@@ -43,12 +43,22 @@ turns before it.
 
 ## Still open
 
-The prototype says the rules are expressible. It says **nothing** about whether the game can be
-played asynchronously by five people who open a site twice a day, because it never modelled a
-turn boundary — a bot simply answers an Advertise the moment it is asked. That is the load-bearing
-question, and a green prototype must not be read as evidence about it.
+**Not the turn model — that is settled above.** The question the prototype was said to leave open
+was "can this be made async", and the answer is essentially no; the useful question is whether it
+is worth building as a live, co-present mode. Three details in the rules sheet all point the same
+way, and none of them is about implementation: round 8 flips every hand _and the deck_ face-up for
+the whole table to see, the round counter is a physical card box the first player rotates 45° per
+round, and turn order is decided by who is shortest. It is a game for people in a room.
 
-Nor does it say the game is any good: the bots are crude heuristics lifted from the document's own
-advice section, and nobody has played it.
+That makes the party the precedent to copy rather than the war game — `kind`-shaped, a 2.5 s poll,
+and the advance-on-read trick that exists because a once-a-minute sweep cannot drive a phase that
+lasts ninety seconds (`docs/game-modes.md:125-128`). It also means the cost is the party's cost,
+not the war game's.
 
-Before any of that matters, someone has to ask the author.
+What genuinely remains: **nobody has played it.** The bots are crude heuristics lifted from the
+document's own advice section, and a prototype that proves the rules compute proves nothing about
+whether four people enjoy an evening of it. The cheapest next thing that would tell us is a real
+game with real cards — the rules need a deck and nothing else.
+
+And one balance flag from the run, for whoever builds it: with the deck at 4 players being 14
+cards and all of them face cards, Aces or Jokers, Return is close to a free upgrade in rounds 1-7.
