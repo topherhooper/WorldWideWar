@@ -4,11 +4,13 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type {
   CreateGameRequest,
   PartyActionRequest,
+  SacreActionRequest,
   SubmitLobbyListRequest,
   SubmitOrdersRequest,
   TakePartySeatRequest,
   UpdateConfigRequest,
   UpdatePartyConfigRequest,
+  UpdateSacreConfigRequest,
   UpdatePrefsRequest,
 } from './api-types.js';
 import type { Verifiers } from './auth.js';
@@ -38,7 +40,14 @@ import {
   takePartySeat,
   updatePartyConfig,
 } from './party.js';
-import { games, isPartyDoc, type GameDoc } from './store.js';
+import {
+  actOnSacre,
+  createSacreGame,
+  getSacreView,
+  takeSacreSeat,
+  updateSacreConfig,
+} from './sacre.js';
+import { games, isPartyDoc, isSacreDoc, type GameDoc } from './store.js';
 import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
@@ -67,6 +76,7 @@ async function peekKind(db: FirebaseFirestore.Firestore, gameId: string): Promis
 }
 
 const isParty = (doc: GameDoc | null): boolean => doc !== null && isPartyDoc(doc);
+const isSacre = (doc: GameDoc | null): boolean => doc !== null && isSacreDoc(doc);
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const { db, verifiers } = deps;
@@ -164,10 +174,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
       api.post('/games', async (req) => {
         const body = (req.body ?? {}) as CreateGameRequest;
+        // Absent `kind` still means war: a web bundle cached across a deploy
+        // sends none, and that must keep creating the game it always did.
         const id =
           body.kind === 'party'
             ? await createPartyGame(db, req.user, body)
-            : await createGame(db, req.user, body);
+            : body.kind === 'cards'
+              ? await createSacreGame(db, req.user, body)
+              : await createGame(db, req.user, body);
         return { id };
       });
 
@@ -192,9 +206,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       // redactor and never touches the orders collection.
       api.get('/games/:id', async (req) => {
         const { id } = req.params as { id: string };
-        return isParty(await peekKind(db, id))
-          ? getPartyView(db, id, req.user)
-          : getView(db, id, req.user);
+        const doc = await peekKind(db, id);
+        if (isParty(doc)) return getPartyView(db, id, req.user);
+        if (isSacre(doc)) return getSacreView(db, id, req.user);
+        return getView(db, id, req.user);
       });
 
       api.delete('/games/:id', async (req) => {
@@ -234,6 +249,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       api.post('/games/:id/party/act', async (req) => {
         const { id } = req.params as { id: string };
         return actOnParty(db, id, req.user, (req.body ?? {}) as PartyActionRequest);
+      });
+
+      api.post('/games/:id/cards/seat', async (req) => {
+        const { id } = req.params as { id: string };
+        return takeSacreSeat(db, id, req.user);
+      });
+
+      api.post('/games/:id/cards/config', async (req) => {
+        const { id } = req.params as { id: string };
+        return updateSacreConfig(db, id, req.user, (req.body ?? {}) as UpdateSacreConfigRequest);
+      });
+
+      // Deal, score, advertise, cycle, return, exchange, respond and pass all
+      // arrive here. The rules live in the engine, so the server needs one door.
+      api.post('/games/:id/cards/act', async (req) => {
+        const { id } = req.params as { id: string };
+        return actOnSacre(db, id, req.user, (req.body ?? {}) as SacreActionRequest);
       });
 
       api.post('/games/:id/config', async (req) => {

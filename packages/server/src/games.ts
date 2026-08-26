@@ -37,7 +37,7 @@ import {
   effectiveRules,
   games,
   humanSlots,
-  isPartyDoc,
+  isWarDoc,
   liveHumanSlots,
   ordersCol,
   orderDocId,
@@ -133,9 +133,14 @@ async function loadGame(db: Firestore, gameId: string): Promise<GameDoc> {
  * as a 409 rather than a 500 because a stale web bundle can genuinely send one.
  */
 export function asWarDoc(doc: GameDoc, what = 'that'): WarGameDoc {
-  if (isPartyDoc(doc)) throw new HttpError(409, `a dinner party has no ${what}`);
+  // Positive, not `!isPartyDoc`. With three kinds, "not a party" stopped
+  // meaning "a war game", and this guard is the one place that mistake would
+  // surface as a 500 on a missing map rather than a 409.
+  if (!isWarDoc(doc)) throw new HttpError(409, `a ${otherGame(doc)} has no ${what}`);
   return doc;
 }
+
+const otherGame = (doc: GameDoc): string => (doc.kind === 'party' ? 'dinner party' : 'card game');
 
 function slotOf(doc: GameDoc, uid: string): number | null {
   const slot = doc.seats.findIndex((s) => s !== null && s.uid === uid);
@@ -575,7 +580,12 @@ export async function listGames(db: Firestore, user: AuthedUser): Promise<GameSu
 
   return rows.map(({ id, doc, mySlot }) => ({
     id,
-    kind: isPartyDoc(doc) ? ('party' as const) : ('war' as const),
+    kind:
+      doc.kind === 'party'
+        ? ('party' as const)
+        : doc.kind === 'cards'
+          ? ('cards' as const)
+          : ('war' as const),
     status: doc.status,
     playerCount: doc.playerCount,
     seatsFilled: doc.seats.filter((s) => s !== null).length,

@@ -1,326 +1,33 @@
 /**
- * S.A.C.R.E. Bleu! -- eight rounds, five options, played by bots.
+ * The headless harness: bots playing the real state machine.
  *
- * Prototype. Hardcoded to the shortest path that reaches the goal in
- * ideas/sacre-card-game.md: a full game printed from a seed, reproducibly.
- * Pure: every draw comes from substream(), per the engine invariant.
+ * This is not a second implementation of the rules. It drives exactly the same
+ * `applySacreAction` / `settlePending` / `endTurn` the server drives, which is
+ * what makes `pnpm sacre` worth anything -- a game that plays here is a game
+ * that plays on the site.
+ *
+ * Time is pinned at zero throughout. Bots answer immediately, so nothing ever
+ * reaches its deadline and the timeout paths are exercised by tests instead.
  */
 
 import { substream, type Rng } from '../rng.js';
+import { bestRun, cardName, type Card } from './cards.js';
+import { applySacreAction } from './actions.js';
+import { endTurn, settlePending } from './clock.js';
+import { eligibleFor } from './rules.js';
 import {
-  BLACK,
-  RED,
-  bestRun,
-  buildDeck,
-  cardName,
-  cardValue,
-  isJoker,
-  type Card,
-  type Run,
-  type Suit,
-} from './cards.js';
-
-/** Cards from pile 3 per player, by player count. Piles 1 and 2 always give 1 each. */
-const PILE3_BY_PLAYERS: Record<number, number> = { 2: 13, 3: 10, 4: 8, 5: 7, 6: 6, 7: 5 };
-
-export interface PlayerState {
-  readonly seat: number;
-  hand: Card[];
-  score: number;
-  /** Fewer than 3 cards: hand goes face-up and the player skips the rest. */
-  out: boolean;
-}
-
-export interface SacreState {
-  players: PlayerState[];
-  /** Index 0 is the top of the deck. */
-  deck: Card[];
-  round: number;
-  /** Seat that chose Cycle most recently, for the no-twice-in-a-row rule. */
-  lastCycleSeat: number | null;
-  /** Card ids revealed via Exchange, with the global turn index it happened on. */
-  revealed: Map<string, number>;
-  /** Global turn index, incremented once per taken turn. */
-  turn: number;
-  /** Per seat, the turn index of that seat's previous turn. */
-  prevTurnOf: number[];
-}
-
-export function dealSize(players: number): number {
-  return 2 + PILE3_BY_PLAYERS[players];
-}
-
-/** Split the deck into the four piles, deal, and shuffle the rest back together. */
-export function setup(seed: string, players: number): SacreState {
-  const rng = substream(seed, 'setup');
-  const deck = buildDeck();
-
-  const isHigh = (c: Card): boolean => c.rank !== null && c.rank >= 12;
-  const jokers = deck.filter((c) => c.rank === null);
-
-  // Piles 1 and 2 hold six cards each -- Q, K, A across two suits -- and every
-  // player is dealt one from each. At a full table that is one short, which is
-  // exactly why the rules move a Joker into each pile at 7 players instead of
-  // leaving both in pile 4.
-  const full = players === 7;
-  const red = deck.filter((c) => isHigh(c) && RED.includes(c.suit as Suit));
-  const black = deck.filter((c) => isHigh(c) && BLACK.includes(c.suit as Suit));
-
-  const pile1 = rng.shuffle(full ? [...red, jokers[0]] : red);
-  const pile2 = rng.shuffle(full ? [...black, jokers[1]] : black);
-  const pile3 = rng.shuffle(deck.filter((c) => c.rank !== null && c.rank <= 10));
-  const pile4 = deck.filter((c) => c.rank === 11 || (c.rank === null && !full));
-
-  const perPlayer = PILE3_BY_PLAYERS[players];
-  const hands: Card[][] = [];
-  for (let seat = 0; seat < players; seat++) {
-    const hand = [pile1.shift() as Card, pile2.shift() as Card];
-    for (let i = 0; i < perPlayer; i++) hand.push(pile3.shift() as Card);
-    hands.push(hand);
-  }
-
-  return {
-    players: hands.map((hand, seat) => ({ seat, hand, score: 0, out: false })),
-    deck: rng.shuffle([...pile1, ...pile2, ...pile3, ...pile4]),
-    round: 1,
-    lastCycleSeat: null,
-    revealed: new Map(),
-    turn: 0,
-    prevTurnOf: hands.map(() => -1),
-  };
-}
-
-// --- bot taste ---------------------------------------------------------------
-
-/** The suit the bot is collecting: the one its hand already has most value in. */
-function targetSuit(hand: readonly Card[]): Suit {
-  const totals = new Map<Suit, number>();
-  for (const c of hand) {
-    if (c.suit === null) continue;
-    totals.set(c.suit, (totals.get(c.suit) ?? 0) + cardValue(c));
-  }
-  let best: Suit = 'C';
-  let bestTotal = -1;
-  for (const [suit, total] of totals) {
-    if (total > bestTotal) {
-      best = suit;
-      bestTotal = total;
-    }
-  }
-  return best;
-}
-
-/** Worst-first: off-suit before on-suit, low value before high, jokers last. */
-function worstFirst(hand: readonly Card[], suit: Suit): Card[] {
-  return hand.slice().sort((a, b) => {
-    if (isJoker(a) !== isJoker(b)) return isJoker(a) ? 1 : -1;
-    const onA = a.suit === suit ? 1 : 0;
-    const onB = b.suit === suit ? 1 : 0;
-    if (onA !== onB) return onA - onB;
-    return cardValue(a) - cardValue(b);
-  });
-}
-
-function leaderScoreExcluding(state: SacreState, seat: number): number {
-  let best = 0;
-  for (const p of state.players) {
-    if (p.seat !== seat && p.score > best) best = p.score;
-  }
-  return best;
-}
-
-/**
- * "Scoring a sequence that precludes winning is not allowed."
- *
- * The cheap reading, not a solver: a Score that leaves you under 3 cards ends
- * your game, so it is only allowed if it also leaves you in front.
- */
-export function scoreAllowed(state: SacreState, seat: number, run: Run): boolean {
-  const p = state.players[seat];
-  if (p.hand.length - run.cards.length >= 3) return true;
-  return p.score + run.points > leaderScoreExcluding(state, seat);
-}
-
-function remove(hand: Card[], cards: readonly Card[]): void {
-  for (const c of cards) {
-    const i = hand.findIndex((h) => h.id === c.id);
-    if (i >= 0) hand.splice(i, 1);
-  }
-}
-
-// --- the five options --------------------------------------------------------
-
-function doScore(state: SacreState, seat: number, run: Run): string {
-  const p = state.players[seat];
-  remove(p.hand, run.cards);
-  p.score += run.points;
-  return `Score ${run.cards.map(cardName).join('-')} = ${run.points} (total ${p.score})`;
-}
-
-function doAdvertise(state: SacreState, seat: number, rng: Rng): string {
-  const p = state.players[seat];
-  const suit = targetSuit(p.hand);
-  const offer = worstFirst(p.hand, suit).find((c) => !isJoker(c));
-  if (!offer) return 'Advertise: nothing to offer';
-
-  const floor = cardValue(offer);
-  const bids: { seat: number; card: Card }[] = [];
-  for (const other of state.players) {
-    if (other.seat === seat || other.out) continue;
-    const eligible = other.hand.filter((c) => !isJoker(c) && cardValue(c) >= floor);
-    if (eligible.length === 0) continue;
-    // Everyone answers with their cheapest eligible card.
-    const cheapest = eligible.reduce((a, b) => (cardValue(a) <= cardValue(b) ? a : b));
-    bids.push({ seat: other.seat, card: cheapest });
-  }
-  if (bids.length === 0) return `Advertise ${cardName(offer)}: nobody could answer`;
-
-  // The advertiser peeks at every face-down card, so it takes the best on offer.
-  const pick = bids.reduce((a, b) => (cardValue(a.card) >= cardValue(b.card) ? a : b));
-  const partner = state.players[pick.seat];
-  remove(p.hand, [offer]);
-  remove(partner.hand, [pick.card]);
-  p.hand.push(pick.card);
-  partner.hand.push(offer);
-  void rng;
-  return `Advertise ${cardName(offer)} -> swapped with P${pick.seat} for ${cardName(pick.card)}`;
-}
-
-function doCycle(state: SacreState, seat: number, quantity: number, offset: number): string {
-  const participants = state.players.filter((p) => !p.out && p.hand.length >= quantity);
-  if (participants.length < 2) return `Cycle ${quantity}: too few participants`;
-
-  const passed = participants.map((p) => {
-    const give = worstFirst(p.hand, targetSuit(p.hand)).slice(0, quantity);
-    remove(p.hand, give);
-    return give;
-  });
-  participants.forEach((p, i) => {
-    const from = (i - offset + participants.length * 2) % participants.length;
-    p.hand.push(...passed[from]);
-  });
-  state.lastCycleSeat = seat;
-  return `Cycle ${quantity} card(s) ${offset} seat(s) left among ${participants.length} players`;
-}
-
-function doReturn(state: SacreState, seat: number, quantity: number): string {
-  const p = state.players[seat];
-  const give = worstFirst(p.hand, targetSuit(p.hand)).slice(0, quantity);
-  remove(p.hand, give);
-  state.deck.push(...give);
-
-  if (state.round === 8) {
-    // Round 8: search the deck and take whatever you like.
-    const wanted: Card[] = [];
-    for (let i = 0; i < quantity && state.deck.length > 0; i++) {
-      const suit = targetSuit([...p.hand, ...wanted]);
-      const scored = state.deck.map((c, idx) => ({
-        idx,
-        weight: cardValue(c) + (c.suit === suit ? 20 : 0) + (isJoker(c) ? 15 : 0),
-      }));
-      const best = scored.reduce((a, b) => (a.weight >= b.weight ? a : b));
-      wanted.push(state.deck.splice(best.idx, 1)[0]);
-    }
-    p.hand.push(...wanted);
-    return `Return ${quantity}, searched the deck for ${wanted.map(cardName).join(', ')}`;
-  }
-
-  const drawn = state.deck.splice(0, quantity);
-  p.hand.push(...drawn);
-  const short = drawn.length < quantity ? ` (deck only had ${drawn.length})` : '';
-  return `Return ${quantity}, drew ${drawn.length}${short}`;
-}
-
-function doExchange(state: SacreState, seat: number): string {
-  const p = state.players[seat];
-  const others = state.players.filter((o) => o.seat !== seat && !o.out && o.hand.length > 0);
-  if (others.length === 0) return 'Exchange: nobody to trade with';
-
-  const target = others.reduce((a, b) => (a.hand.length >= b.hand.length ? a : b));
-  const suit = targetSuit(p.hand);
-  const give = worstFirst(p.hand, suit)[0];
-  remove(p.hand, [give]);
-  target.hand.push(give);
-
-  // 8 or more after receiving: set 3 aside, out of reach for this Exchange.
-  let aside: Card[] = [];
-  if (target.hand.length >= 8) {
-    aside = worstFirst(target.hand, targetSuit(target.hand)).slice(0, 3);
-    remove(target.hand, aside);
-  }
-
-  const since = state.prevTurnOf[seat];
-  const takeable = target.hand.filter((c) => (state.revealed.get(c.id) ?? -1) <= since);
-  const pool = takeable.length > 0 ? takeable : target.hand;
-  const take = pool.reduce((a, b) =>
-    cardValue(a) + (a.suit === suit ? 20 : 0) >= cardValue(b) + (b.suit === suit ? 20 : 0) ? a : b,
-  );
-  remove(target.hand, [take]);
-  p.hand.push(take);
-  state.revealed.set(take.id, state.turn);
-  target.hand.push(...aside);
-
-  const blocked =
-    takeable.length === 0 && target.hand.length > 0 ? ' (all cards were blocked)' : '';
-  return `Exchange: gave ${cardName(give)} to P${target.seat}, took ${cardName(take)}${blocked}`;
-}
-
-// --- the bot -----------------------------------------------------------------
-
-function maxCycleQuantity(players: number): number {
-  return Math.ceil(dealSize(players) / 2);
-}
-
-function takeTurn(state: SacreState, seat: number, rng: Rng): string {
-  const p = state.players[seat];
-  const run = bestRun(p.hand);
-  const canScore = run !== null && scoreAllowed(state, seat, run);
-  const round8 = state.round === 8;
-
-  // Round 8: everything is face-up, and Advertise/Return/Exchange earn a free
-  // bonus Score afterwards -- so never spend the turn itself on Score.
-  if (round8) {
-    const line =
-      state.deck.length > 0
-        ? doReturn(state, seat, Math.min(3, p.hand.length))
-        : doExchange(state, seat);
-    const bonus = bestRun(p.hand);
-    if (bonus && scoreAllowed(state, seat, bonus)) {
-      return `${line}; bonus ${doScore(state, seat, bonus)}`;
-    }
-    return `${line}; no bonus run`;
-  }
-
-  // The document's own advice: don't Score in your first two turns.
-  if (canScore && state.round >= 3 && run.points >= 24) {
-    return doScore(state, seat, run);
-  }
-
-  const cycleBlocked =
-    state.lastCycleSeat !== null && state.lastCycleSeat === lastActiveSeat(state, seat);
-  const weak = run === null || run.points < 20;
-
-  if (weak && state.deck.length > 0 && rng.int(3) > 0) {
-    return doReturn(state, seat, Math.min(3, p.hand.length));
-  }
-  if (weak && !cycleBlocked && state.players.filter((x) => !x.out).length >= 3 && rng.bool()) {
-    const quantity = 1 + rng.int(maxCycleQuantity(state.players.length));
-    const offset = 1 + rng.int(Math.max(1, state.players.length - 1));
-    return doCycle(state, seat, quantity, offset);
-  }
-  if (rng.bool()) return doAdvertise(state, seat, rng);
-  return doExchange(state, seat);
-}
-
-/** The previous seat in turn order that still has more than 2 cards. */
-function lastActiveSeat(state: SacreState, seat: number): number | null {
-  const n = state.players.length;
-  for (let step = 1; step <= n; step++) {
-    const s = (seat - step + n * 2) % n;
-    if (state.players[s].hand.length > 2) return s;
-  }
-  return null;
-}
+  DEFAULT_TURN_SECONDS,
+  ROUNDS,
+  deal,
+  dealSize,
+  emptyState,
+  maxCycleQuantity,
+  richestSuit,
+  winnerOf,
+  worstFirst,
+} from './state.js';
+import { optionsFor } from './redact.js';
+import type { SacreAction, SacreState, Slot } from './types.js';
 
 export interface SacreResult {
   readonly lines: string[];
@@ -328,46 +35,170 @@ export interface SacreResult {
   readonly winner: number;
 }
 
-export function playSacreGame(seed: string, players = 4): SacreResult {
-  const state = setup(seed, players);
-  const lines: string[] = [];
+/** Candidate actions for a seat, best first. Legality is the engine's problem. */
+function candidates(state: SacreState, slot: Slot, rng: Rng): SacreAction[] {
+  const hand = state.players[slot].hand;
+  const suit = richestSuit(hand);
+  const options = optionsFor(state, slot);
+  const out: SacreAction[] = [];
 
-  lines.push(`S.A.C.R.E. Bleu! -- ${players} players, seed "${seed}"`);
-  lines.push(`Dealt ${dealSize(players)} each; ${state.deck.length} cards left in the deck.`);
-  for (const p of state.players) {
-    lines.push(`  P${p.seat}: ${p.hand.map(cardName).join(' ')}`);
+  const run = bestRun(hand);
+  const worst = worstFirst(hand, suit);
+
+  // The document's own advice: don't Score in your first two turns, and in the
+  // last round take a free option first so the bonus Score comes after it.
+  const wantScore = run !== null && state.round >= 3 && state.round < ROUNDS && run.points >= 24;
+  if (wantScore && options.includes('score')) {
+    out.push({ type: 'score', cards: (run as { cards: readonly Card[] }).cards.map((c) => c.id) });
   }
 
-  for (let round = 1; round <= 8; round++) {
-    state.round = round;
-    lines.push('');
-    lines.push(`-- Round ${round}${round === 8 ? ' (face-up, no Cycle, bonus Score)' : ''} --`);
+  if (state.round === ROUNDS && options.includes('return')) {
+    const give = worst.slice(0, Math.min(3, Math.max(0, hand.length - 3)));
+    const want = [...state.deck]
+      .sort(
+        (a, b) =>
+          (b.suit === suit ? 20 : 0) + (b.rank ?? 0) - ((a.suit === suit ? 20 : 0) + (a.rank ?? 0)),
+      )
+      .slice(0, give.length)
+      .map((c) => c.id);
+    if (give.length > 0) out.push({ type: 'return', cards: give.map((c) => c.id), want });
+  }
 
-    for (let seat = 0; seat < players; seat++) {
-      const p = state.players[seat];
-      if (p.out) continue;
+  const weak = run === null || run.points < 20;
+  if (weak && options.includes('return') && state.deck.length > 0 && rng.int(3) > 0) {
+    const give = worst.slice(0, Math.min(3, Math.max(1, hand.length - 3)));
+    if (give.length > 0) out.push({ type: 'return', cards: give.map((c) => c.id) });
+  }
+  if (weak && options.includes('cycle') && rng.bool()) {
+    const quantity = 1 + rng.int(maxCycleQuantity(state.players.length));
+    out.push({
+      type: 'cycle',
+      quantity,
+      offset: 1 + rng.int(Math.max(1, state.players.length - 1)),
+    });
+  }
+  if (options.includes('advertise') && rng.bool()) {
+    const offer = worst.find((c) => c.rank !== null);
+    if (offer) out.push({ type: 'advertise', card: offer.id });
+  }
+  if (options.includes('exchange')) {
+    const target = state.players.find((p) => p.slot !== slot && !p.out && p.hand.length > 0);
+    if (target && worst.length > 0) {
+      out.push({ type: 'exchange', target: target.slot, card: worst[0].id });
+    }
+  }
+  // Always leave something that cannot be refused.
+  if (options.includes('return') && hand.length > 0) {
+    out.push({ type: 'return', cards: [worst[0].id] });
+  }
+  if (options.includes('score') && run !== null) {
+    out.push({ type: 'score', cards: (run as { cards: readonly Card[] }).cards.map((c) => c.id) });
+  }
+  return out;
+}
 
-      const rng = substream(seed, 'turn', round, seat);
-      const line = takeTurn(state, seat, rng);
-      state.prevTurnOf[seat] = state.turn;
-      state.turn += 1;
+/** Every seat that owes an answer gives one. */
+function answerPending(state: SacreState): SacreState {
+  let next = state;
+  for (
+    let guard = 0;
+    guard < 16 && next.pending !== null && next.pending.owed.length > 0;
+    guard++
+  ) {
+    const pending = next.pending;
+    const slot = pending.owed[0];
+    const hand = next.players[slot].hand;
 
-      if (p.hand.length < 3) {
-        p.out = true;
-        lines.push(`  P${seat}: ${line}  [under 3 cards -- face-up, out]`);
-      } else {
-        lines.push(`  P${seat}: ${line}`);
+    if (pending.kind === 'advertise') {
+      const eligible = eligibleFor(hand, pending.floor);
+      const action: SacreAction =
+        eligible.length > 0
+          ? {
+              type: 'respond',
+              card: eligible.reduce((a, b) => ((a.rank as number) <= (b.rank as number) ? a : b))
+                .id,
+            }
+          : { type: 'respond', card: '' };
+      const attempt = applySacreAction(next, action, { slot, nowMs: 0 });
+      // No eligible card means proving an empty hand, which respond() refuses.
+      next = attempt.changed ? attempt.state : forcePass(next, slot);
+    } else {
+      const give = worstFirst(hand, richestSuit(hand)).slice(0, pending.quantity);
+      const attempt = applySacreAction(
+        next,
+        { type: 'pass', cards: give.map((c) => c.id) },
+        { slot, nowMs: 0 },
+      );
+      next = attempt.changed ? attempt.state : forcePass(next, slot);
+    }
+  }
+  return next;
+}
+
+/** Drop a seat from `owed` when it genuinely cannot answer. */
+function forcePass(state: SacreState, slot: Slot): SacreState {
+  const pending = state.pending;
+  if (pending === null) return state;
+  const owed = pending.owed.filter((s) => s !== slot);
+  const updated =
+    pending.kind === 'advertise'
+      ? { ...pending, owed, passed: [...pending.passed, slot] }
+      : { ...pending, owed };
+  return { ...state, pending: updated };
+}
+
+export function playSacreGame(seed: string, players = 4): SacreResult {
+  let state = deal(emptyState(seed, players, DEFAULT_TURN_SECONDS), 0);
+
+  const lines: string[] = [
+    `S.A.C.R.E. Bleu! -- ${players} players, seed "${seed}"`,
+    `Dealt ${dealSize(players)} each; ${state.deck.length} cards left in the deck.`,
+    ...state.players.map((p) => `  P${p.slot}: ${p.hand.map(cardName).join(' ')}`),
+  ];
+
+  let round = 0;
+  for (let guard = 0; guard < 2000 && state.phase === 'playing'; guard++) {
+    if (state.round !== round) {
+      round = state.round;
+      lines.push('');
+      lines.push(`-- Round ${round}${round === ROUNDS ? ' (face-up, no Cycle)' : ''} --`);
+    }
+
+    const slot = state.active;
+    const before = state.log.length;
+    const rng = substream(seed, 'turn', state.round, slot, state.turn);
+
+    for (const action of candidates(state, slot, rng)) {
+      const attempt = applySacreAction(state, action, { slot, nowMs: 0 });
+      if (attempt.changed) {
+        state = attempt.state;
+        break;
       }
     }
+
+    state = answerPending(state);
+    if (state.pending !== null) state = settlePending(state, null);
+
+    // Round 8 pays a free bonus Score after Advertise, Return or Exchange.
+    if (state.round === ROUNDS && !state.players[slot].out) {
+      const bonus = bestRun(state.players[slot].hand);
+      if (bonus) {
+        const attempt = applySacreAction(
+          state,
+          { type: 'score', cards: bonus.cards.map((c) => c.id) },
+          { slot, nowMs: 0 },
+        );
+        if (attempt.changed) state = attempt.state;
+      }
+    }
+
+    for (const line of state.log.slice(before)) lines.push(`  ${line}`);
+    if (state.players[slot].out) lines.push(`  P${slot} is under 3 cards -- face-up, out.`);
+    state = endTurn(state, 0);
   }
 
   const scores = state.players.map((p) => p.score);
-  // Ties go to the player latest in turn order.
-  let winner = 0;
-  for (let seat = 0; seat < players; seat++) {
-    if (scores[seat] >= scores[winner]) winner = seat;
-  }
-
+  const winner = winnerOf(state);
   lines.push('');
   lines.push(`Final: ${scores.map((s, i) => `P${i}=${s}`).join('  ')}`);
   lines.push(`P${winner} wins. Everyone else: "Sacre bleu!"`);

@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
 import { advanceParty } from '@www/engine/party';
+import { advanceSacreGame } from './sacre.js';
 
 import { notify, type NotifyDeps } from './notify.js';
 import { resolveGameTurn } from './resolve.js';
@@ -8,6 +9,7 @@ import {
   effectiveRules,
   games,
   isPartyDoc,
+  isSacreDoc,
   liveHumanSlots,
   ordersCol,
   orderDocId,
@@ -57,6 +59,16 @@ export async function runTick(deps: NotifyDeps, now: Date): Promise<TickResult> 
         // ninety-second vote is noise, and the guests are in the same room.
         if (remainingMs > 0) continue;
         if (await advancePartyGame(deps, snap.id, now)) {
+          result.advancedParties.push(snap.id);
+        }
+        continue;
+      }
+
+      if (isSacreDoc(game)) {
+        // A card table gets no reminder mail either -- it is a live game and
+        // everyone is looking at the same room.
+        if (remainingMs > 0) continue;
+        if (await advanceSacreGame(deps.db, snap.id, now)) {
           result.advancedParties.push(snap.id);
         }
         continue;

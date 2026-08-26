@@ -4,6 +4,7 @@ import type { Timestamp } from 'firebase-admin/firestore';
 import { canonicalJson, inContest, rulesFor } from '@www/engine';
 import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
 import type { PartyState } from '@www/engine/party';
+import type { SacreState } from '@www/engine/sacre';
 
 import type { GameStatus, NotifyKind } from './api-types.js';
 
@@ -75,15 +76,32 @@ export interface PartyGameDoc extends GameDocBase {
   partyJson: string | null;
 }
 
+export interface SacreGameDoc extends GameDocBase {
+  kind: 'cards';
+  /** Canonical JSON; null until the host deals. */
+  sacreJson: string | null;
+}
+
 /**
  * A union rather than a wide record with everything optional, so the compiler
  * finds every war-only read — `rules`, `mapJson`, `stateJson` — instead of one
  * of them surfacing at runtime as a party game with no map.
  */
-export type GameDoc = WarGameDoc | PartyGameDoc;
+export type GameDoc = WarGameDoc | PartyGameDoc | SacreGameDoc;
 
 export const isPartyDoc = (doc: GameDoc): doc is PartyGameDoc => doc.kind === 'party';
-export const isWarDoc = (doc: GameDoc): doc is WarGameDoc => doc.kind !== 'party';
+export const isSacreDoc = (doc: GameDoc): doc is SacreGameDoc => doc.kind === 'cards';
+
+/**
+ * Positive, not `kind !== 'party'`.
+ *
+ * That negative form was correct while there were two kinds and silently wrong
+ * the moment there was a third: a cards document answered `true` here and then
+ * failed on a `mapJson` it never had. A new kind must be invisible to this
+ * predicate by default, which only a positive test gives you.
+ */
+export const isWarDoc = (doc: GameDoc): doc is WarGameDoc =>
+  doc.kind === undefined || doc.kind === 'war';
 
 export interface OrderDoc {
   ordersJson: string;
@@ -140,6 +158,11 @@ export const parseMap = (doc: WarGameDoc): GeneratedMap => JSON.parse(doc.mapJso
 
 export const parseParty = (doc: PartyGameDoc): PartyState | null =>
   doc.partyJson === null ? null : (JSON.parse(doc.partyJson) as PartyState);
+
+export const serializeSacre = (state: SacreState): string => canonicalJson(state);
+
+export const parseSacre = (doc: SacreGameDoc): SacreState | null =>
+  doc.sacreJson === null ? null : (JSON.parse(doc.sacreJson) as SacreState);
 
 /**
  * The rules a game actually plays under. Stored rules win; rulesFor only
