@@ -76,15 +76,34 @@ private invitation: their character, their costume, their ability, and one guest
 Design and decisions: [docs/design/dinner-party.md](docs/design/dinner-party.md).
 Adding a tale: [docs/party-tales.md](docs/party-tales.md).
 
+## S.A.C.R.E. Bleu!
+
+A third game, and a card game: 2–7 players, eight rounds, one standard deck. Each round every
+player takes a turn choosing to **S**core, **A**dvertise, **C**ycle, **R**eturn or **E**xchange —
+lay a same-suit run for points, offer a card the table must beat, force everyone to pass cards at
+once, trade with the deck, or take one card from someone's hand. Highest score wins, and the
+losers cry "Sacré bleu!" The design is Jeff Hunt's; this is an implementation of it.
+
+Unlike the war game it does **not** wait on a deadline, because the rules do not: turns are strictly
+sequential and two of the five options stop mid-turn until everyone else answers. So it is a live
+game for a table — a fast poll, a clock on each turn, and an unanswered prompt filled in rather
+than left to stall the room. Round eight turns every hand and the deck face-up and pays a free
+score to anyone who does not spend the turn scoring.
+
+Design and decisions: [docs/design/sacre-card-game.md](docs/design/sacre-card-game.md).
+Bots play it headless with `pnpm sacre --seed s1`.
+
 ## Repository layout
 
 ```
 packages/engine/   Pure rules: map generation, orders, pact contest, resolution, bots
 packages/engine/src/party/   The dinner party: the tale, the evening, and its redactor
+packages/engine/src/sacre/   S.A.C.R.E. Bleu!: the deck, the turn machine, and its redactor
 packages/server/   Fastify API over Firestore: lobbies, turn resolution, the deadline sweep
 packages/web/      React client: the map, the orders panel, and the invitation
 tools/simulate/    Balance harness — runs seeded bot games and reports fairness/social metrics
 tools/mapviz/      Renders generated maps to SVG so the generator can be eyeballed
+tools/sacre/       Plays one seeded card game to a scored winner, on the real turn machine
 ```
 
 The engine is a pure function of `(state, orders, ctx)` with no clock, no I/O, and no ambient

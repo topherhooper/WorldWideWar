@@ -5,20 +5,25 @@ A rules sheet for a 2–7 player, 8-round card game arrived as a bare Google Doc
 it, publishing it or naming it is agreed. That is the first fact about this and it gates
 everything below.
 
-The prototype answers one question and one only: **can these rules be a pure engine?** Mostly — see
-"What the prototype does not implement" for the two rules it leaves out and why.
+It is now a mode on the site (`kind: 'cards'`), live and co-present rather than async. The
+prototype that preceded it answered one question — can these rules be a pure engine? — and the
+answer was yes; everything below records what that cost and what it decided.
 `pnpm sacre --seed s1` plays a complete 4-round-order, 8-round, 4-player game to a scored winner,
 and the same seed plays the same game. What it does not answer is whether anyone enjoys playing it — see
 "Still open".
 
 ## Decisions
 
-| Decision                   | Chose                                                                                                         | Rejected, and why                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Which axis in `game-modes` | A third `kind`, if it is ever built for real                                                                  | Preset and contest, because S.A.C.R.E. shares no map, no armies, no orders pipeline and no contest. `docs/game-modes.md:218` — if it shares nothing at all it is a different site, and this shares only lobby, seats, invite link and deadline, which is exactly what the party shares.                                                                                                                                                                                             |
-| Where the prototype lives  | Pure rules in `packages/engine/src/sacre/`, CLI in `tools/sacre/`                                             | A standalone throwaway script outside the workspace. The engine's ESLint purity rule is enforced by path, so putting the rules inside `packages/engine` buys the invariant check for free — which is the thing worth testing.                                                                                                                                                                                                                                                       |
-| "Precludes winning"        | The cheap reading: a Score is illegal if it leaves you under 3 cards and does not leave you leading           | A solver over remaining winning lines. The document's own example is exactly the cheap case (trail by 10, cannot dump your last three low cards), the cheap version is four lines, and a solver would collide with "invalid input degrades, never throws".                                                                                                                                                                                                                          |
-| Turn model                 | **Live and co-present, party-shaped** — everyone at the table at once, fast poll, phases advancing in minutes | Async simultaneous, the war game's model, because the rules are strictly sequential: "the shortest player goes first and turns rotate to the left". And async _sequential_, because at 4 players that is 32 blocking turns each waiting on one named person, Advertise and Cycle block on everyone else inside a single turn, and there is no sane auto-play — a war-game no-show submits nothing and the turn still resolves, but "did not pick an option" has no equivalent here. |
+| Decision                         | Chose                                                                                                         | Rejected, and why                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which axis in `game-modes`       | A third `kind` (`cards`)                                                                                      | Preset and contest, because S.A.C.R.E. shares no map, no armies, no orders pipeline and no contest. `docs/game-modes.md:218` — if it shares nothing at all it is a different site, and this shares only lobby, seats, invite link and deadline, which is exactly what the party shares.                                                                                                                                                                                             |
+| Where the rules live             | Pure rules in `packages/engine/src/sacre/`, CLI in `tools/sacre/`                                             | A standalone throwaway script outside the workspace. The engine's ESLint purity rule is enforced by path, so putting the rules inside `packages/engine` buys the invariant check for free — which is the thing worth testing.                                                                                                                                                                                                                                                       |
+| "Precludes winning"              | The cheap reading: a Score is illegal if it leaves you under 3 cards and does not leave you leading           | A solver over remaining winning lines. The document's own example is exactly the cheap case (trail by 10, cannot dump your last three low cards), the cheap version is four lines, and a solver would collide with "invalid input degrades, never throws".                                                                                                                                                                                                                          |
+| Turn model                       | **Live and co-present, party-shaped** — everyone at the table at once, fast poll, phases advancing in minutes | Async simultaneous, the war game's model, because the rules are strictly sequential: "the shortest player goes first and turns rotate to the left". And async _sequential_, because at 4 players that is 32 blocking turns each waiting on one named person, Advertise and Cycle block on everyone else inside a single turn, and there is no sane auto-play — a war-game no-show submits nothing and the turn still resolves, but "did not pick an option" has no equivalent here. |
+| A turn's shape                   | A phase machine: `choosing → awaiting → over`, with a pending naming who still owes an answer                 | Resolving a whole turn in one function, which is what the prototype did and what a real mode cannot do: Advertise and Cycle stop mid-turn and wait for other people.                                                                                                                                                                                                                                                                                                                |
+| An unanswered Advertise or Cycle | **Fill it in on timeout** — cheapest eligible card, or worst cards                                            | Waiting indefinitely, which lets one person end everyone's evening; and cancelling the turn, which quietly punishes the seat that did nothing wrong. Filling in follows "invalid input degrades, never throws".                                                                                                                                                                                                                                                                     |
+| Round 8's free Score             | The turn stays with the seat for one more action, and `skip` declines it                                      | Scoring it automatically. The bonus is offered whenever a run exists, but a run can still be refused — it may extend a set already laid, or end your game behind — so without a decline the seat could only watch the clock.                                                                                                                                                                                                                                                        |
+| Extending a scored set           | Read narrowly: a run may not butt against one you already laid in that suit                                   | The wide reading — any second run in a suit you have scored — which would forbid the document's own advice to commit to a suit.                                                                                                                                                                                                                                                                                                                                                     |
 
 ## What the running game taught
 
@@ -42,54 +47,45 @@ worth keeping.
 means every turn is independently reproducible, so a replay does not depend on replaying the
 turns before it.
 
-## What the prototype does not implement
+## What the prototype missed, and how it was found
 
-Found by auditing the code against the rules sheet rather than trusting the run. Recorded rather
-than fixed, because guessing an answer into prototype code is worse than leaving the question
-where whoever builds this will read it.
+Kept because the pattern is more useful than the bugs. **None of these came from playing the
+game.** The prototype ran eight rounds to a winner and looked correct; every one of them was found
+either by auditing the code against the rules sheet afterwards, or by a test written against the
+real server.
 
-- **"Extending an already scored set is not allowed."** There is no table state at all — scored
-  cards simply leave the hand — so nothing stops a player scoring 5-6-7♣ and later 8-9-10♣. Left
-  open on purpose: the rule is genuinely ambiguous about whether that second run _is_ an
-  extension, and it needs settling with the author, not by a coin flip in code.
-- **Advertise's "reveal their hand privately to you as proof."** Players with no eligible card are
-  silently skipped. With bots in one process that changes nothing, which is exactly why it is
-  worth flagging: it is the one step that has no shape in `redact()`, so the prototype skipped
-  past the hardest part of the eventual mode without noticing.
+Found by reading the rules sheet against the code:
 
-Two more that are bot policy rather than missing rules, so nobody reads them as coverage: in
-round 8 the bot always takes Return-then-bonus-Score, so the Advertise- and Exchange-plus-bonus
-paths never execute; and `lastCycleSeat` is never cleared, so the no-Cycle-twice-in-a-row check
-can fire on a stale seat.
+- **Seven players crashed.** Piles 1 and 2 hold six cards each (Q, K, A across two suits) and every
+  player takes one from each, so a full table is one short. The rules cover it exactly — at seven
+  players a Joker goes into each pile instead of both into pile 4 — and that was the rule the
+  prototype had skipped. The rule whose entire purpose is to make seven players work.
+- **"Extending an already scored set is not allowed"** had no implementation, because there was no
+  table state at all. Now read narrowly, and the narrow reading is a decision above.
+- **Advertise's proof-of-hand** was skipped. With bots in one process it changes nothing, which is
+  exactly why it survived: it is the one genuine one-to-one disclosure on the site, and skipping it
+  meant walking past the hardest part of the redactor without noticing.
 
-**One thing that was broken and is now fixed.** Seven players crashed. The rules put a Joker into
-each of piles 1 and 2 at a full table precisely because those piles hold six cards (Q, K, A across
-two suits) and seven players need one from each; the prototype had left both Jokers in pile 4. The
-rule whose entire purpose is to make 7 players work was the rule that had been skipped.
+Found by the emulator tests, once there was a server to test:
 
-**What is confirmed working**, so nobody re-derives it: all five options occur across five seeds
-(Return 78, Exchange 26, Advertise 19, Score 19, Cycle 15); every player count from 2 to 7 plays
-to a winner; the same seed replays the same game; and both worked scoring examples from the
-document match.
+- **A finished turn never handed on.** The action layer carried out the option and stopped; nothing
+  said the turn was spent. Invisible in the harness, which ended turns itself.
+- **Round 8's free Score had been dropped entirely** — surfaced only while fixing the above.
+- **A refused bonus Score stranded the seat**, with nothing to do but watch the clock. Hence
+  `skip`.
+
+The lesson worth keeping: a prototype that reaches its stated goal is evidence that the happy path
+computes, and nothing else. The audit and the first real test are where the rules get checked.
 
 ## Still open
 
-**Not the turn model — that is settled above.** The question the prototype was said to leave open
-was "can this be made async", and the answer is essentially no; the useful question is whether it
-is worth building as a live, co-present mode. Three details in the rules sheet all point the same
-way, and none of them is about implementation: round 8 flips every hand _and the deck_ face-up for
-the whole table to see, the round counter is a physical card box the first player rotates 45° per
-round, and turn order is decided by who is shortest. It is a game for people in a room.
+**Nobody has played it.** Not the engine question — that is settled — but the only one that
+decides whether it belongs on the site. The bots are heuristics lifted from the document's own
+advice section, and no human has taken a turn.
 
-That makes the party the precedent to copy rather than the war game — `kind`-shaped, a 2.5 s poll,
-and the advance-on-read trick that exists because a once-a-minute sweep cannot drive a phase that
-lasts ninety seconds (`docs/game-modes.md:125-128`). It also means the cost is the party's cost,
-not the war game's.
-
-What genuinely remains: **nobody has played it.** The bots are crude heuristics lifted from the
-document's own advice section, and a prototype that proves the rules compute proves nothing about
-whether four people enjoy an evening of it. The cheapest next thing that would tell us is a real
-game with real cards — the rules need a deck and nothing else.
-
-And one balance flag from the run, for whoever builds it: with the deck at 4 players being 14
-cards and all of them face cards, Aces or Jokers, Return is close to a free upgrade in rounds 1-7.
+Two things a first real game would settle. Whether **two minutes a turn** is right: it is a guess,
+and it is the dial the host can change. And whether **Return is too strong**: at four players the
+deck is 14 cards and every one is a face card, an Ace or a Joker, so in rounds 1–7 almost every
+Return is close to a free upgrade. The document's own advice says as much ("at least the first
+player should choose Return in round 1"), which suggests it is intended — but intended and fun are
+different claims.
