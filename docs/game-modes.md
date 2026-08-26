@@ -1,7 +1,7 @@
 # Game modes — what each one is, and how to add another
 
-The home grid shows six cards. Clicking any of them does exactly one thing: `POST /api/games`,
-then land on `/g/:id`. That uniformity is deliberate and it is the only thing the six cards
+The home grid shows seven cards. Clicking any of them does exactly one thing: `POST /api/games`,
+then land on `/g/:id`. That uniformity is deliberate and it is the only thing the seven cards
 have in common — behind them sit **four different mechanisms**, and picking the wrong one is
 the expensive mistake this document exists to prevent. Adding a card can cost one array entry
 or it can cost a second half of the server.
@@ -11,12 +11,12 @@ Read this alongside `packages/engine/src/presets.ts` (the cheap axis) and
 
 ## The four axes
 
-| Axis           | Values today                           | Decided in                       | Cost of one more                       |
-| -------------- | -------------------------------------- | -------------------------------- | -------------------------------------- |
-| **Preset**     | `pact` `tiers` `pact-blitz` `tiers-v2` | `packages/engine/src/presets.ts` | one array entry, one test              |
-| **Contest**    | `pact` `tiers`                         | `packages/engine/src/contest/`   | an implementation plus eight seams     |
-| **Party mode** | `traitor` `together`                   | `packages/engine/src/party/`     | branches in deal, rules, actions, copy |
-| **Kind**       | `war` `party`                          | `GameKind` / the `GameDoc` union | a second half of the server and client |
+| Axis           | Values today                                      | Decided in                       | Cost of one more                       |
+| -------------- | ------------------------------------------------- | -------------------------------- | -------------------------------------- |
+| **Preset**     | `pact` `tiers` `pact-blitz` `tiers-v2` `survival` | `packages/engine/src/presets.ts` | one array entry, one test              |
+| **Contest**    | `pact` `tiers`                                    | `packages/engine/src/contest/`   | an implementation plus eight seams     |
+| **Party mode** | `traitor` `together`                              | `packages/engine/src/party/`     | branches in deal, rules, actions, copy |
+| **Kind**       | `war` `party`                                     | `GameKind` / the `GameDoc` union | a second half of the server and client |
 
 A preset is a **dial setting**. A contest is **new rules inside the war game**. A party mode is
 **new rules inside the party**. A kind is **a different game that happens to share a lobby**.
@@ -24,7 +24,7 @@ Always try to be a preset. The order above is the order to try them in.
 
 ## What each mode is today
 
-### The four war presets
+### The five war presets
 
 A preset is the identity a war game is created with: it fixes the contest, the tiers payout and
 the pacing, and it is **immutable after creation** (`updateConfig`,
@@ -32,15 +32,24 @@ the pacing, and it is **immutable after creation** (`updateConfig`,
 
 | Preset       | Contest | Tiers payout | Turn cap | Turn length | War economy   | Neutral Δ | Plunder |
 | ------------ | ------- | ------------ | -------- | ----------- | ------------- | --------- | ------- |
-| `pact`       | pact    | multiplier   | 25       | 24 h        | every 5 turns | −1        | 1       |
-| `tiers`      | tiers   | multiplier   | 25       | 24 h        | every 5 turns | −1        | 1       |
-| `pact-blitz` | pact    | multiplier   | 15       | 1 h         | every 3 turns | −2        | 2       |
-| `tiers-v2`   | tiers   | income       | 15       | 1 h         | every 3 turns | −2        | 2       |
+| `pact`       | pact    | multiplier   | 10       | 24 h        | every 5 turns | −1        | 1       |
+| `tiers`      | tiers   | multiplier   | 10       | 24 h        | every 5 turns | −1        | 1       |
+| `pact-blitz` | pact    | multiplier   | 8        | 1 h         | every 3 turns | −2        | 2       |
+| `tiers-v2`   | tiers   | income       | 8        | 1 h         | every 3 turns | −2        | 2       |
+| `survival`   | tiers   | pooled       | 8        | 24 h        | every 5 turns | 0         | 1       |
 
-All four share the anti-turtle economy — neutral growth off, cheap neutrals, plunder on —
-because mechanics that reward doing nothing are not fun. The blitz pair runs it hotter for a
-measured reason recorded in the header comment of `presets.ts`: at the classic dials a 15-turn
-clock decided half of six-player games by turn cap instead of by a win.
+Every preset targets a 5-10 turn game, and `MIN_TURN_CAP` is 5. A 25-turn match at a turn a day
+was a month of real time, which is longer than a group chat holds a thread. The competitive four
+share the anti-turtle economy — neutral growth off, cheap neutrals, plunder on — because
+mechanics that reward doing nothing are not fun. The blitz pair runs it hotter for a measured
+reason recorded in the header comment of `presets.ts`. `survival` is the exception on neutrals:
+it leaves them at mapgen strength, because in co-op the neutral garrison is the enemy rather than
+a speed bump between rivals.
+
+Short games cost something, and it is recorded rather than fixed: the competitive victory bars in
+`constants.ts` were measured at 25 turns, and at a 10-turn cap 77% of six-player pact games end on
+the turn cap instead of in a win. Survival is unaffected, having no early win to reach. See
+[docs/design/coop-survival.md](design/coop-survival.md).
 
 **Pact** is the loyalty game: one blind pledge per turn, and the resulting multiplier (×0.80 to
 ×1.40) applies to every battle you fight. It draws no randomness at all. **Tiers** is the
@@ -49,6 +58,20 @@ published shuffled in the turn-N report, guessed during N+1, and revealed at N+1
 **Tiers v2** changes where the score lands — guesses pay income directly and every side fights
 at a flat ×1.00, so the "biggest lever in the game" is switched off and only the dice separate
 two equal stacks (`packages/web/src/game/HowCombatWorks.tsx`).
+
+**Survival** is the cooperative one, and the only preset that changes who you are playing
+against. It takes tiers-v2's flat combat and pools the payout: every read scored in a turn sums
+into one coalition pot, split among whoever still holds ground. The storm stops being a
+symmetric clock and becomes the opponent, driving `stormRaiders` armies onto the map's permanent
+core each wave. There is no early win — the coalition can only still be there when the storm is
+spent — and the score is how many players are left standing. Two rule flags carry it, `coop` and
+`stormRaiders`, both defaulting off so every game in flight keeps today's behaviour.
+
+Its one genuinely different rule is that **losing your last province does not end your turn**:
+a landless player keeps writing a list and reading allies, and those reads still pay the people
+still fighting. That rule has a single home, `packages/engine/src/participation.ts`, because
+resolution, the balance harness, the order route, the deadline sweep and the client all have to
+agree about it — and when they did not, the mechanic was scored by the engine and fed by nobody.
 
 ### The two party modes
 
@@ -109,7 +132,10 @@ phases inherits this problem.
 ### 1. A new preset — the cheap case
 
 Enough when the new mode only re-dials knobs that already exist: contest, tiers payout, turn
-cap, turn length, war economy interval, neutral delta, plunder.
+cap, turn length, war economy interval, neutral delta, plunder, and the two co-op flags (`coop`,
+`stormRaiders`). A preset may carry rule flags as well as numbers — but only flags whose default
+is the behaviour every existing game already has, since `presetRules` writes them into documents
+that older code will read back.
 
 1. Add the id to `PresetId` and an entry to `PRESETS` in `packages/engine/src/presets.ts`.
 2. Add a case to `packages/engine/src/presets.test.ts` saying what makes it different.
@@ -216,7 +242,10 @@ If it shares nothing at all, it is a different site.
 1. Which axis? Preset, contest, party mode, kind — in that order of preference.
 2. Does it reach the site? A card in `Home.tsx`, or a preset in `PRESETS` that the grid renders.
 3. Does it survive a redaction pass with nothing secret leaking?
-4. Do bots play it — both in `server/resolve.ts` and in `simulate.ts`?
+4. Do bots play it — both in `server/resolve.ts` and in `simulate.ts`? And if the mode changes
+   _who may still submit_, does every gate agree — resolution, both bot loops, the order route,
+   and the deadline sweep? Survival shipped with that rule scored in the engine and fed by
+   nothing, which looks exactly like a working feature until you count the armies.
 5. Does a game created yesterday still load, and does yesterday's web bundle still create one?
 6. Does the player find out what it is without being told over text? See
    [docs/onboarding-gaps.md](onboarding-gaps.md) — this is the failure that has actually

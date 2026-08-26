@@ -33,6 +33,22 @@ describe('Home', () => {
     );
   });
 
+  // The grid maps over PRESETS, so a preset reaches players the moment it is
+  // added -- this asserts the one that carries the cooperative mode is actually
+  // on the page and sends its own id, since it is the only route to it.
+  it('offers Survival, and creates it by preset id', async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Survival')).toBeDefined();
+    fireEvent.click(screen.getByTestId('preset-survival'));
+    await waitFor(() =>
+      expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ presetId: 'survival' }),
+    );
+  });
+
   // Restored from #30, which #31 removed along with the standalone service.
   // A button this time, not an anchor: the party creates a game and lands on
   // /g/:id like every other mode, so it needs no route of its own.

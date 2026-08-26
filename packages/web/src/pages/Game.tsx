@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
-import { emptyOrders } from '@www/engine';
+import { emptyOrders, inContest } from '@www/engine';
 import type { OrderSet, TerritoryId } from '@www/engine';
 import type { WarGameView } from '@www/server/api-types';
 
@@ -104,6 +104,11 @@ function WarGame({
   const state = view.state;
   if (state === null) return <main className="panel">Loading…</main>;
   const mySlot = view.mySlot;
+  // Same predicate the engine scores with and the server accepts on, so the
+  // panel cannot offer a seat something resolution would throw away — or hide
+  // one it is still waiting for.
+  const stillContesting =
+    mySlot !== null && view.contest === 'tiers' && inContest(state, mySlot, view.rules);
 
   const changeDraft = (next: OrderSet) => {
     dirty.current = true;
@@ -187,11 +192,36 @@ function WarGame({
           )
         ) : (
           <>
-            {mySlot !== null && state.status[mySlot] !== 'active' ? (
+            {mySlot !== null && state.status[mySlot] !== 'active' && !stillContesting ? (
               <p className="panel muted">
                 You were {state.status[mySlot]} on turn {state.eliminatedTurn[mySlot] ?? '?'} —
                 spectating.
               </p>
+            ) : mySlot !== null && state.status[mySlot] !== 'active' && draft !== null ? (
+              // Landless, but not out: the armies are gone and the tier list is
+              // not. Reads still pay the coalition, so this seat keeps the panel
+              // that carries them and loses only the one it has no use for.
+              <>
+                <p className="panel muted">
+                  You lost your last province on turn {state.eliminatedTurn[mySlot] ?? '?'} — but
+                  you are still in the contest. Your list and your reads pay the coalition, and
+                  whoever still holds ground spends them.
+                </p>
+                <TiersPanel view={view} state={state} draft={draft} onDraftChange={changeDraft} />
+                <div className="panel lock-row">
+                  <button
+                    className={view.myLocked ? 'unlock-btn' : 'lock-btn'}
+                    onClick={() => {
+                      if (draft !== null) void saveOrders(draft, !view.myLocked).then(setWarnings);
+                    }}
+                  >
+                    {view.myLocked ? 'Locked in — unlock to edit' : 'Lock in your reads'}
+                  </button>
+                  <span className="muted hint">
+                    The turn waits for your reads the same as anyone else&rsquo;s.
+                  </span>
+                </div>
+              </>
             ) : mySlot !== null && draft !== null ? (
               <>
                 <OrdersPanel

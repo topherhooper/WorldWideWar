@@ -17,6 +17,7 @@
  * shuffle applied when a new list is installed.
  */
 
+import { inContest as isInContest } from '../participation.js';
 import { substream, type Rng } from '../rng.js';
 import type { TiersTopic } from './topics.js';
 import type {
@@ -117,6 +118,33 @@ export function scoreGuess(list: TiersList, order: readonly number[]): number {
   return score;
 }
 
+/**
+ * Splits a pooled score among the living, remainder first-come by slot.
+ *
+ * Deterministic to the army: resolution draws no randomness, so an integer
+ * division that discarded its remainder would quietly burn coalition points
+ * every turn. A negative pool (the coalition guessed badly) is charged the same
+ * way, so a bad round costs armies rather than being rounded away to free.
+ */
+export function splitPool(pool: number, recipients: readonly Slot[]): Map<Slot, number> {
+  const out = new Map<Slot, number>();
+  if (recipients.length === 0) return out;
+
+  const base = Math.trunc(pool / recipients.length);
+  let remainder = pool - base * recipients.length;
+  const step = remainder < 0 ? -1 : 1;
+
+  for (const slot of recipients) {
+    let share = base;
+    if (remainder !== 0) {
+      share += step;
+      remainder -= step;
+    }
+    out.set(slot, share);
+  }
+  return out;
+}
+
 export function resolveTiers(
   state: GameState,
   inputs: readonly (TiersOrders | null | undefined)[],
@@ -125,9 +153,15 @@ export function resolveTiers(
   const playerCount = state.playerCount;
 
   // Normalise: like the Pact, bad input is an abstention, never an error.
+  // In co-op the contest outlives the empire: a player with no territory left
+  // still writes a list and still reads their allies, and both still pay. It is
+  // the only thing they can do, and it is worth doing — which is the whole
+  // reason elimination does not park somebody for a fortnight of an async game.
+  const inContest = (slot: Slot): boolean => isInContest(state, slot, context.rules);
+
   const validGuesses: TiersGuess[][] = Array.from({ length: playerCount }, () => []);
   for (let slot = 0; slot < playerCount; slot++) {
-    if (state.status[slot] !== 'active') continue;
+    if (!inContest(slot)) continue;
     const seen = new Set<Slot>();
     // The order doc is stored as the client sent it, so `guesses` can be any
     // JSON shape at all — and resolution must never throw.
@@ -137,7 +171,7 @@ export function resolveTiers(
       const target = guess?.target;
       if (!Number.isInteger(target) || target < 0 || target >= playerCount) continue;
       if (target === slot || seen.has(target)) continue;
-      if (state.status[target] !== 'active') continue;
+      if (!inContest(target)) continue;
       if (state.tiersLists[target] === null) continue;
       if (!isPermutation(guess.order)) continue;
       seen.add(target);
@@ -170,6 +204,42 @@ export function resolveTiers(
   const results: TiersResult[] = [];
 
   const incomeMode = context.rules.tiersPayout === 'income';
+  const pooledMode = context.rules.tiersPayout === 'pooled';
+
+  // Co-op: reads pay the coalition, not the reader. Points are earned by
+  // everyone still in the contest — including players with no land left — and
+  // spent by whoever still has somewhere to put an army.
+  if (pooledMode) {
+    let pool = 0;
+    for (let slot = 0; slot < playerCount; slot++) {
+      if (!inContest(slot)) continue;
+      const authorBonus = Math.max(0, (bestRead[slot]?.score ?? 0) - NEUTRAL_SCORE);
+      const contribution =
+        guessResults[slot].reduce(
+          (sum, guess) => sum + Math.trunc((guess.score - NEUTRAL_SCORE) / INCOME_DIVISOR),
+          0,
+        ) + Math.ceil(authorBonus / INCOME_DIVISOR);
+      pool += contribution;
+      results.push({
+        slot,
+        revealed: state.tiersLists[slot]?.items.slice() ?? null,
+        guesses: guessResults[slot],
+        bestRead: bestRead[slot],
+        multiplier: 100,
+        // What this player put *into* the pool, which is the only number that
+        // says whether a landless ally is still earning their seat.
+        incomeDelta: contribution,
+      });
+    }
+
+    const living: Slot[] = [];
+    for (let slot = 0; slot < playerCount; slot++) {
+      if (state.status[slot] === 'active') living.push(slot);
+    }
+    for (const [slot, share] of splitPool(pool, living)) bonusIncome[slot] = share;
+
+    return { multiplier, bonusIncome, results };
+  }
 
   for (let slot = 0; slot < playerCount; slot++) {
     if (state.status[slot] !== 'active') continue;

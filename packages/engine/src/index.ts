@@ -40,6 +40,7 @@ export { createInitialState, cloneState } from './setup.js';
 export { normalizeOrders, buildAttackMatrix, emptyOrders } from './orders.js';
 export { redact, isRedacted, HIDDEN_ARMIES } from './redact.js';
 export { recomputeSupply, suppliedCount, territoryCount, relocateCapital } from './supply.js';
+export { inContest, commandsArmies } from './participation.js';
 export { computeIncome, recomputeIncome, regionBonusFor } from './income.js';
 export { applyStorm, waveCollapsingOn, warnedTerritories, survivingTerritories } from './storm.js';
 export {

@@ -1,7 +1,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type CollectionReference, type Firestore } from 'firebase-admin/firestore';
 import type { Timestamp } from 'firebase-admin/firestore';
-import { canonicalJson, rulesFor } from '@www/engine';
+import { canonicalJson, inContest, rulesFor } from '@www/engine';
 import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine';
 import type { PartyState } from '@www/engine/party';
 
@@ -95,9 +95,21 @@ export interface OrderDoc {
 export const humanSlots = (seats: (Seat | null)[]): number[] =>
   seats.flatMap((s, slot) => (s !== null && !s.isBot ? [slot] : []));
 
-/** Human slots still alive in the game. */
-export const liveHumanSlots = (seats: (Seat | null)[], state: GameState): number[] =>
-  humanSlots(seats).filter((slot) => state.status[slot] === 'active');
+/**
+ * Human slots the turn still belongs to — whose orders are accepted, who is
+ * nudged before the deadline, and who the all-locked shortcut waits for.
+ *
+ * Competitively that is everyone still alive. Cooperatively it also includes
+ * players who have lost their last province, because their reads still pay the
+ * coalition (`inContest`, packages/engine/src/participation.ts). A co-op game
+ * that resolved without waiting for them would silently drop the contribution
+ * the mode is built on.
+ */
+export const liveHumanSlots = (
+  seats: (Seat | null)[],
+  state: GameState,
+  rules: RuleConfig,
+): number[] => humanSlots(seats).filter((slot) => inContest(state, slot, rules));
 
 export function initFirestore(projectId: string): Firestore {
   if (getApps().length === 0) initializeApp({ projectId });

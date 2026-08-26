@@ -11,6 +11,7 @@
  */
 
 import {
+  DEFAULT_RULES,
   playBotGame,
   presetById,
   presetRules,
@@ -77,7 +78,7 @@ function parseArgs(argv: string[]): Options {
       case '--help':
         console.log(
           'usage: pnpm sim -- [--games N] [--players 4,6,12] [--difficulty easy|normal|hard]\n' +
-            '                  [--preset pact|tiers|pact-blitz|tiers-v2]\n' +
+            '                  [--preset pact|tiers|pact-blitz|tiers-v2|survival]\n' +
             '                  [--prefix S] [--no-gates] [--verbose]',
         );
         process.exit(0);
@@ -123,7 +124,7 @@ function main(): void {
 
     const elapsed = Date.now() - started;
     const stats = aggregate(summaries);
-    const gates = gatesFor(stats);
+    const gates = gatesFor(stats, rules?.turnCap ?? DEFAULT_RULES.turnCap);
 
     console.log(`\n${'='.repeat(72)}`);
     if (preset !== null) {

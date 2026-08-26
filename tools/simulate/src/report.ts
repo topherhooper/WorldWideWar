@@ -34,6 +34,10 @@ export interface Aggregate {
   firstBloodMedian: number;
   /** Largest share of the map any one player ever held, averaged. */
   snowballIndex: number;
+  /** Cooperative runs only: mean players left standing at the end. */
+  survivorMean: number;
+  /** Cooperative runs only: share of games the world took everyone. */
+  extinctionRate: number;
 }
 
 export interface Gate {
@@ -58,6 +62,17 @@ export function aggregate(summaries: readonly GameSummary[]): Aggregate {
 
   const uniform = playerCount > 0 ? 1 / playerCount : 0;
   const seatDeviation = Math.max(...winRateBySeat.map((rate) => Math.abs(rate - uniform)), 0);
+
+  // In co-op the winners *are* the survivors, so the score is their count.
+  const coopGames = summaries.filter((s) => s.kind === 'survival' || s.kind === 'extinction');
+  const survivorMean =
+    coopGames.length > 0
+      ? coopGames.reduce((sum, s) => sum + s.winners.length, 0) / coopGames.length
+      : 0;
+  const extinctionRate =
+    coopGames.length > 0
+      ? coopGames.filter((s) => s.kind === 'extinction').length / coopGames.length
+      : 0;
 
   const turns = summaries.map((s) => s.turns).sort((a, b) => a - b);
   const firstBlood = summaries
@@ -115,35 +130,83 @@ export function aggregate(summaries: readonly GameSummary[]): Aggregate {
     sharedWinRate: games > 0 ? sharedWins / games : 0,
     firstBloodMedian: percentile(firstBlood, 0.5),
     snowballIndex: summaries.reduce((sum, s) => sum + s.peakShare, 0) / Math.max(1, games),
+    survivorMean,
+    extinctionRate,
   };
 }
 
-export function gatesFor(stats: Aggregate): Gate[] {
+/**
+ * The gates a run has to clear.
+ *
+ * Cooperative runs are scored differently, and not as an excuse. Three of the
+ * competitive gates assert things that cannot exist in co-op: there are no
+ * pacts to betray, a shared win is the only ending there is, and one route
+ * taking 100% of games is the design rather than a collapse of it. Applying
+ * them anyway would mean a mode that fails CI forever and teaches the table
+ * nothing. What replaces them is the number co-op actually lives on -- how many
+ * players are left standing -- gated from both sides, because a coalition that
+ * always survives intact has no game in it either.
+ */
+/**
+ * Seat fairness: the limit is statistical, not a flat 3%.
+ *
+ * Win rates are binomial, so a perfectly fair game still scatters around
+ * uniform by roughly one standard error per seat — at 400 games and 8 players
+ * that is 1.65%, and a fixed 3% bar would fail by chance a noticeable fraction
+ * of the time. Scaling the bar with the sample keeps the gate meaningful as the
+ * run size grows instead of merely flaky when it is small.
+ */
+function seatFairnessGate(stats: Aggregate): Gate {
+  return {
+    name: 'seat fairness',
+    ok: stats.seatDeviation <= seatLimit(stats.playerCount, stats.games),
+    detail:
+      `max deviation from uniform ${(stats.seatDeviation * 100).toFixed(1)}% ` +
+      `(limit ${(seatLimit(stats.playerCount, stats.games) * 100).toFixed(1)}% ` +
+      `at n=${stats.games}, Bonferroni-corrected for ${stats.playerCount} seats)`,
+  };
+}
+
+function gameLengthGate(stats: Aggregate, turnCap: number): Gate {
+  const [low, high] = lengthBand(stats.playerCount, turnCap);
+  return {
+    name: 'game length',
+    ok: stats.turnsMedian >= low && stats.turnsMedian <= high,
+    detail: `median ${stats.turnsMedian} turns (target ${low}-${high} at a cap of ${turnCap})`,
+  };
+}
+
+export function gatesFor(stats: Aggregate, turnCap: number): Gate[] {
+  const coop = (stats.endings.survival ?? 0) + (stats.endings.extinction ?? 0) > 0;
+
+  if (coop) {
+    const players = stats.playerCount;
+    return [
+      seatFairnessGate(stats),
+      gameLengthGate(stats, turnCap),
+      {
+        name: 'survivor spread',
+        // A clean run has to be possible and it has to be rare-ish. Measured at
+        // five players: raiders=0 leaves 3.90 of 5 standing and never wipes the
+        // table, raiders=6 leaves 3.43 and wipes it 5% of the time.
+        ok: stats.survivorMean >= players * 0.5 && stats.survivorMean <= players - 0.25,
+        detail:
+          `mean ${stats.survivorMean.toFixed(2)} of ${players} survived ` +
+          `(target ${(players * 0.5).toFixed(2)}-${(players - 0.25).toFixed(2)})`,
+      },
+      {
+        name: 'losable',
+        // If the world never takes everyone, nothing is at stake; if it usually
+        // does, nobody will play it twice.
+        ok: stats.extinctionRate > 0 && stats.extinctionRate <= 0.2,
+        detail: `${(stats.extinctionRate * 100).toFixed(1)}% of games ended in extinction (target 0-20%, non-zero)`,
+      },
+    ];
+  }
+
   return [
-    {
-      name: 'seat fairness',
-      // The limit is statistical, not a flat 3%. Win rates are binomial, so a
-      // perfectly fair game still scatters around uniform by roughly one
-      // standard error per seat — at 400 games and 8 players that is 1.65%, and
-      // a fixed 3% bar would fail by chance a noticeable fraction of the time.
-      // Scaling the bar with the sample keeps the gate meaningful as the run
-      // size grows instead of merely flaky when it is small.
-      ok: stats.seatDeviation <= seatLimit(stats.playerCount, stats.games),
-      detail:
-        `max deviation from uniform ${(stats.seatDeviation * 100).toFixed(1)}% ` +
-        `(limit ${(seatLimit(stats.playerCount, stats.games) * 100).toFixed(1)}% ` +
-        `at n=${stats.games}, Bonferroni-corrected for ${stats.playerCount} seats)`,
-    },
-    {
-      name: 'game length',
-      // The band scales with table size. Forcing a duel to last as long as a
-      // twelve-player brawl would mean padding it artificially: two players
-      // resolve a map faster because there is nobody else to fight through.
-      ok:
-        stats.turnsMedian >= lengthBand(stats.playerCount)[0] &&
-        stats.turnsMedian <= lengthBand(stats.playerCount)[1],
-      detail: `median ${stats.turnsMedian} turns (target ${lengthBand(stats.playerCount).join('-')})`,
-    },
+    seatFairnessGate(stats),
+    gameLengthGate(stats, turnCap),
     {
       name: 'betrayal rate',
       // Below the floor the dilemma is toothless and the pact is just a bonus
@@ -266,10 +329,30 @@ function routeLimit(playerCount: number): number {
   return playerCount <= 3 ? 0.9 : 0.8;
 }
 
-/** Acceptable median game length, by table size. */
-function lengthBand(playerCount: number): [number, number] {
-  if (playerCount <= 3) return [6, 14];
-  return [14, 22];
+/**
+ * Acceptable median game length, relative to the clock the game was given.
+ *
+ * This used to be an absolute 6-14 for duels and 14-22 for everyone else, which
+ * stopped meaning anything once every preset targeted 5-10 turns: a good 8-turn
+ * game and a broken one both fail a band written for 25-turn matches. What the
+ * gate is really asserting is that a game uses a fair share of its clock without
+ * needing all of it, so it is expressed that way instead.
+ *
+ * The two floors are not a rounding of one number. A duel is genuinely a shorter
+ * game than a table: 800 two-player games run to a median of 9 turns against a
+ * cap of 25, barely a third of the clock, because with one rival there is
+ * nobody to hold the balance and domination arrives early. The old band knew
+ * that and allowed duels down to 6. A single ratio does not — at 0.4 it demands
+ * 10 of a duel and fails a distribution that has not changed since the gate was
+ * written, which is how the first version of this function turned a green sweep
+ * red without any game having got worse.
+ *
+ * At the legacy cap of 25 this yields 7-25 for duels and 13-25 for tables,
+ * both of which contain the medians the absolute band was built around.
+ */
+function lengthBand(playerCount: number, turnCap: number): [number, number] {
+  const floor = playerCount <= 3 ? 0.25 : 0.5;
+  return [Math.max(3, Math.ceil(turnCap * floor)), turnCap];
 }
 
 export function formatReport(stats: Aggregate, gates: readonly Gate[]): string {

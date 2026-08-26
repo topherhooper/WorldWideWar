@@ -1,8 +1,11 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import {
   canonicalJson,
+  commandsArmies,
   decideOrders,
   decideTiersOrders,
+  emptyOrders,
+  inContest,
   makePersonality,
   redact,
   resolveTurn,
@@ -76,22 +79,29 @@ export async function resolveGameTurn(
 
     // Bot seats plan from redacted state, exactly as the balance harness does
     // (packages/engine/src/simulate.ts) — same personalities, same substreams.
+    const rules = effectiveRules(game);
     for (let slot = 0; slot < game.playerCount; slot++) {
       const seat = game.seats[slot];
-      if (seat?.isBot && state.status[slot] === 'active') {
+      if (seat?.isBot && inContest(state, slot, rules)) {
         const personality = makePersonality(
           substream(game.seed, 'personality', slot),
           slot,
           'normal',
         );
         const view = redact(state, slot);
-        const orderSet = decideOrders(
-          view,
-          map,
-          slot,
-          substream(game.seed, 'bot', expectedTurn, slot),
-          personality,
-        );
+        // A landless co-op bot still reads its allies, exactly as the balance
+        // harness has it (packages/engine/src/simulate.ts). These two must
+        // agree: a bot that contests in the sweep and abstains in a real game
+        // makes every measured difficulty number a fiction.
+        const orderSet = commandsArmies(state, slot)
+          ? decideOrders(
+              view,
+              map,
+              slot,
+              substream(game.seed, 'bot', expectedTurn, slot),
+              personality,
+            )
+          : emptyOrders(slot);
         if ((game.rules.contest ?? 'pact') === 'tiers') {
           orderSet.tiers = decideTiersOrders(
             view,
@@ -108,7 +118,7 @@ export async function resolveGameTurn(
     const { next, report } = resolveTurn(state, submissions, {
       seed: game.seed,
       map,
-      rules: effectiveRules(game),
+      rules,
     });
     const finished = report.result !== null;
 

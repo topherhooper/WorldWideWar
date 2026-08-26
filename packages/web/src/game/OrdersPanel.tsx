@@ -163,6 +163,16 @@ export function OrdersPanel(props: Props) {
           Income {state.income[mySlot]}: {incomeParts(state, map, mySlot, view.rules).join(' + ')}.
         </p>
       )}
+      {mode === 'deploy' && view.rules.tiersPayout === 'pooled' && (
+        // "bonuses" above is a single remainder covering plunder and
+        // mobilization as well as the pool share, so this says where the money
+        // comes from rather than pretending to split that number apart.
+        <p className="muted hint">
+          Your bonuses include this turn&rsquo;s share of the coalition pool — every read scored
+          last turn, by everyone still in the contest, split among those still holding ground. Last
+          turn&rsquo;s total is in the report.
+        </p>
+      )}
 
       {draft.deploys.length + draft.units.length > 0 && (
         <ul className="chips">

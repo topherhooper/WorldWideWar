@@ -12,7 +12,11 @@ export function HowCombatWorks({
 }) {
   const contestSource =
     contest === 'tiers' ? 'your tier-list reads' : 'how your pact pledges played out';
+  // Both payouts that pay armies switch the multiplier off entirely; the
+  // difference is only who gets paid, which the panel says below.
+  const pooledMode = contest === 'tiers' && tiersPayout === 'pooled';
   const incomeMode = contest === 'tiers' && tiersPayout === 'income';
+  const flatMode = incomeMode || pooledMode;
 
   return (
     <details className="panel how-to-win">
@@ -27,11 +31,14 @@ export function HowCombatWorks({
           standing in it defends at +2. A territory that sent support defends at half — its garrison
           is facing outward. Supporting neighbours add half their garrison and take no casualties.
         </li>
-        {incomeMode ? (
+        {flatMode ? (
           <li>
-            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00; your
-            tier-list reads pay (or cost) armies directly instead. Only the dice separate two equal
-            stacks.
+            <strong>Contest multiplier</strong> — none in this mode. Everyone fights at ×1.00;
+            tier-list reads pay (or cost) armies instead
+            {pooledMode
+              ? ' — into a shared pool, split among everyone who still holds ground.'
+              : ' directly.'}{' '}
+            Only the dice separate two equal stacks.
           </li>
         ) : (
           <li>

@@ -21,7 +21,7 @@
 import { rulesFor } from './constants.js';
 import type { ContestKind, RuleConfig, TiersPayout } from './types.js';
 
-export type PresetId = 'pact' | 'tiers' | 'pact-blitz' | 'tiers-v2';
+export type PresetId = 'pact' | 'tiers' | 'pact-blitz' | 'tiers-v2' | 'survival';
 
 export interface GamePreset {
   id: PresetId;
@@ -37,6 +37,10 @@ export interface GamePreset {
   neutralGarrisonDelta: number;
   /** Bonus income next turn per territory captured this turn. */
   plunderIncome: number;
+  /** Cooperative: no rivals, only the world. */
+  coop?: boolean;
+  /** Armies the storm drives onto land bordering a fresh collapse. */
+  stormRaiders?: number;
 }
 
 export const PRESETS: readonly GamePreset[] = [
@@ -46,7 +50,7 @@ export const PRESETS: readonly GamePreset[] = [
     tagline: 'Pledge & betray — the classic game.',
     contest: 'pact',
     tiersPayout: 'multiplier',
-    defaultTurnCap: 25,
+    defaultTurnCap: 10,
     defaultTurnMinutes: 1440,
     warEconomyInterval: 5,
     neutralGarrisonDelta: -1,
@@ -58,7 +62,7 @@ export const PRESETS: readonly GamePreset[] = [
     tagline: 'Read your rivals — lists drive combat.',
     contest: 'tiers',
     tiersPayout: 'multiplier',
-    defaultTurnCap: 25,
+    defaultTurnCap: 10,
     defaultTurnMinutes: 1440,
     warEconomyInterval: 5,
     neutralGarrisonDelta: -1,
@@ -70,7 +74,7 @@ export const PRESETS: readonly GamePreset[] = [
     tagline: 'The classic, fast — early storm, hot economy.',
     contest: 'pact',
     tiersPayout: 'multiplier',
-    defaultTurnCap: 15,
+    defaultTurnCap: 8,
     defaultTurnMinutes: 60,
     warEconomyInterval: 3,
     neutralGarrisonDelta: -2,
@@ -82,11 +86,32 @@ export const PRESETS: readonly GamePreset[] = [
     tagline: 'Reads pay armies, not combat luck — fast-paced.',
     contest: 'tiers',
     tiersPayout: 'income',
-    defaultTurnCap: 15,
+    defaultTurnCap: 8,
     defaultTurnMinutes: 60,
     warEconomyInterval: 3,
     neutralGarrisonDelta: -2,
     plunderIncome: 2,
+  },
+  {
+    id: 'survival',
+    name: 'Survival',
+    tagline: 'Read each other, or the storm takes everyone.',
+    contest: 'tiers',
+    tiersPayout: 'pooled',
+    defaultTurnCap: 8,
+    defaultTurnMinutes: 1440,
+    warEconomyInterval: 5,
+    // Neutrals start at their mapgen strength rather than discounted: in co-op
+    // the neutral garrison is the enemy, not a speed bump between rivals.
+    neutralGarrisonDelta: 0,
+    plunderIncome: 1,
+    coop: true,
+    // Four, not two. Measured over 300-game runs at 4/5/6 players: two raiders
+    // are indistinguishable from none, four costs the coalition roughly a fifth
+    // of a survivor and puts a total wipe on the table at 1%, and six tips it
+    // to 5% wipes. Four keeps a clean run (everyone lives) at about a quarter
+    // of games, which is the thing worth chasing.
+    stormRaiders: 4,
   },
 ];
 
@@ -104,5 +129,7 @@ export function presetRules(preset: GamePreset, playerCount: number, turnCap: nu
     plunderIncome: preset.plunderIncome,
     plunderCap: 3,
     tiersPayout: preset.tiersPayout,
+    coop: preset.coop ?? false,
+    stormRaiders: preset.stormRaiders ?? 0,
   };
 }

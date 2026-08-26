@@ -32,7 +32,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
     expect(view.mySlot).toBe(0);
     expect(view.playerCount).toBe(4);
     expect(view.turnMinutes).toBe(60);
-    expect(view.turnCap).toBe(15);
+    expect(view.turnCap).toBe(8);
     expect(view.contest).toBe('tiers');
     expect(view.presetId).toBe('tiers-v2');
     expect(view.presetName).toBe('Tiers v2');
@@ -243,7 +243,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('games service', () => {
       await expect(updateConfig(db, id, alice, { playerCount: 1 })).rejects.toThrow(HttpError);
       await expect(updateConfig(db, id, alice, { playerCount: 13 })).rejects.toThrow(HttpError);
       await expect(updateConfig(db, id, alice, { turnMinutes: 4 })).rejects.toThrow(HttpError);
-      await expect(updateConfig(db, id, alice, { turnCap: 9 })).rejects.toThrow(HttpError);
+      await expect(updateConfig(db, id, alice, { turnCap: 4 })).rejects.toThrow(HttpError);
       await expect(updateConfig(db, id, alice, { turnCap: 51 })).rejects.toThrow(HttpError);
       await joinGame(db, id, bob); // fills the last seat — game activates
       await expect(updateConfig(db, id, alice, { turnCap: 15 })).rejects.toThrow(HttpError);

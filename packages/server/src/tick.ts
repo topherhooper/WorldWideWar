@@ -5,6 +5,7 @@ import { advanceParty } from '@www/engine/party';
 import { notify, type NotifyDeps } from './notify.js';
 import { resolveGameTurn } from './resolve.js';
 import {
+  effectiveRules,
   games,
   isPartyDoc,
   liveHumanSlots,
@@ -123,7 +124,7 @@ async function remind(deps: NotifyDeps, gameId: string, game: WarGameDoc): Promi
   const state = parseState(game);
   if (state === null) return false;
 
-  const liveHumans = liveHumanSlots(game.seats, state);
+  const liveHumans = liveHumanSlots(game.seats, state, effectiveRules(game));
   if (liveHumans.length === 0) return false;
 
   const orderSnaps = await db.getAll(

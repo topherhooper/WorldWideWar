@@ -9,6 +9,7 @@ import {
   createInitialState,
   decideTiersList,
   generateMap,
+  inContest,
   makeTiersList,
   normalizeOrders,
   normalizeTiersList,
@@ -505,7 +506,11 @@ export async function submitOrders(
     const mySlot = slotOf(game, user.uid);
     if (mySlot === null) throw new HttpError(403, 'not seated in this game');
     const state = parseState(game);
-    if (state === null || state.status[mySlot] !== 'active') {
+    // Co-op keeps the landless in the contest: they have no armies to order,
+    // but their tier list and their reads still pay the coalition pool, so the
+    // route that carries both must stay open to them. normalizeOrders drops
+    // every territory order they could send, because they own nothing.
+    if (state === null || !inContest(state, mySlot, effectiveRules(game))) {
       throw new HttpError(403, 'player is not active in this game');
     }
 
@@ -518,7 +523,9 @@ export async function submitOrders(
       rejections.push(...tiersWarnings(state, mySlot, orders.tiers ?? null));
     }
 
-    const otherHumans = liveHumanSlots(game.seats, state).filter((slot) => slot !== mySlot);
+    const otherHumans = liveHumanSlots(game.seats, state, effectiveRules(game)).filter(
+      (slot) => slot !== mySlot,
+    );
     const lockSnaps =
       otherHumans.length > 0
         ? await tx.getAll(

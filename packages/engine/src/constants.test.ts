@@ -40,7 +40,7 @@ describe('rulesFor with a turn cap', () => {
 
   it('carries the contest kind', () => {
     expect(rulesFor(4, 25, 'tiers').contest).toBe('tiers');
-    expect(MIN_TURN_CAP).toBe(10);
+    expect(MIN_TURN_CAP).toBe(5);
     expect(MAX_TURN_CAP).toBe(50);
   });
 });
