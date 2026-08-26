@@ -227,7 +227,6 @@ describe('survival victory', () => {
   });
 });
 
-
 /**
  * The rule that decides who may still submit. It lived as a closure inside
  * resolveTiers while the harness, the server and the client each re-derived it

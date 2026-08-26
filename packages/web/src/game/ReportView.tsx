@@ -81,8 +81,7 @@ export function ReportView({ view, map, report }: Props) {
                 (sum: number, r: TiersResult) => sum + (r.incomeDelta ?? 0),
                 0,
               );
-              const holders =
-                view.state?.status.filter((st) => st === 'active').length ?? 0;
+              const holders = view.state?.status.filter((st) => st === 'active').length ?? 0;
               return (
                 <p className={pool >= 0 ? 'concord' : 'betrayal'}>
                   The coalition read itself for <strong>{pool}</strong>{' '}

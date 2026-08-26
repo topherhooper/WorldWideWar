@@ -78,7 +78,10 @@ export function HowToWin({
             is the whole job; there is no share of the map that closes the game out.
           </li>
           <li>
-            <strong>The storm</strong> — {wavesLeft === 0 ? 'has nothing left to take.' : `${wavesLeft} ${wavesLeft === 1 ? 'wave' : 'waves'} left to fall.`}{' '}
+            <strong>The storm</strong> —{' '}
+            {wavesLeft === 0
+              ? 'has nothing left to take.'
+              : `${wavesLeft} ${wavesLeft === 1 ? 'wave' : 'waves'} left to fall.`}{' '}
             It starts on turn {rules.stormFirstWave}, then every{' '}
             {rules.stormInterval === 1 ? 'turn' : `${rules.stormInterval} turns`}. Hatched land goes
             when this turn resolves.
@@ -146,9 +149,7 @@ export function HowToWin({
         </li>
       </ul>
       <h4 className="regions-head">Regions — hold one whole for its income bonus</h4>
-      <ul className="report-list">
-        {regionRows}
-      </ul>
+      <ul className="report-list">{regionRows}</ul>
       <p className="muted hint">
         The storm starts collapsing the map&rsquo;s edge on turn {rules.stormFirstWave}, then every{' '}
         {rules.stormInterval === 1 ? 'turn' : `${rules.stormInterval} turns`}. A world event lands

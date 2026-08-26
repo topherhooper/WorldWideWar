@@ -1,7 +1,7 @@
 # Cooperative Survival — Design
 
-Date: 2026-08-23
-Status: Engine built and measured; not yet reachable by players
+Date: 2026-08-23 (engine), 2026-08-26 (reachable by players)
+Status: Playable — a Survival card on the home grid, and every panel branched for it
 
 ## Summary
 
@@ -90,3 +90,57 @@ unaffected, because it has no early win to reach.
 
 Retuning the competitive bars for a short clock is not filed as a task yet. It becomes one
 when somebody actually wants a short pact game to end in a win rather than on points.
+
+## Making it reachable, and the mechanic that was not
+
+The engine half of this mode was built, measured and merged in a state where no player could
+start one. Finishing it was mostly copy and gates rather than rules — but one of the gates was
+hiding a mechanic that did not work at all.
+
+**"The eliminated stay in the contest" was scored by the engine and fed by nobody.** The rule
+lived as a closure inside `resolveTiers`, which would happily have banked a landless player's
+guesses. Every one of the four places that could have sent them decided participation for itself
+with `status === 'active'`: the balance harness submitted `null`, the server's order route
+answered 403, the deadline sweep did not wait for them, and the client drew "spectating" and no
+panel. The feature read as implemented in every file that defined it and in none that fed it.
+
+`packages/engine/src/participation.ts` is now the rule's only home — `inContest` for "may still
+submit, and should be waited for", `commandsArmies` for "has anywhere to put an army". The
+distinction is the whole mode: an eliminated co-op player is the first and the not the second.
+
+**What wiring it up changed: nothing, measurably.** 300 games at 5 players gives mean 3.73
+survivors and 1.3% extinction with the landless contesting, identical to the numbers this preset
+was tuned against, so `stormRaiders` stays at 4.
+
+**Why it changed nothing is the useful part.** Over those 300 games, 431 eliminations land at a
+mean turn of 7.67 out of a cap of 8:
+
+| Elimination turn | 5   | 6   | 7   | 8   |
+| ---------------- | --- | --- | --- | --- |
+| Count            | 2   | 20  | 95  | 314 |
+
+Landless players collectively get 141 contest-turns across 300 games — under half a turn per
+game. Players do not get knocked out early in an 8-turn co-op game; they get knocked out on the
+last one, and the game ends before their reads could pay anybody.
+
+So the async-retention argument for this mechanic, as originally written, does not describe an
+8-turn game. It described the 25-turn game the mode was designed against, where a turn-3
+elimination meant a fortnight of nothing. Keep the mechanic: 22 of 431 eliminations do land
+before turn 7, and that unlucky player is exactly the one worth keeping at the table. But it is
+insurance for the tail, not a load-bearing part of the economy, and anyone retuning the pool
+should not expect the landless to be feeding it.
+
+## What a Survival player is now told
+
+Copy is the rest of the work, and it is not decoration: the mode inherits panels written for a
+game with rivals, and every one of them was actively wrong.
+
+| Panel             | Was                                          | Now                                                       |
+| ----------------- | -------------------------------------------- | --------------------------------------------------------- |
+| `HowToWin`        | conquest, domination, hegemony, decapitation | survivor count, no early win, waves left, what raiders do |
+| `HowCombatWorks`  | "×0.80 to ×1.40 from your tier-list reads"   | flat ×1.00, reads pay a shared pool                       |
+| `Game` (landless) | "eliminated — spectating", no panel          | the tier panel, and a lock button of its own              |
+| `ReportView`      | contribution hidden unless payout `income`   | each player's contribution, and the round's pool total    |
+
+The landless player's lock button is not a nicety. Without one they could never lock in, and the
+server now waits for them, so every co-op turn would have run to its deadline.

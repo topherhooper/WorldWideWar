@@ -194,7 +194,9 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('co-op keeps the landless 
     state.owner = state.owner.map((slot) => (slot === 1 ? null : slot));
     state.status[1] = 'eliminated';
     state.eliminatedTurn[1] = 1;
-    await games(db).doc(id).update({ stateJson: JSON.stringify(state) });
+    await games(db)
+      .doc(id)
+      .update({ stateJson: JSON.stringify(state) });
     return id;
   };
 

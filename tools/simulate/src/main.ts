@@ -78,7 +78,7 @@ function parseArgs(argv: string[]): Options {
       case '--help':
         console.log(
           'usage: pnpm sim -- [--games N] [--players 4,6,12] [--difficulty easy|normal|hard]\n' +
-            '                  [--preset pact|tiers|pact-blitz|tiers-v2]\n' +
+            '                  [--preset pact|tiers|pact-blitz|tiers-v2|survival]\n' +
             '                  [--prefix S] [--no-gates] [--verbose]',
         );
         process.exit(0);
