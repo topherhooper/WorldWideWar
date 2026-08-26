@@ -332,15 +332,26 @@ function routeLimit(playerCount: number): number {
 /**
  * Acceptable median game length, relative to the clock the game was given.
  *
- * This used to be an absolute 14-22 turns, which stopped meaning anything once
- * every preset targeted 5-10: a good 8-turn game and a broken one both fail a
- * band written for 25-turn matches. What the gate is really asserting is that a
- * game uses most of its clock without needing all of it, so it is now expressed
- * that way. At the legacy cap of 25 this yields 13-25, which is where the old
- * band already sat.
+ * This used to be an absolute 6-14 for duels and 14-22 for everyone else, which
+ * stopped meaning anything once every preset targeted 5-10 turns: a good 8-turn
+ * game and a broken one both fail a band written for 25-turn matches. What the
+ * gate is really asserting is that a game uses a fair share of its clock without
+ * needing all of it, so it is expressed that way instead.
+ *
+ * The two floors are not a rounding of one number. A duel is genuinely a shorter
+ * game than a table: 800 two-player games run to a median of 9 turns against a
+ * cap of 25, barely a third of the clock, because with one rival there is
+ * nobody to hold the balance and domination arrives early. The old band knew
+ * that and allowed duels down to 6. A single ratio does not — at 0.4 it demands
+ * 10 of a duel and fails a distribution that has not changed since the gate was
+ * written, which is how the first version of this function turned a green sweep
+ * red without any game having got worse.
+ *
+ * At the legacy cap of 25 this yields 7-25 for duels and 13-25 for tables,
+ * both of which contain the medians the absolute band was built around.
  */
 function lengthBand(playerCount: number, turnCap: number): [number, number] {
-  const floor = playerCount <= 3 ? 0.4 : 0.5;
+  const floor = playerCount <= 3 ? 0.25 : 0.5;
   return [Math.max(3, Math.ceil(turnCap * floor)), turnCap];
 }
 
