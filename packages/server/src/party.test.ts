@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { TOGETHER_SUSPECTS } from '@www/engine/party';
 import type { PartyGameView } from './api-types.js';
-import { HttpError, submitOrders, startGame, updateConfig, type AuthedUser } from './games.js';
+import {
+  HttpError,
+  deleteGame,
+  listGames,
+  submitOrders,
+  startGame,
+  updateConfig,
+  type AuthedUser,
+} from './games.js';
 import { games, type PartyGameDoc } from './store.js';
 import { LogMailer } from './mailer.js';
 import { clearFirestore, emulatorDb, testDeps } from './testing.js';
@@ -39,6 +47,34 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('the dinner party', () => 
     // The seed decides the deal, so it must never reach a guest.
     const seed = (await games(db).doc(id).get()).get('seed') as string;
     expect(JSON.stringify(view)).not.toContain(seed);
+  });
+
+  // The web client had no delete button on any party screen, so this endpoint
+  // was never exercised by a party — worth pinning that it is kind-agnostic,
+  // since the fix was to call it rather than to change it.
+  it('lets the host delete a party, and takes it out of every guest list', async () => {
+    const id = await createPartyGame(db, mum, { kind: 'party', mode: 'together' });
+    await takePartySeat(db, id, mum, {});
+    await takePartySeat(db, id, dad, {});
+
+    await expect(deleteGame(db, id, dad)).rejects.toThrow(HttpError); // a guest cannot
+    await deleteGame(db, id, mum);
+
+    expect((await games(db).doc(id).get()).exists).toBe(false);
+    expect(await listGames(db, mum)).toEqual([]);
+    expect(await listGames(db, dad)).toEqual([]);
+  });
+
+  // A party dealt to the wrong people is the one most worth deleting, and it is
+  // also the point at which the lobby screen is gone for good.
+  it('lets the host delete a party that has already been dealt', async () => {
+    const id = await createPartyGame(db, mum, { kind: 'party', mode: 'together' });
+    await takePartySeat(db, id, mum, { dependents: [{ name: 'Robin', young: true }] });
+    await takePartySeat(db, id, dad, { dependents: [{ name: 'Wren', young: true }] });
+    await actOnParty(db, id, mum, { action: { kind: 'deal' } });
+
+    await deleteGame(db, id, mum);
+    expect((await games(db).doc(id).get()).exists).toBe(false);
   });
 
   it('seats a guest and the children they brought', async () => {

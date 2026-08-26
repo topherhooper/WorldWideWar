@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { addGuest, createPartyState, redactParty } from '@www/engine/party';
 import type { PartyGameView } from '@www/server/api-types';
 
-import { PartyLobby } from './PartyLobby.js';
+// The lobby now carries the delete button, which reaches the API directly.
+// Importing the real module would initialise Firebase against a config that
+// only exists in a browser build.
+vi.mock('../api.js', () => ({
+  api: { deleteGame: vi.fn().mockResolvedValue({ ok: true }) },
+  ApiError: class extends Error {},
+}));
+
+const { api } = await import('../api.js');
+const { PartyLobby } = await import('./PartyLobby.js');
 
 /** A host and two other grown-ups, still in the lobby with nothing dealt. */
 function lobbyView(over: Partial<PartyGameView> = {}): PartyGameView {
@@ -44,6 +54,36 @@ const props = (view: PartyGameView, onConfig: (patch: object) => void) => ({
   onDeal: vi.fn(),
 });
 
+/** Deleting navigates, so the lobby needs a router around it. */
+const renderLobby = (view: PartyGameView, onConfig: (patch: object) => void = vi.fn()) =>
+  render(
+    <MemoryRouter>
+      <PartyLobby {...props(view, onConfig)} />
+    </MemoryRouter>,
+  );
+
+/**
+ * The party lobby was the one lobby with no way out. A host who clicked
+ * Bedtime Party by mistake — or whose evening ended before the roles were
+ * dealt — had a party in their list forever, because the button the war lobby
+ * has always had was never added here.
+ */
+describe('ending a party that never started', () => {
+  afterEach(cleanup);
+
+  it('lets the host delete the party from the lobby', async () => {
+    renderLobby(lobbyView());
+    fireEvent.click(screen.getByText(/delete this party/i));
+    fireEvent.click(screen.getByText(/really delete/i));
+    await waitFor(() => expect(vi.mocked(api.deleteGame)).toHaveBeenCalledWith('p1'));
+  });
+
+  it('offers no delete to a guest, who is not the one who made it', () => {
+    renderLobby(lobbyView({ isHost: false, mySlot: 1 }));
+    expect(screen.queryByText(/delete this party/i)).toBeNull();
+  });
+});
+
 describe('the host dials', () => {
   afterEach(cleanup);
 
@@ -52,7 +92,7 @@ describe('the host dials', () => {
   // candles: 0, the server rejected it, and the old number came straight back.
   it('lets the host clear a dial and type a new number', () => {
     const onConfig = vi.fn();
-    render(<PartyLobby {...props(lobbyView(), onConfig)} />);
+    renderLobby(lobbyView(), onConfig);
     const candles = screen.getByLabelText(/candles/i) as HTMLInputElement;
 
     fireEvent.change(candles, { target: { value: '' } });
@@ -68,7 +108,7 @@ describe('the host dials', () => {
 
   it('commits minutes a round on Enter', () => {
     const onConfig = vi.fn();
-    render(<PartyLobby {...props(lobbyView(), onConfig)} />);
+    renderLobby(lobbyView(), onConfig);
     const minutes = screen.getByLabelText(/minutes a round/i);
 
     fireEvent.change(minutes, { target: { value: '12' } });
@@ -83,7 +123,7 @@ describe('the host dials', () => {
 
   it('clamps an out-of-range number instead of letting the server reject it', () => {
     const onConfig = vi.fn();
-    render(<PartyLobby {...props(lobbyView(), onConfig)} />);
+    renderLobby(lobbyView(), onConfig);
     const minutes = screen.getByLabelText(/minutes a round/i) as HTMLInputElement;
 
     fireEvent.change(minutes, { target: { value: '90' } });
@@ -95,7 +135,7 @@ describe('the host dials', () => {
   it('puts the dial back when the host blurs an empty box', () => {
     const onConfig = vi.fn();
     const view = lobbyView();
-    render(<PartyLobby {...props(view, onConfig)} />);
+    renderLobby(view, onConfig);
     const candles = screen.getByLabelText(/candles/i) as HTMLInputElement;
 
     fireEvent.change(candles, { target: { value: '' } });
@@ -107,7 +147,7 @@ describe('the host dials', () => {
   it('sends nothing when the typed number is the one already set', () => {
     const onConfig = vi.fn();
     const view = lobbyView();
-    render(<PartyLobby {...props(view, onConfig)} />);
+    renderLobby(view, onConfig);
     const candles = screen.getByLabelText(/candles/i);
 
     fireEvent.change(candles, { target: { value: String(view.party.candles) } });
@@ -116,7 +156,7 @@ describe('the host dials', () => {
   });
 
   it('hides the dials from a guest who is not the host', () => {
-    render(<PartyLobby {...props(lobbyView({ isHost: false, mySlot: 1 }), vi.fn())} />);
+    renderLobby(lobbyView({ isHost: false, mySlot: 1 }));
     expect(screen.queryByLabelText(/candles/i)).toBeNull();
     expect(screen.getByText(/waiting for the host/i)).toBeDefined();
   });
