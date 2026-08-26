@@ -790,3 +790,129 @@ button.link {
   cursor: pointer;
   padding: 0 0.25rem;
 }
+
+/* --- S.A.C.R.E. Bleu! ---------------------------------------------------- */
+
+/* The prompt is the whole onboarding story: one line saying what you do now,
+   above everything else on the screen. */
+.sacre-prompt {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.sacre-seats {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sacre-seat {
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 8rem;
+}
+
+.sacre-seat.is-active {
+  border-color: currentColor;
+  border-width: 2px;
+  padding: calc(0.4rem - 1px) calc(0.7rem - 1px);
+}
+
+.sacre-seat.is-out {
+  opacity: 0.55;
+}
+
+.sacre-faceup {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+}
+
+.sacre-hand {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sacre-card {
+  font-family: ui-monospace, monospace;
+  min-width: 3.2rem;
+  padding: 0.6rem 0.4rem;
+  border: 1px solid var(--line, #ccc);
+  border-radius: 6px;
+  background: var(--bg, #fff);
+  position: relative;
+}
+
+.sacre-card.is-red {
+  color: #b3261e;
+}
+
+/* Picked cards are numbered, because a run is laid in an order and 5,6,7 is
+   not the same submission as 7,6,5 -- and a Joker's position is what decides
+   which rank it stands in for. */
+.sacre-card.is-picked {
+  border-width: 2px;
+  border-color: currentColor;
+  padding: calc(0.6rem - 1px) calc(0.4rem - 1px);
+}
+
+.sacre-order {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  font-size: 0.7rem;
+  border-radius: 50%;
+  width: 1.2rem;
+  height: 1.2rem;
+  line-height: 1.2rem;
+  background: currentColor;
+  color: var(--bg, #fff);
+}
+
+.sacre-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.sacre-options button.is-picked {
+  border-width: 2px;
+}
+
+.sacre-do,
+.sacre-answer {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px dashed var(--line, #ccc);
+  border-radius: 6px;
+}
+
+.sacre-do p,
+.sacre-answer p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.sacre-log {
+  margin-top: 1.5rem;
+}
+
+.sacre-log ol {
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}

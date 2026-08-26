@@ -94,6 +94,20 @@ export function Home() {
             <span>Sleeping Beauty — nobody here laid the curse, so solve it together.</span>
             <span className="muted">from 2 people · about ten minutes</span>
           </button>
+          {/* A card game rather than a war or a party, so it names what it is
+              in the tagline: everyone at one table, at the same time. Nothing
+              about the grid changes — one click, POST /api/games, land on
+              /g/:id, same as the seven cards beside it. */}
+          <button
+            data-testid="sacre"
+            className="preset-card"
+            disabled={creating}
+            onClick={() => void create({ kind: 'cards', players: 4 })}
+          >
+            <strong>S.A.C.R.E. Bleu!</strong>
+            <span>Score, Advertise, Cycle, Return or Exchange — build a run, win the table.</span>
+            <span className="muted">2&ndash;7 players · 8 rounds · everyone at once</span>
+          </button>
         </div>
       </section>
 
@@ -122,13 +136,16 @@ export function Home() {
                             g.turn === 0
                             ? 'Invitations sent'
                             : `Round ${g.turn}`
-                          : `Turn ${g.turn}`}
+                          : g.kind === 'cards'
+                            ? `Round ${g.turn} of 8`
+                            : `Turn ${g.turn}`}
                   </span>
                   {g.status === 'active' && g.deadlineAt !== null && (
                     <span className="muted">{formatRemaining(g.deadlineAt, now)}</span>
                   )}
                   {g.status === 'active' &&
                     g.kind !== 'party' &&
+                    g.kind !== 'cards' &&
                     !g.myLocked &&
                     g.mySlot !== null && <span className="badge-due">orders due</span>}
                 </Link>

@@ -12,6 +12,8 @@ import type {
 import type { PartyAction, PartyMode, PartyView } from '@www/engine/party';
 import type { SacreAction, SacreView } from '@www/engine/sacre';
 
+export type { SacreAction, SacreView };
+
 import type { Dependent } from './store.js';
 
 export type { Dependent };

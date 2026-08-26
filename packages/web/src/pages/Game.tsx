@@ -16,6 +16,7 @@ import { TiersPanel, emptyTiers } from '../game/TiersPanel.js';
 import { ReportView } from '../game/ReportView.js';
 import { useGame, type UseGame } from '../useGame.js';
 import { PartyGame } from '../party/PartyGame.js';
+import { SacreGame } from '../sacre/SacreGame.js';
 import { Lobby } from './Lobby.js';
 
 const AUTOSAVE_MS = 800;
@@ -37,6 +38,9 @@ function GameInner({ id }: { id: string }) {
   const game = useGame(id);
   if (game.view === null) {
     return <main className="panel">{game.error ?? 'Loading…'}</main>;
+  }
+  if (game.view.kind === 'cards') {
+    return <SacreGame view={game.view} act={game.refresh} id={id} />;
   }
   if (game.view.kind === 'party') {
     return <PartyGame view={game.view} act={game.refresh} id={id} />;
