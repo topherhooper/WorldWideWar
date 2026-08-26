@@ -1,13 +1,13 @@
 # S.A.C.R.E. Bleu! — a card game someone else designed, offered to the site
 
-## The idea, as it arrived
+## Why now
 
-A single link, with no words attached:
+A single link arrived, with no words attached:
 
 > https://docs.google.com/document/d/1oD0-NXmB7erBbs43IhiIeWrUtVpWW7MZ9pwskeJrZFA/edit
 
-That is the whole prompt. Everything below the next heading is me reading the document and the
-codebase; nothing below is something that was said out loud.
+That is the whole prompt. Everything below this section is me reading the document and the
+codebase; none of it is something that was said out loud.
 
 The document is **"S.A.C.R.E. (Score, Advertise, Cycle, Return, or Exchange)"** — a complete
 rules sheet for a 2–7 player card game played with a standard deck. Owned by
@@ -29,17 +29,17 @@ turn, three of which require reacting to another player. A correct implementatio
 play is not a game, and this one has more surface to be unplayable across than anything on the
 site today.
 
-## What the document actually says
+## What we found
+
+### What the document actually says
 
 Recorded here rather than linked, because the Google Doc is not ours, can change or be
 un-shared under us, and a bare clone in a sandbox has to get the complete picture
 (`CLAUDE.md` § "Git is the harness").
 
-### Setup
-
-Split a standard deck into four piles: red Q/K/A (1), black Q/K/A (2), numbers 2–10 (3), Jacks
-(4). Under 7 players both Jokers go in pile 4; at 7 players one Joker goes into each of piles 1
-and 2. Shuffle 1, 2 and 3, then deal face-down:
+**Setup.** Split a standard deck into four piles: red Q/K/A (1), black Q/K/A (2), numbers 2–10
+(3), Jacks (4). Under 7 players both Jokers go in pile 4; at 7 players one Joker goes into each
+of piles 1 and 2. Shuffle 1, 2 and 3, then deal face-down:
 
 | Players | From pile 1 | From pile 2 | From pile 3 | Total |
 | ------- | ----------- | ----------- | ----------- | ----- |
@@ -54,15 +54,11 @@ Everything left over from all four piles is shuffled together to form the deck. 
 deliberately **face-card-rich** at the start, and the rules' own advice leans on that: "at least
 the first player should choose Return in round 1."
 
-### The shape of a game
-
-Eight rounds. Each round, every player takes one turn choosing exactly one of Score, Advertise,
-Cycle, Return or Exchange. Turn order rotates left; the shortest player goes first. **A player
-holding fewer than 3 cards flips their hand face-up and skips all remaining turns.** Highest
-score wins; ties go to whoever is latest in turn order; there is no second place, and the losers
-say "Sacré bleu!"
-
-### The five options
+**The shape of a game.** Eight rounds. Each round, every player takes one turn choosing exactly
+one of Score, Advertise, Cycle, Return or Exchange. Turn order rotates left; the shortest player
+goes first. **A player holding fewer than 3 cards flips their hand face-up and skips all
+remaining turns.** Highest score wins; ties go to whoever is latest in turn order; there is no
+second place, and the losers say "Sacré bleu!"
 
 **Score.** Lay down one same-suit run of at least 3 cards. Numbers score face value, all of
 J/Q/K/A score 10 each, and the order is J, Q, K, A with the Ace looping round to 2 — so
@@ -91,20 +87,17 @@ number off the top, unseen.
 not take a card another player revealed via Exchange since your own last turn. Their set-aside
 cards come back.
 
-### Round 8
+**Round 8.** Cycle is off. Every hand and the deck are face-up from the start of the round.
+Return becomes _search the deck and take whatever you like_. And choosing Advertise, Return or
+Exchange earns a free bonus Score immediately afterwards — so the last round is where a well-fed
+hand cashes out twice.
 
-Cycle is off. Every hand and the deck are face-up from the start of the round. Return becomes
-_search the deck and take whatever you like_. And choosing Advertise, Return or Exchange earns a
-free bonus Score immediately afterwards — so the last round is where a well-fed hand cashes out
-twice.
+**The advice section** is worth keeping because it states the intended arc: gather high cards in
+the first third, commit to a suit in the middle third, maximise one big run in the last third.
+Winners typically score two runs. Don't Score in your first two turns — named in the doc as the
+common new-player mistake.
 
-### The advice section
-
-Worth keeping because it states the intended arc: gather high cards in the first third, commit to
-a suit in the middle third, maximise one big run in the last third. Winners typically score two
-runs. Don't Score in your first two turns — named in the doc as the common new-player mistake.
-
-## Where the cost lands in this repo
+### Where the cost lands in this repo
 
 Not a plan. Just the pointers, so whoever picks this up next does not rediscover them.
 
@@ -140,27 +133,7 @@ dispatch on kind), `packages/server/src/store.ts` (the `GameDoc` union),
   UI toggle: `redact()` is the only path state takes to a client, and it would need to know what
   round it is.
 
-## Assumptions I made instead of asking
-
-Cheap to correct here, expensive to correct after code exists.
-
-1. **That this belongs in this codebase** — that the link means "build this", not "here is a
-   scoring mechanic worth stealing for the war game" and not "read this, unrelated".
-2. **That async-first is the constraint it must bend to.** This site resolves on a deadline for
-   people who open it twice a day. S.A.C.R.E. has _blocking sub-turns_: Advertise stops until
-   every other player has answered, Cycle needs a simultaneous face-down pass from everyone at
-   once. The nearest thing the repo already has is the party's advance-on-read
-   (`docs/game-modes.md:125-128`), which exists for sub-minute phases and writes during a GET.
-   This is the load-bearing assumption and the one most likely to be wrong.
-3. **That we do not have permission.** The design is `jeffrey.hunt90@gmail.com`'s. Nobody has
-   said whether implementing it, publishing it, or naming it is agreed. Unresolved, and it is
-   cheap to resolve by asking a person.
-4. **That the physical-only rules need substitutes, undecided.** The shortest player goes first;
-   the card box is rotated 45° each round as a round counter; the losers exclaim "Sacré bleu!"
-   None of the three survives the trip to a browser as written, and the third one is the game's
-   whole personality.
-
-## Rule holes found by reading closely
+### Rule holes found by reading closely
 
 Findings, not tasks. These are what a brainstorm would have to settle, and several of them are
 more interesting than the implementation.
@@ -185,22 +158,29 @@ more interesting than the implementation.
 - **A typo worth not propagating:** Return says "draw ... from the top of _your_ deck". The deck
   is shared; there is one.
 
-Two things I checked that do hold, so nobody re-checks them:
+Two things checked that do hold, so nobody re-checks them:
 
 - Cycle's cap is consistent — 5 players are dealt 9 cards, half rounded up is 5, which matches
   the document's own example.
 - Advertise's "equal or greater potential scoring value" is coherent given face cards all score
   10: offering a Queen really does mean a 10 is an acceptable answer.
 
-## Not decided
+## Assumed, not asked
 
-No decisions have been taken and no tasks filed. `tasks/` already holds 6 files, which is
-`CLAUDE.md`'s own tripwire, and this idea has not earned one.
+Cheap to correct here, expensive to correct after code exists.
 
-The two ways forward, per the front door:
-
-- **Prototype** — needs a `## Prototype goal` here first, one sentence with an observable
-  outcome. Given the Kind-axis price, the honest prototype is a headless 4-player game inside
-  `packages/engine` that plays to a score, not a screen.
-- **Brainstorm** — the first question is almost certainly _async or synchronous_, because
-  assumption 2 above is what every other decision hangs off.
+1. **That this belongs in this codebase** — that the link means "build this", not "here is a
+   scoring mechanic worth stealing for the war game" and not "read this, unrelated".
+2. **That async-first is the constraint it must bend to.** This site resolves on a deadline for
+   people who open it twice a day. S.A.C.R.E. has _blocking sub-turns_: Advertise stops until
+   every other player has answered, Cycle needs a simultaneous face-down pass from everyone at
+   once. The nearest thing the repo already has is the party's advance-on-read
+   (`docs/game-modes.md:125-128`), which exists for sub-minute phases and writes during a GET.
+   This is the load-bearing assumption and the one most likely to be wrong.
+3. **That we do not have permission.** The design is `jeffrey.hunt90@gmail.com`'s. Nobody has
+   said whether implementing it, publishing it, or naming it is agreed. Unresolved, and it is
+   cheap to resolve by asking a person.
+4. **That the physical-only rules need substitutes, undecided.** The shortest player goes first;
+   the card box is rotated 45° each round as a round counter; the losers exclaim "Sacré bleu!"
+   None of the three survives the trip to a browser as written, and the third one is the game's
+   whole personality.
