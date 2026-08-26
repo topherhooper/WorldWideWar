@@ -12,7 +12,11 @@ describe('sacre prototype', () => {
 
   it('scores the Ace loop the way the rules sheet does', () => {
     // 9, 10, J, Q, K, A, 2 of spades = 61, straight from the document.
-    const hand = [9, 10, 11, 12, 13, 14, 2].map((rank) => ({ id: `${rank}S`, suit: 'S' as const, rank }));
+    const hand = [9, 10, 11, 12, 13, 14, 2].map((rank) => ({
+      id: `${rank}S`,
+      suit: 'S' as const,
+      rank,
+    }));
     const run = bestRun(hand);
     expect(run?.points).toBe(61);
     expect(run?.cards.map(cardName)).toEqual(['9S', '10S', 'JS', 'QS', 'KS', 'AS', '2S']);

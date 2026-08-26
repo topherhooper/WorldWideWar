@@ -115,7 +115,7 @@ function leaderScoreExcluding(state: SacreState, seat: number): number {
   let best = 0;
   for (const p of state.players) {
     if (p.seat !== seat && p.score > best) best = p.score;
-    }
+  }
   return best;
 }
 
@@ -250,7 +250,8 @@ function doExchange(state: SacreState, seat: number): string {
   state.revealed.set(take.id, state.turn);
   target.hand.push(...aside);
 
-  const blocked = takeable.length === 0 && target.hand.length > 0 ? ' (all cards were blocked)' : '';
+  const blocked =
+    takeable.length === 0 && target.hand.length > 0 ? ' (all cards were blocked)' : '';
   return `Exchange: gave ${cardName(give)} to P${target.seat}, took ${cardName(take)}${blocked}`;
 }
 
@@ -269,7 +270,10 @@ function takeTurn(state: SacreState, seat: number, rng: Rng): string {
   // Round 8: everything is face-up, and Advertise/Return/Exchange earn a free
   // bonus Score afterwards -- so never spend the turn itself on Score.
   if (round8) {
-    const line = state.deck.length > 0 ? doReturn(state, seat, Math.min(3, p.hand.length)) : doExchange(state, seat);
+    const line =
+      state.deck.length > 0
+        ? doReturn(state, seat, Math.min(3, p.hand.length))
+        : doExchange(state, seat);
     const bonus = bestRun(p.hand);
     if (bonus && scoreAllowed(state, seat, bonus)) {
       return `${line}; bonus ${doScore(state, seat, bonus)}`;
@@ -282,7 +286,8 @@ function takeTurn(state: SacreState, seat: number, rng: Rng): string {
     return doScore(state, seat, run);
   }
 
-  const cycleBlocked = state.lastCycleSeat !== null && state.lastCycleSeat === lastActiveSeat(state, seat);
+  const cycleBlocked =
+    state.lastCycleSeat !== null && state.lastCycleSeat === lastActiveSeat(state, seat);
   const weak = run === null || run.points < 20;
 
   if (weak && state.deck.length > 0 && rng.int(3) > 0) {
