@@ -113,6 +113,23 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('the card game', () => {
     expect(offered.game.pending?.responses).toBeUndefined();
   });
 
+  it('deals only to the seats that filled, not to empty chairs', async () => {
+    // The table opens at its widest; two people sit down; the deal shrinks it.
+    // Driving this in a browser was what caught it: a 4-seat table with two
+    // players dealt hands to "Player 3" and "Player 4", which would then time
+    // out every single round.
+    const id = await createSacreGame(db, ana, { kind: 'cards' });
+    expect((await getSacreView(db, id, ana)).maxSeats).toBe(7);
+    await takeSacreSeat(db, id, bo);
+
+    const dealt = await actOnSacre(db, id, ana, { action: { type: 'deal' } });
+    expect(dealt.game.seats).toHaveLength(2);
+    expect(dealt.maxSeats).toBe(2);
+    // Two players are dealt 15 each, which is the 2-player row of the table.
+    expect(dealt.game.yourHand).toHaveLength(15);
+    expect(dealt.game.seats.every((s) => s.cards === 15)).toBe(true);
+  });
+
   it('shows a card game in the games list under its own kind', async () => {
     const id = await dealtTable(db);
     const mine = await listGames(db, ana);

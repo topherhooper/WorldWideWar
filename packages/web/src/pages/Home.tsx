@@ -102,7 +102,7 @@ export function Home() {
             data-testid="sacre"
             className="preset-card"
             disabled={creating}
-            onClick={() => void create({ kind: 'cards', players: 4 })}
+            onClick={() => void create({ kind: 'cards' })}
           >
             <strong>S.A.C.R.E. Bleu!</strong>
             <span>Score, Advertise, Cycle, Return or Exchange — build a run, win the table.</span>

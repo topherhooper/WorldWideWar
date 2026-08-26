@@ -77,9 +77,7 @@ describe('Home', () => {
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByTestId('sacre'));
-    await waitFor(() =>
-      expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ kind: 'cards', players: 4 }),
-    );
+    await waitFor(() => expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ kind: 'cards' }));
     cleanup();
   });
 

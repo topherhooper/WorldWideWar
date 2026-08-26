@@ -121,7 +121,11 @@ export async function createSacreGame(
   user: AuthedUser,
   req: CreateGameRequest,
 ): Promise<string> {
-  const wanted = typeof req.players === 'number' ? req.players : 4;
+  // The table opens at its widest and shrinks to whoever actually sat down when
+  // the host deals. Fixing the size up front means an empty chair is dealt a
+  // hand and then times out every round -- which is what happened the first
+  // time this was driven in a browser.
+  const wanted = typeof req.players === 'number' ? req.players : MAX_PLAYERS;
   const playerCount = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.round(wanted)));
 
   const seats: (Seat | null)[] = Array.from({ length: playerCount }, () => null);
@@ -276,12 +280,24 @@ export async function actOnSacre(
     if (action.type === 'deal') {
       if (game.createdBy !== user.uid) throw new HttpError(403, 'only the host deals');
       if (state.phase !== 'lobby') throw new HttpError(409, 'already dealt');
-      if (game.seats.filter((s) => s !== null).length < MIN_PLAYERS) {
-        throw new HttpError(409, 'not enough players yet');
-      }
-      const dealt = deal(state, now);
-      tx.update(games(db).doc(gameId), sacreFields(dealt));
-      return { doc: game, state: dealt, mySlot, note: null as string | null };
+      const seated = game.seats.filter((s) => s !== null);
+      if (seated.length < MIN_PLAYERS) throw new HttpError(409, 'not enough players yet');
+
+      // Seats fill from the front, so the seated players are a prefix; deal to
+      // exactly them. An empty chair holding cards would stall every round.
+      const table = { ...emptyState(game.seed, seated.length, state.turnSeconds) };
+      const dealt = deal(table, now);
+      tx.update(games(db).doc(gameId), {
+        ...sacreFields(dealt),
+        playerCount: seated.length,
+        seats: seated,
+      });
+      return {
+        doc: { ...game, playerCount: seated.length, seats: seated },
+        state: dealt,
+        mySlot,
+        note: null as string | null,
+      };
     }
 
     const advanced = advanceSacre(state, now);
