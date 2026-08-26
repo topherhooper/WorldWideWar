@@ -13,6 +13,10 @@
     "./party": {
       "types": "./dist/party/index.d.ts",
       "default": "./dist/party/index.js"
+    },
+    "./sacre": {
+      "types": "./dist/sacre/index.d.ts",
+      "default": "./dist/sacre/index.js"
     }
   },
   "scripts": {

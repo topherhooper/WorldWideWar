@@ -6,13 +6,16 @@ import type {
   GameView,
   NotifyPrefs,
   PartyGameView,
+  SacreGameView,
   SubmitOrdersRequest,
   SubmitOrdersResponse,
   UpdateConfigRequest,
   UpdatePartyConfigRequest,
+  UpdateSacreConfigRequest,
   UpdatePrefsRequest,
 } from '@www/server/api-types';
 import type { PartyAction } from '@www/engine/party';
+import type { SacreAction } from '@www/engine/sacre';
 
 import { auth } from './auth.js';
 
@@ -75,6 +78,12 @@ export const api = {
   /** Deal, bell, meet, confirm, deny, sniff, nominate and vote all come here. */
   partyAct: (id: string, action: PartyAction) =>
     apiFetch<PartyGameView>('POST', `/api/games/${id}/party/act`, { action }),
+  takeSacreSeat: (id: string) => apiFetch<SacreGameView>('POST', `/api/games/${id}/cards/seat`),
+  updateSacreConfig: (id: string, req: UpdateSacreConfigRequest) =>
+    apiFetch<SacreGameView>('POST', `/api/games/${id}/cards/config`, req),
+  /** Deal, score, advertise, cycle, return, exchange, respond and pass. */
+  sacreAct: (id: string, action: SacreAction) =>
+    apiFetch<SacreGameView>('POST', `/api/games/${id}/cards/act`, { action }),
   getPrefs: () => apiFetch<NotifyPrefs>('GET', '/api/prefs'),
   updatePrefs: (patch: UpdatePrefsRequest) => apiFetch<NotifyPrefs>('PUT', '/api/prefs', patch),
 };

@@ -1,6 +1,6 @@
 # Game modes — what each one is, and how to add another
 
-The home grid shows seven cards. Clicking any of them does exactly one thing: `POST /api/games`,
+The home grid shows eight cards. Clicking any of them does exactly one thing: `POST /api/games`,
 then land on `/g/:id`. That uniformity is deliberate and it is the only thing the seven cards
 have in common — behind them sit **four different mechanisms**, and picking the wrong one is
 the expensive mistake this document exists to prevent. Adding a card can cost one array entry
@@ -16,11 +16,17 @@ Read this alongside `packages/engine/src/presets.ts` (the cheap axis) and
 | **Preset**     | `pact` `tiers` `pact-blitz` `tiers-v2` `survival` | `packages/engine/src/presets.ts` | one array entry, one test              |
 | **Contest**    | `pact` `tiers`                                    | `packages/engine/src/contest/`   | an implementation plus eight seams     |
 | **Party mode** | `traitor` `together`                              | `packages/engine/src/party/`     | branches in deal, rules, actions, copy |
-| **Kind**       | `war` `party`                                     | `GameKind` / the `GameDoc` union | a second half of the server and client |
+| **Kind**       | `war` `party` `cards`                             | `GameKind` / the `GameDoc` union | a second half of the server and client |
 
 A preset is a **dial setting**. A contest is **new rules inside the war game**. A party mode is
 **new rules inside the party**. A kind is **a different game that happens to share a lobby**.
 Always try to be a preset. The order above is the order to try them in.
+
+Two kinds have now been paid for, and the second one is worth reading before you reach for a
+third: [S.A.C.R.E. Bleu!](#the-card-game) went in as `cards` because it shares a lobby, seats, an
+invite link and a deadline with the other two and **nothing else** — no map, no armies, no orders
+pipeline, no tale. That is the same justification the party used, and it is the only one that
+works.
 
 ## What each mode is today
 
@@ -96,6 +102,36 @@ exactly the sizes where that half cannot function, and it keeps the child-facing
 which is the entire point of playing with a four-year-old.
 
 Design and the rejected alternatives: [docs/design/dinner-party.md](design/dinner-party.md).
+
+### The card game
+
+`cards` is **S.A.C.R.E. Bleu!**, a 2–7 player, 8-round game with a standard deck: each round every
+player takes one turn choosing to **S**core, **A**dvertise, **C**ycle, **R**eturn or **E**xchange,
+and the highest score at the end wins. Design and the rejected alternatives:
+[docs/design/sacre-card-game.md](design/sacre-card-game.md).
+
+It is the party's mechanism rather than the war game's, and that is a rules fact rather than an
+implementation preference. The rules are **strictly sequential** — "the shortest player goes first
+and turns rotate to the left" — so a 4-player game is 32 turns that each block on one named
+person, and two of the five options block on _everybody else_ inside a single turn. Async
+simultaneous resolution is not a fit; a live table is. Hence a 2.5 s poll, `advanceSacre` on every
+read, and `tick.ts` only as the backstop.
+
+Three things about it are worth knowing before touching it:
+
+**A turn is a phase machine, not a function.** `choosing → awaiting → over`. Advertise parks a
+pending naming who still owes a face-down card; Cycle parks one naming who still owes a pass. The
+turn does not move until the last answer lands or the clock fires.
+
+**A missing answer is filled in, never waited on.** On timeout the engine plays the cheapest
+eligible card for an Advertise and the worst cards for a Cycle. One person putting their phone
+down must not end everyone else's evening, and that is the same instinct as "invalid input
+degrades, never throws".
+
+**Redaction is a mode, not a filter.** Normally you see your own hand and nobody else's. **Round 8
+flips every hand _and the deck_ face-up**, so `redactSacre` branches on the round. Advertise's
+answers are face-down: they reach the advertiser alone, and only once every seat has answered —
+the one genuine one-to-one disclosure on the site, and the reason the redactor takes a viewer.
 
 ## The spine every mode shares
 
@@ -204,8 +240,8 @@ actually is here, and why a mode is usually the right answer instead.
 
 ### 4. A new kind
 
-The party is the worked example, so read `git log` around it as the cost estimate rather than
-starting from this list. It needed: the `GameKind` union and the `GameDoc` discriminated union
+The party is the first worked example and the card game is the second, so read `git log` around
+them as the cost estimate rather than starting from this list. It needed: the `GameKind` union and the `GameDoc` discriminated union
 with `isPartyDoc`/`isWarDoc`; a second create function; dispatch in `GET /api/games/:id`; four
 routes of its own; its own redactor; its own client tree; its own branch in the tick sweep; its
 own poll interval; an `asWarDoc` guard on every war-only endpoint (answering 409, not 500,
@@ -229,6 +265,12 @@ If it shares nothing at all, it is a different site.
   invents a redaction bug at the same moment.
 - **Stored documents predate your change.** `?? 'pact'`, `?? []`, `?? 'war'`, `kind` absent
   meaning war — every one of those is load-bearing, not defensive habit.
+- **Test for your kind positively, never for the absence of another.** `isWarDoc` was
+  `kind !== 'party'`, which was correct with two kinds and silently wrong with three: a `cards`
+  document answered `true` and then failed on a `mapJson` it never had. It is
+  `kind === undefined || kind === 'war'` now, and switching it is what made the compiler point at
+  every caller that had been leaning on the negative. A fourth kind should be invisible to every
+  existing predicate by default.
 - **Cloud Run deploys ahead of Firebase Hosting.** For a window after every deploy, an open tab
   posts the _old_ payload to the _new_ server. That is why `createGame` still accepts a bare
   `contest` with no `presetId`, and it is the reason a new required field on a create request

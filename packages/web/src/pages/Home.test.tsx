@@ -70,6 +70,33 @@ describe('Home', () => {
     cleanup();
   });
 
+  it('creates a card game from the same grid', async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId('sacre'));
+    await waitFor(() => expect(vi.mocked(api.createGame)).toHaveBeenCalledWith({ kind: 'cards' }));
+    cleanup();
+  });
+
+  // The grid is scanned, not read in order, so a card has to say what game it
+  // is on its own. This one is neither a war nor a party, which is the thing a
+  // player most needs to know before clicking it.
+  it('says what the card game is without leaning on another card', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    const text = screen.getByTestId('sacre').textContent ?? '';
+    expect(text).toContain('S.A.C.R.E.');
+    expect(text).toMatch(/players/i);
+    expect(text).not.toMatch(/the same|as above|like the other/i);
+    cleanup();
+  });
+
   // Each mode is a separate game, so each card has to stand on its own. The
   // bedtime card used to read "the same tale, but nobody here did it", which
   // names no story at all unless you read the card beside it first.

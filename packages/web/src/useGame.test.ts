@@ -18,6 +18,7 @@ const submitOrders = vi.mocked(api.submitOrders);
 
 const view = (over: Partial<GameView>): GameView =>
   ({
+    kind: 'war',
     id: 'g1',
     status: 'active',
     playerCount: 2,
@@ -95,7 +96,8 @@ describe('useGame', () => {
     });
     expect(warnings).toEqual(['bad move']);
     const current = result.current.view;
-    expect(current?.kind).not.toBe('party');
-    expect(current !== null && current.kind !== 'party' ? current.myOrders : null).toEqual(orders);
+    expect(current?.kind).toBe('war');
+    // Positive, not `!== 'party'`: with three kinds that stopped meaning war.
+    expect(current !== null && current.kind === 'war' ? current.myOrders : null).toEqual(orders);
   });
 });

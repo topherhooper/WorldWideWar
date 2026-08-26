@@ -23,6 +23,12 @@ export function pollIntervalFor(view: AnyGameView | null): number {
       ? PARTY_LIVE_MS
       : PARTY_IDLE_MS;
   }
+  // A card table is live while a turn is running: somebody is choosing, or
+  // everybody owes an answer, and both want the same 2.5s the party's floor
+  // gets. A lobby or a finished game does not.
+  if (view.kind === 'cards') {
+    return view.game.phase === 'playing' ? PARTY_LIVE_MS : PARTY_IDLE_MS;
+  }
   return view.myLocked && view.status === 'active' ? LOCKED_MS : IDLE_MS;
 }
 

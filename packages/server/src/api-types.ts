@@ -10,6 +10,9 @@ import type {
   GameResult,
 } from '@www/engine';
 import type { PartyAction, PartyMode, PartyView } from '@www/engine/party';
+import type { SacreAction, SacreView } from '@www/engine/sacre';
+
+export type { SacreAction, SacreView };
 
 import type { Dependent } from './store.js';
 
@@ -26,7 +29,7 @@ export type GameStatus = 'lobby' | 'active' | 'finished';
  * status is a wire value that a cached bundle would render as "Turn 0", and two
  * enums that can disagree about the same game are worse than one.
  */
-export type GameKind = 'war' | 'party';
+export type GameKind = 'war' | 'party' | 'cards';
 
 /** Which emails a player wants. Every kind defaults to on. */
 export type NotifyKind = 'turnResolved' | 'gameOver' | 'reminder';
@@ -119,8 +122,39 @@ export interface PartyGameView {
   note: string | null;
 }
 
-/** Discriminated on `kind`, so a party can never be read as a war game. */
-export type AnyGameView = WarGameView | PartyGameView;
+export interface SacreSeatView {
+  slot: number;
+  name: string;
+  taken: boolean;
+  isHost: boolean;
+}
+
+export interface SacreGameView {
+  kind: 'cards';
+  id: string;
+  status: GameStatus;
+  seats: SacreSeatView[];
+  maxSeats: number;
+  mySlot: number | null;
+  isHost: boolean;
+  /** ISO, mirroring the state's `phaseEndsAt`; the client counts down itself. */
+  phaseEndsAt: string | null;
+  /** Redacted for the viewer. Never null -- a lobby has a view too. */
+  game: SacreView;
+  /** Why the last action was turned away, if it was. */
+  note: string | null;
+}
+
+/** Discriminated on `kind`, so no game can ever be read as another. */
+export type AnyGameView = WarGameView | PartyGameView | SacreGameView;
+
+export interface SacreActionRequest {
+  action: SacreAction;
+}
+
+export interface UpdateSacreConfigRequest {
+  turnSeconds?: number;
+}
 
 export interface TakePartySeatRequest {
   /** Everyone arriving on this seat without a Google account of their own. */
@@ -149,6 +183,8 @@ export interface CreateGameRequest {
    * cached across a deploy can still create a game — new clients send presetId.
    */
   contest?: ContestKind;
+  /** Cards only. How many seats the table has; 2-7, defaulting to 4. */
+  players?: number;
 }
 
 export interface UpdateConfigRequest {

@@ -1,10 +1,23 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/engine" },
-    { "path": "./packages/server" },
-    { "path": "./tools/ci" },
-    { "path": "./tools/simulate" },
-    { "path": "./tools/mapviz" }
+    {
+      "path": "./packages/engine"
+    },
+    {
+      "path": "./packages/server"
+    },
+    {
+      "path": "./tools/ci"
+    },
+    {
+      "path": "./tools/simulate"
+    },
+    {
+      "path": "./tools/mapviz"
+    },
+    {
+      "path": "./tools/sacre"
+    }
   ]
 }
