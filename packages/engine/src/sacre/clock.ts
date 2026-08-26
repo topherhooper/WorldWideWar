@@ -16,6 +16,7 @@
 
 import { eligibleFor } from './rules.js';
 import { ROUNDS, live, richestSuit, winnerOf, worstFirst } from './state.js';
+import { bestRun } from './cards.js';
 import { pass, proveEmpty, respond, settleAdvertise, settleCycle } from './actions.js';
 import type { SacreState, Slot } from './types.js';
 
@@ -68,6 +69,24 @@ export function settlePending(state: SacreState, choice: Slot | null = null): Sa
   return state.pending.kind === 'advertise' ? settleAdvertise(state, choice) : settleCycle(state);
 }
 
+/**
+ * A settled Advertise or Cycle in round 8 still owes its seat a free Score, so
+ * the turn stays put for one more action rather than ending here.
+ */
+function afterPending(state: SacreState, nowMs: number): SacreState {
+  const earned =
+    state.round === ROUNDS && !state.bonusPending && bestRun(state.players[state.active].hand);
+  if (earned) {
+    return {
+      ...state,
+      bonusPending: true,
+      turnPhase: 'choosing',
+      phaseEndsAt: nowMs + state.turnSeconds * 1000,
+    };
+  }
+  return endTurn(state, nowMs);
+}
+
 /** The next seat still holding cards, or null if the round is done. */
 function nextSeat(state: SacreState, from: Slot): Slot | null {
   for (let slot = from + 1; slot < state.players.length; slot++) {
@@ -84,6 +103,8 @@ export function endTurn(state: SacreState, nowMs: number): SacreState {
     turn: state.turn + 1,
     pending: null,
     turnPhase: 'choosing' as const,
+    bonusPending: false,
+    turnSpent: false,
   };
 
   const next = nextSeat(finished, finished.active);
@@ -135,7 +156,12 @@ export function advanceSacre(state: SacreState, nowMs: number): Advanced {
     if (next.phase !== 'playing') break;
 
     if (next.pending !== null && pendingSettled(next)) {
-      next = endTurn(settlePending(next), nowMs);
+      next = afterPending(settlePending(next), nowMs);
+      changed = true;
+      continue;
+    }
+    if (next.turnSpent) {
+      next = endTurn(next, nowMs);
       changed = true;
       continue;
     }

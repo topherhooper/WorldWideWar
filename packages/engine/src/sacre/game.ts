@@ -13,7 +13,7 @@
 import { substream, type Rng } from '../rng.js';
 import { bestRun, cardName, type Card } from './cards.js';
 import { applySacreAction } from './actions.js';
-import { endTurn, settlePending } from './clock.js';
+import { advanceSacre, endTurn } from './clock.js';
 import { eligibleFor } from './rules.js';
 import {
   DEFAULT_TURN_SECONDS,
@@ -157,7 +157,7 @@ export function playSacreGame(seed: string, players = 4): SacreResult {
   ];
 
   let round = 0;
-  for (let guard = 0; guard < 2000 && state.phase === 'playing'; guard++) {
+  for (let guard = 0; guard < 4000 && state.phase === 'playing'; guard++) {
     if (state.round !== round) {
       round = state.round;
       lines.push('');
@@ -166,35 +166,46 @@ export function playSacreGame(seed: string, players = 4): SacreResult {
 
     const slot = state.active;
     const before = state.log.length;
-    const rng = substream(seed, 'turn', state.round, slot, state.turn);
 
-    for (const action of candidates(state, slot, rng)) {
-      const attempt = applySacreAction(state, action, { slot, nowMs: 0 });
-      if (attempt.changed) {
-        state = attempt.state;
-        break;
+    if (state.bonusPending) {
+      // Round 8's free Score. The engine only offers it when a run exists, but
+      // the run can still be refused -- it may extend a set already laid down
+      // -- so declining is a real move rather than a stall.
+      const bonus = bestRun(state.players[slot].hand);
+      const scored =
+        bonus === null
+          ? { changed: false, state }
+          : applySacreAction(
+              state,
+              { type: 'score', cards: bonus.cards.map((c) => c.id) },
+              { slot, nowMs: 0 },
+            );
+      state = scored.changed
+        ? scored.state
+        : applySacreAction(state, { type: 'skip' }, { slot, nowMs: 0 }).state;
+    } else {
+      const rng = substream(seed, 'turn', state.round, slot, state.turn);
+      for (const action of candidates(state, slot, rng)) {
+        const attempt = applySacreAction(state, action, { slot, nowMs: 0 });
+        if (attempt.changed) {
+          state = attempt.state;
+          break;
+        }
       }
+      state = answerPending(state);
     }
 
-    state = answerPending(state);
-    if (state.pending !== null) state = settlePending(state, null);
-
-    // Round 8 pays a free bonus Score after Advertise, Return or Exchange.
-    if (state.round === ROUNDS && !state.players[slot].out) {
-      const bonus = bestRun(state.players[slot].hand);
-      if (bonus) {
-        const attempt = applySacreAction(
-          state,
-          { type: 'score', cards: bonus.cards.map((c) => c.id) },
-          { slot, nowMs: 0 },
-        );
-        if (attempt.changed) state = attempt.state;
-      }
+    // The engine settles the pending and hands the turn on -- the harness does
+    // not get its own copy of that logic, which is the point of this file.
+    const rolled = advanceSacre(state, 0);
+    state = rolled.state;
+    if (!rolled.changed && state.active === slot && !state.bonusPending) {
+      // Nothing legal happened at all, so spend the turn rather than spin.
+      state = endTurn(state, 0);
     }
 
     for (const line of state.log.slice(before)) lines.push(`  ${line}`);
     if (state.players[slot].out) lines.push(`  P${slot} is under 3 cards -- face-up, out.`);
-    state = endTurn(state, 0);
   }
 
   const scores = state.players.map((p) => p.score);

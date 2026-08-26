@@ -89,6 +89,18 @@ export interface SacreState {
   active: Slot;
   turnPhase: TurnPhase;
   pending: Pending | null;
+  /**
+   * Round 8 only: choosing Advertise, Return or Exchange earns a free Score
+   * straight afterwards, so the turn stays with this seat for one more action.
+   */
+  bonusPending: boolean;
+  /**
+   * Set by the action layer when a chosen option finished the turn, and cleared
+   * by `advanceSacre` when it hands the turn on. It exists because actions.ts
+   * cannot call `endTurn` -- clock.ts imports actions.ts, not the other way
+   * round -- so the ending is reported rather than performed.
+   */
+  turnSpent: boolean;
   /** Seat that most recently chose Cycle, for the no-twice-in-a-row rule. */
   lastCycleSlot: Slot | null;
   /** Card ids revealed by Exchange, keyed to the global turn they were taken on. */
@@ -122,7 +134,14 @@ export type SacreAction =
   /** An answer to somebody else's Advertise. */
   | { type: 'respond'; card: string }
   /** An answer to somebody else's Cycle. */
-  | { type: 'pass'; cards: string[] };
+  | { type: 'pass'; cards: string[] }
+  /**
+   * Decline round 8's free Score. Needed because the bonus can be offered and
+   * then refused -- a run that extends a set you already laid, or one that
+   * would end your game behind -- and without this the seat can only wait for
+   * the clock.
+   */
+  | { type: 'skip' };
 
 export interface SacreResultState {
   state: SacreState;

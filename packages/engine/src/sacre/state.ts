@@ -43,6 +43,8 @@ export function emptyState(seed: string, players: number, turnSeconds: number): 
     active: 0,
     turnPhase: 'choosing',
     pending: null,
+    bonusPending: false,
+    turnSpent: false,
     lastCycleSlot: null,
     revealed: {},
     turn: 0,
@@ -93,6 +95,8 @@ export function deal(state: SacreState, nowMs: number): SacreState {
     round: 1,
     active: 0,
     turnPhase: 'choosing',
+    bonusPending: false,
+    turnSpent: false,
     phaseEndsAt: nowMs + state.turnSeconds * 1000,
     log: [`Dealt ${dealSize(players)} cards each. Round 1.`],
   };

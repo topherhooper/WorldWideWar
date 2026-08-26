@@ -81,7 +81,29 @@ export function SacreTable({
         <AnswerPanel view={view} picked={picked} busy={busy} send={send} />
       )}
 
-      {mine && game.turnPhase === 'choosing' && (
+      {mine && game.turnPhase === 'choosing' && game.bonusPending && (
+        <div className="sacre-answer">
+          <p>Round 8 pays you a free score. Lay a run, or skip it.</p>
+          <button
+            type="button"
+            data-testid="do-bonus"
+            disabled={busy || picked.length < 3}
+            onClick={() => send({ type: 'score', cards: picked })}
+          >
+            Score these {picked.length}
+          </button>
+          <button
+            type="button"
+            data-testid="skip-bonus"
+            disabled={busy}
+            onClick={() => send({ type: 'skip' })}
+          >
+            Skip the bonus
+          </button>
+        </div>
+      )}
+
+      {mine && game.turnPhase === 'choosing' && !game.bonusPending && (
         <div className="sacre-options">
           {game.options.map((opt) => (
             <button
@@ -141,6 +163,9 @@ function promptFor(view: SacreGameView): string {
   if (game.you === null) return 'You are watching this game.';
   if (game.seats[game.you].out) return 'You are under 3 cards, so your game is over. Watch it out.';
 
+  if (game.active === game.you && game.bonusPending) {
+    return 'Round 8 pays a free score — lay another run, or skip it.';
+  }
   if (game.pending?.youOwe === true) {
     return game.pending.kind === 'advertise'
       ? `Put down a card worth ${game.pending.floor} or more, face down. If you have none, say so.`

@@ -54,6 +54,8 @@ export interface SacreView {
   rounds: number;
   active: Slot;
   turnPhase: TurnPhase;
+  /** Round 8 only: the active seat still owes itself a free Score. */
+  bonusPending: boolean;
   seats: SeatView[];
   pending: PendingView | null;
   phaseEndsAt: number | null;
@@ -71,24 +73,30 @@ export interface SacreView {
 
 const faceUpRound = (state: SacreState): boolean => state.round >= ROUNDS;
 
+/** Is there any legal run at all in this hand? */
+const anyRunIn = (hand: readonly Card[]): boolean =>
+  hand.some((_, i) =>
+    hand.some((__, j) =>
+      hand.some(
+        (___, k) => i !== j && j !== k && i !== k && checkRun([hand[i], hand[j], hand[k]]).ok,
+      ),
+    ),
+  );
+
 /** Which of the five the viewer can legally pick this instant. */
 export function optionsFor(state: SacreState, slot: Slot | null): SacreOption[] {
   if (slot === null || state.phase !== 'playing') return [];
   if (state.active !== slot || state.turnPhase !== 'choosing') return [];
   if (state.players[slot].out) return [];
 
-  const options: SacreOption[] = ['return', 'exchange'];
-
   const hand = state.players[slot].hand;
-  const anyRun = hand.some((_, i) =>
-    hand.some((__, j) =>
-      hand.some((___, k) => {
-        if (i === j || j === k || i === k) return false;
-        return checkRun([hand[i], hand[j], hand[k]]).ok;
-      }),
-    ),
-  );
-  if (anyRun) options.unshift('score');
+
+  // Round 8's free Score: the seat has already taken its option, so the only
+  // thing left to it is the bonus.
+  if (state.bonusPending) return anyRunIn(hand) ? ['score'] : [];
+
+  const options: SacreOption[] = ['return', 'exchange'];
+  if (anyRunIn(hand)) options.unshift('score');
 
   const others = state.players.filter((p) => p.slot !== slot && !p.out && p.hand.length > 0);
   if (others.length > 0 && hand.some((c) => c.rank !== null)) options.push('advertise');
@@ -154,6 +162,7 @@ export function redactSacre(state: SacreState, viewer: Slot | null): SacreView {
     rounds: ROUNDS,
     active: state.active,
     turnPhase: state.turnPhase,
+    bonusPending: state.bonusPending,
     seats,
     pending,
     phaseEndsAt: state.phaseEndsAt,

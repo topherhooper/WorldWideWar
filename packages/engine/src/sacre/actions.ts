@@ -7,10 +7,11 @@
  * live room will post a card that left the hand two turns ago.
  */
 
-import { cardName, cardValue, isJoker, type Card } from './cards.js';
+import { bestRun, cardName, cardValue, isJoker, type Card } from './cards.js';
 import { checkRun, cycleAllowed, eligibleFor, extendsScored, scoreForeclosesWin } from './rules.js';
 import {
   MIN_HAND,
+  ROUNDS,
   findCard,
   maxCycleQuantity,
   removeCards,
@@ -405,6 +406,12 @@ export function applySacreAction(
   if (action.type === 'respond') return respond(state, slot, action.card);
   if (action.type === 'pass') return pass(state, slot, action.cards);
 
+  // Declining the round 8 bonus simply spends the turn.
+  if (action.type === 'skip') {
+    if (!state.bonusPending || state.active !== slot) return no(state, 'There is nothing to skip.');
+    return { state: { ...state, bonusPending: false, turnSpent: true }, changed: true };
+  }
+
   if (state.turnPhase === 'awaiting') {
     if (state.pending?.kind === 'advertise' && state.pending.by === slot) {
       return no(state, 'Wait for everyone to answer.');
@@ -413,18 +420,51 @@ export function applySacreAction(
   }
   if (state.active !== slot) return no(state, 'It is not your turn.');
 
-  switch (action.type) {
-    case 'score':
-      return score(state, slot, action.cards);
-    case 'advertise':
-      return advertise(state, slot, action.card);
-    case 'cycle':
-      return cycle(state, slot, action.quantity, action.offset);
-    case 'return':
-      return returnCards(state, slot, action.cards, action.want ?? []);
-    case 'exchange':
-      return exchange(state, slot, action.target, action.card);
-    default:
-      return no(state, 'That is not something you can do.');
+  const taken = ((): SacreResultState => {
+    switch (action.type) {
+      case 'score':
+        return score(state, slot, action.cards);
+      case 'advertise':
+        return advertise(state, slot, action.card);
+      case 'cycle':
+        return cycle(state, slot, action.quantity, action.offset);
+      case 'return':
+        return returnCards(state, slot, action.cards, action.want ?? []);
+      case 'exchange':
+        return exchange(state, slot, action.target, action.card);
+      default:
+        return no(state, 'That is not something you can do.');
+    }
+  })();
+
+  if (!taken.changed) return taken;
+  return { ...taken, state: afterTurnAction(taken.state, action.type, slot) };
+}
+
+/**
+ * What happens once a chosen option has been carried out.
+ *
+ * Three endings. An Advertise or a Cycle is not finished -- it is waiting on
+ * the table, and `clock.ts` ends the turn when the answers land. In round 8 the
+ * other three options each earn a free Score, so the turn stays put for one
+ * more action. Everything else hands the turn straight on.
+ *
+ * `endTurn` lives in clock.ts and clock.ts imports this file, so the caller
+ * passes the ending back rather than this reaching across the cycle: a state
+ * with `turnPhase: 'choosing'` and no bonus owed is the signal that the turn is
+ * spent, and `advanceSacre` acts on it.
+ */
+function afterTurnAction(state: SacreState, type: string, slot: Slot): SacreState {
+  if (state.pending !== null) return state;
+
+  const bonusEarned =
+    state.round === ROUNDS &&
+    !state.bonusPending &&
+    (type === 'advertise' || type === 'return' || type === 'exchange');
+
+  // A bonus nobody can take is not a pause -- it would just burn the clock.
+  if (bonusEarned && bestRun(state.players[slot].hand) !== null) {
+    return { ...state, bonusPending: true, turnSpent: false };
   }
+  return { ...state, bonusPending: false, turnSpent: true };
 }
