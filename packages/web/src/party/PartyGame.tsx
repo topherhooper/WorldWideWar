@@ -3,6 +3,7 @@ import type { PartyAction } from '@www/engine/party';
 import type { PartyGameView } from '@www/server/api-types';
 
 import { api, ApiError } from '../api.js';
+import { DeleteGame } from '../game/DeleteGame.js';
 import { useNow } from '../useNow.js';
 import { Invitation } from './Invitation.js';
 import { KidView } from './KidView.js';
@@ -90,6 +91,7 @@ export function PartyGame({
           onBegin={view.isHost ? () => onAct({ kind: 'bell' }) : null}
         />
         {error !== null && <p className="error">{error}</p>}
+        {view.isHost && <HostTools id={id} />}
       </>
     );
   }
@@ -127,7 +129,25 @@ export function PartyGame({
           </button>
         </div>
       )}
+
+      {view.isHost && <HostTools id={id} />}
     </main>
+  );
+}
+
+/**
+ * The one control a party has always been missing: the way out.
+ *
+ * A party has no resolve-now and no start, so unlike the war game's host panel
+ * this holds a single button — but it has to be on every screen after the
+ * lobby, because the evening that most wants deleting is the one that got
+ * dealt to the wrong people and stopped there.
+ */
+function HostTools({ id }: { id: string }) {
+  return (
+    <div className="panel host-tools">
+      <DeleteGame gameId={id} label="Delete this party" />
+    </div>
   );
 }
 

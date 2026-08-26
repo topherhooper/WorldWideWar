@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router';
 
 import { api, ApiError } from '../api.js';
 
-/** Creator-only game deletion with an inline two-step confirm. */
-export function DeleteGame({ gameId }: { gameId: string }) {
+/**
+ * Creator-only game deletion with an inline two-step confirm.
+ *
+ * `label` exists because the same control ends a dinner party, and a host
+ * looking for the way out of an evening that never started is not scanning for
+ * the word "game" — the card they clicked said Bedtime Party.
+ */
+export function DeleteGame({ gameId, label = 'Delete game' }: { gameId: string; label?: string }) {
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +31,7 @@ export function DeleteGame({ gameId }: { gameId: string }) {
   if (!armed) {
     return (
       <button className="danger-btn" onClick={() => setArmed(true)}>
-        Delete game
+        {label}
       </button>
     );
   }

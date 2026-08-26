@@ -8,6 +8,8 @@ import {
 } from '@www/engine/party';
 import type { PartyGameView } from '@www/server/api-types';
 
+import { DeleteGame } from '../game/DeleteGame.js';
+
 /**
  * Filling the hall. The invite link is the page's own URL, exactly as for every
  * other mode — which is the whole reason the party stopped being a four-letter
@@ -153,6 +155,17 @@ export function PartyLobby({
         </div>
       )}
       {!view.isHost && <p className="muted">Waiting for the host to deal the roles.</p>}
+
+      {/* A party the host opened by mistake, or one the evening moved past, was
+          undeletable: the war lobby has had this button since the beginning and
+          the party lobby never grew one, so a mis-clicked card sat in everyone's
+          list forever. The endpoint was always kind-agnostic — only the control
+          was missing. */}
+      {view.isHost && (
+        <div className="host-tools">
+          <DeleteGame gameId={view.id} label="Delete this party" />
+        </div>
+      )}
     </main>
   );
 }
