@@ -425,6 +425,130 @@ Two things there bear on this runbook: `cloudbuild.yaml` deliberately sets no
 month; and Artifact Registry has no cleanup policy yet, so every `api:$COMMIT_SHA` ever
 pushed is still stored.
 
+## Mothball and relight
+
+Putting the site to sleep without losing anything, and waking it back up. Read
+[cost.md](cost.md) first if the reason is money: **this section saves about $0.40/month.**
+The site is already nearly free — the ~$9/month the account actually spends predates the
+game and lives outside this project, and hunting it is a separate job
+(`tasks/find-the-baseline-spend.md`). Mothballing is worth doing because a site whose
+deadlines never fire should not look alive, not because it is where the money is.
+
+What survives a mothball: Firestore and every game in it, the Cloud Run service and its
+out-of-band `TICK_AUDIENCE`, the custom domain and its certificate, the DNS zone, both
+secrets. Nothing is deleted, so relight is this list backwards rather than a re-provision.
+
+### Mothball
+
+Run these in order. The trigger goes down before the card goes up, because a push to `main`
+in between would redeploy the live site over it.
+
+**1. Pause the tick.** This is the switch that actually stops the game: no tick, no turn
+deadlines, no mail, and no traffic to Cloud Run at all.
+
+```bash
+gcloud scheduler jobs pause www-tick \
+  --location=us-central1 --project=fluted-citizen-269819
+gcloud scheduler jobs describe www-tick --location=us-central1 \
+  --project=fluted-citizen-269819 --format='value(state)'   # expect: PAUSED
+```
+
+**2. Disable the deploy trigger.** Same export/import dance as the `ignoredFiles` filter
+above, and for the same reason — `triggers update github` rejects a partial update:
+
+```bash
+gcloud beta builds triggers export Sample \
+  --region=us-central1 --project=fluted-citizen-269819 --destination=trigger.yaml
+# append:  disabled: true
+gcloud beta builds triggers import \
+  --source=trigger.yaml --region=us-central1 --project=fluted-citizen-269819
+
+gcloud builds triggers describe Sample --region=us-central1 \
+  --project=fluted-citizen-269819 --format=yaml   # expect: disabled: true
+```
+
+Check `serviceAccount` and `push.branch` in that output too. Import replaces the whole
+definition, so a field dropped from `trigger.yaml` is a field deleted from the trigger.
+
+**3. Export Firestore, then delete the bucket it went to.** The export is the insurance
+policy for everything below it; the bucket is temporary so the backup itself adds $0/month
+rather than a lingering storage line.
+
+```bash
+BUCKET=gs://www-export-$(date +%Y%m%d)
+gcloud storage buckets create "$BUCKET" \
+  --location=us-central1 --project=fluted-citizen-269819
+gcloud firestore export "$BUCKET/firestore" --project=fluted-citizen-269819
+
+# Export is asynchronous. Wait for done: true before copying anything.
+gcloud firestore operations list --project=fluted-citizen-269819 \
+  --format='value(done,name)'
+
+gcloud storage cp -r "$BUCKET/firestore" ./firestore-export   # keep this off the repo
+gcloud storage rm -r "$BUCKET"
+gcloud storage ls --project=fluted-citizen-269819              # expect: no www-export-* bucket
+```
+
+If the export fails on permissions, it is the Firestore service agent
+(`service-<PROJECT_NUMBER>@gcp-sa-firestore.iam.gserviceaccount.com`) that needs write
+access to the bucket, not your own account — the export runs as the service, not as you.
+
+**4. Put a cleanup policy on Artifact Registry.** The only line that grows on its own,
+whether the site is up or down. The policy and the reasoning behind `keepCount: 5` are in
+[cost.md](cost.md); run it with `--dry-run` first.
+
+**5. Deploy the paused card.** `firebase.paused.json` is a second Hosting config whose
+`public` is the `paused/` directory — one self-contained HTML file, no script tag, no
+bundle, no sign-in. It lives outside `packages/web/dist` on purpose: `pnpm build` empties
+that directory, so a card kept there would vanish on the next ordinary build.
+
+```bash
+pnpm install                      # only the firebase CLI is needed; no build step
+pnpm exec firebase deploy --only hosting \
+  --project fluted-citizen-269819 --config firebase.paused.json --non-interactive
+
+curl -sS https://play.topherhooper.com | grep -q 'Paused' && echo 'card is up'
+```
+
+This touches Hosting and nothing else — no image build, no Cloud Run revision. The config
+keeps exactly one rewrite from the live one, `/unsubscribe` → Cloud Run: unsubscribe links
+sit in inboxes long after the pause, their traffic rounds to zero, and a compliance link
+that 404s is worse than a service that sleeps. Everything else, `/api/**` included, falls
+through to the card. The `Cache-Control: no-cache` header exists for relight — without it
+a browser can keep serving the card for an hour after the real site is back.
+
+**Cloud Run stays up.** It is already at `min-instances=0`, so with the tick paused it
+costs $0 while idle. Deleting it would save nothing and would cost the relight path: the
+service URL changes on recreate and `TICK_AUDIENCE` was set out-of-band (see "Cloud Run
+env"), so a deleted service comes back with a tick that cannot authenticate.
+
+### Relight
+
+Backwards, and the tick goes last.
+
+```bash
+# 1. Ship the real site again. This rebuilds and overwrites the card, using the
+#    default firebase.json — the paused config is only ever passed explicitly.
+gh workflow run deploy.yml -f ref=main
+curl -sS https://play.topherhooper.com | grep -q 'Paused' && echo 'STILL PAUSED -- stop here'
+
+# 2. Re-enable the trigger: the same export/import dance, with disabled: false.
+
+# 3. Resume the tick, last, once the site actually serves.
+gcloud scheduler jobs resume www-tick \
+  --location=us-central1 --project=fluted-citizen-269819
+gcloud scheduler jobs describe www-tick --location=us-central1 \
+  --project=fluted-citizen-269819 --format='value(state)'   # expect: ENABLED
+```
+
+**Every deadline missed during the pause fires on the first tick after it.** `runTick`
+resolves every active game whose `deadlineAt` has passed (`packages/server/src/tick.ts`),
+and a month of pause leaves every one of them past due — so the first sweep resolves them
+all at once, on whatever orders were submitted before the pause, and mails the reports. The
+engine is pure and the state is in Firestore, so nothing is lost or corrupted by this; it is
+just abrupt for anyone who was mid-game. If that matters, push `deadlineAt` forward on the
+active games before resuming rather than after.
+
 ## Gotchas learned the hard way
 
 - **`/healthz` 404s publicly**: Google's frontend reserves `/healthz` on `run.app`
