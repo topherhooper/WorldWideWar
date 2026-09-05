@@ -50,9 +50,10 @@ to relight the site.
 
 ## Decisions
 
-| Decision                                                              | Rejected, and why                                                                                                                                                                                                                                            |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Mothball**: pause tick + deploy trigger, export Firestore, keep all | _Deep mothball_ (also delete Cloud Run + images): saves ~$0.05/mo but relight means re-provisioning and `TICK_AUDIENCE` changes on recreate. _Scorched earth_ (delete data + project): no relight path, game history gone, for the same ~$0.20/mo end state. |
+| Decision                                                                               | Rejected, and why                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Mothball**: pause tick + deploy trigger, export Firestore, keep all                  | _Deep mothball_ (also delete Cloud Run + images): saves ~$0.05/mo but relight means re-provisioning and `TICK_AUDIENCE` changes on recreate. _Scorched earth_ (delete data + project): no relight path, game history gone, for the same ~$0.20/mo end state. |
+| **Paused notice**: one last deploy ships a "game is paused" face, then the tick pauses | _Leave as-is_: zero work, but the site looks alive while deadlines never fire — friends submit orders into a void. _Take hosting down_: saves $0 (Hosting is free) and makes relight slower (domain re-verify, cert reissue takes hours).                    |
 
 ## Assumptions made instead of asking
 
