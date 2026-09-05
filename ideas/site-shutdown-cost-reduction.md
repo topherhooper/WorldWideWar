@@ -68,3 +68,8 @@ to relight the site.
 - Almost all of this is console/`gcloud` work, not repo work. The repo-side residue is
   small: a runbook section in `docs/deployment.md` ("How to pause the site, how to
   relight it"), possibly a static "paused" page, and resolving/merging the tasks.
+- The pause lands whenever it lands: any game in flight freezes mid-turn and resumes on
+  relight — state is in Firestore and the engine is pure, so nothing is lost. If a game
+  should finish first, that is a matter of when to flip the switch, not what to build.
+- The Firestore export goes to a temporary GCS bucket, gets downloaded, and the bucket is
+  deleted — so the export itself adds $0/month rather than a lingering storage line.
