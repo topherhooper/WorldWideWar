@@ -48,6 +48,12 @@ to relight the site.
    DKIM/SPF/DMARC records for `mail.topherhooper.com`. Deleting the zone breaks the whole
    domain, not just `play`.
 
+## Decisions
+
+| Decision                                                              | Rejected, and why                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Mothball**: pause tick + deploy trigger, export Firestore, keep all | _Deep mothball_ (also delete Cloud Run + images): saves ~$0.05/mo but relight means re-provisioning and `TICK_AUDIENCE` changes on recreate. _Scorched earth_ (delete data + project): no relight path, game history gone, for the same ~$0.20/mo end state. |
+
 ## Assumptions made instead of asking
 
 - "Minimal" means near-$0/month while **keeping the data and the ability to relight** —
