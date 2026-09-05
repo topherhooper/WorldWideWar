@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "public": "paused",
+    "ignore": ["**/.*"],
+    "headers": [{ "source": "**", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }],
+    "rewrites": [
+      { "source": "/unsubscribe", "run": { "serviceId": "www-api", "region": "us-central1" } },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}
