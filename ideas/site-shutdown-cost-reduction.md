@@ -73,3 +73,39 @@ to relight the site.
   should finish first, that is a matter of when to flip the switch, not what to build.
 - The Firestore export goes to a temporary GCS bucket, gets downloaded, and the bucket is
   deleted — so the export itself adds $0/month rather than a lingering storage line.
+
+## Route
+
+The work splits along the line the assumptions already drew: everything that can live in
+the repo is built and merged first, so that the console sitting that actually flips the
+switch is pure execution of a runbook with nothing left to decide.
+
+The repo half is two artifacts on this branch. First, the paused card: a single static
+page in its own directory (not `packages/web/dist` — it must survive `pnpm build` wiping
+that) plus a `firebase.paused.json` whose hosting block points at it, keeps the
+`/unsubscribe` rewrite, and drops everything else. The `/unsubscribe` exception is a
+deliberate softening of the "zero API traffic" decision: unsubscribe links in inboxes
+outlive the pause, the traffic they generate rounds to zero, and a compliance link that
+404s is worse than a service that sleeps. The card is deployed with
+`firebase deploy --only hosting --config firebase.paused.json`, which touches nothing but
+hosting — no Cloud Run revision, no image build. Second, the runbook: a "Mothball and
+relight" section in `docs/deployment.md` with the exact commands in execution order —
+pause `www-tick`, disable the `Sample` trigger via the export/import dance the doc
+already records (update rejects partial edits), export Firestore through a temporary
+bucket and delete the bucket, set the Artifact Registry cleanup policy from
+`docs/cost.md`, deploy the paused card. Relight is the same list backwards: deploy `main`
+via the deploy workflow, resume the tick, re-enable the trigger. Each command gets its
+verification line, because the runbook will be executed months from a context where
+nobody remembers why.
+
+The console sitting is yours and happens after merge: run the mothball section top to
+bottom, and in the same sitting do the `find-the-baseline-spend` reading — Billing →
+Reports grouped by service — since both need the same authenticated `gcloud` and the
+baseline is ~95% of the money.
+
+Dispersal at merge: the decisions table and this route go to
+`docs/design/site-shutdown-cost-reduction.md`; this file is deleted; the one new task is
+`tasks/mothball-the-site.md` — "execute the mothball runbook" — pointing at the runbook
+section. `find-the-baseline-spend` already exists and stays as it is; the two tasks are
+independent console work that happen to share a sitting, not a chain, so neither blocks
+the other.
