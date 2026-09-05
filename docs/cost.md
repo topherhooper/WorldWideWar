@@ -51,35 +51,49 @@ minutes, not a new recurring cost.
 So August lands near $17–18, and **September, left alone, lands back at ~$10** — over a
 $10 budget, entirely on spend that predates the game.
 
-## The baseline is almost certainly Cloud SQL
+## The baseline was Cloud SQL — and a VM nobody remembered
 
-Google sent this account "you have projects using Cloud SQL" notices on 2026-06-15 and
-again on 2026-08-06, so an instance exists somewhere on the account right now. World Wide
-War does not use Cloud SQL — state is Firestore (`docs/deployment.md`). The smallest
-always-on instance, `db-f1-micro`, is ~$7.70/month before storage, which lands within
-pennies of the June ($9.77) and July ($10.04) invoices.
+Confirmed and removed on 2026-09-05. The hypothesis above was right about the Cloud SQL
+instance and incomplete about the rest: two resources predated the game, not one.
 
-A Cloud SQL instance bills for existing, not for being used. An idle one costs the same
-as a busy one, which is why this has been invisible for four months.
+| Resource                | Created    | State when found | Disposition           |
+| ----------------------- | ---------- | ---------------- | --------------------- |
+| `razzle-db` (Cloud SQL) | 2026-04-12 | `STOPPED`        | exported, **deleted** |
+| `audio-extract-staging` | 2025-07-02 | `RUNNING`        | **stopped**, kept     |
 
-Confirm and kill it — this cannot be done from the repo, it needs a console or an
-authenticated `gcloud`:
+`razzle-db` was a `POSTGRES_16` `db-f1-micro` in `us-central1-f` belonging to
+`razzle-dazzle`, which has not been pushed to since 2026-04-18. It held 10 GB of PD_SSD
+and a reserved public IPv4, had backups **disabled** with zero backups taken, and its
+creation date lines up exactly with the first full baseline month. Its contents — six
+tables, thirty-one rows, a test fixture — were exported to `razzle.sql.gz` off-repo before
+the delete. The delete released the instance, the SSD and the IP together.
+
+`audio-extract-staging` is an `e2-micro` with a 30 GB `pd-standard` disk that had been
+running for fourteen months. The instance and disk both sit inside the always-free
+us-central1 allowances, but the attached external IPv4 is not free-tier covered. It was
+**stopped rather than deleted** — stopping releases the IP and the CPU billing while
+keeping the disk and its data, and nobody has established what the machine was for.
+
+**The lesson worth keeping: `STOPPED` is not `free`.** A stopped Cloud SQL instance still
+bills its storage and its reserved public IP, which is precisely why stopping `razzle-db`
+in April made no difference to any invoice. Only the delete does. The same trap applies in
+the other direction to the VM: stopping it releases the IP, but the 30 GB disk bills on
+whether or not the instance runs.
+
+**The split between the two is an estimate, not a reading.** These figures come from
+instance shapes and published rates, not from the billing report — the console screen
+below is still the only thing that measures it. Check the next invoice against ~$0.20
+rather than assuming this section got the arithmetic right.
 
 ```bash
-# Which services actually spend. Do this first; everything below is a guess until you have.
-#   Console → Billing → Reports, group by Service, last 90 days.
-
-gcloud sql instances list --project fluted-citizen-269819
-gcloud compute instances list --project fluted-citizen-269819   # the other classic always-on
-gcloud sql instances describe <name> --project <project>        # check it is genuinely unused
+# Console → Billing → Reports, group by Service, last 90 days.
+gcloud sql instances list --project fluted-citizen-269819      # expect: 0 items
+gcloud compute instances list --project fluted-citizen-269819  # expect: TERMINATED, no external IP
 ```
 
-If it is dead weight, `gcloud sql instances delete <name>` — take an export first if there
-is any doubt; the delete is not recoverable. Stopping rather than deleting still bills for
-storage, and Cloud SQL restarts a stopped instance after 90 days.
-
 Note that the billing account may span more than one project. `fluted-citizen-269819` is
-the one this game lives in; the Cloud SQL instance need not be.
+the one this game lives in; both resources above happened to live there too, but
+`gcloud projects list` is the check that establishes it rather than assuming it.
 
 ## What this repo can spend, in order
 
