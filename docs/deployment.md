@@ -454,12 +454,24 @@ gcloud scheduler jobs describe www-tick --location=us-central1 \
 ```
 
 **2. Disable the deploy trigger.** Same export/import dance as the `ignoredFiles` filter
-above, and for the same reason — `triggers update github` rejects a partial update:
+above, and for the same reason — `triggers update github` rejects a partial update.
+**Keep the untouched export somewhere outside the repo before you edit it:** import
+replaces the whole definition, so relight needs the original file back, and re-deriving it
+by hand from a disabled trigger is how `serviceAccount` or the branch pattern gets lost.
 
 ```bash
+# These are `gcloud beta`. On a machine that has never used the beta surface, gcloud
+# stops to install the component first — and `--quiet` does NOT answer that prompt, so
+# a non-interactive shell hangs or fails there rather than on anything to do with builds.
+export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+
 gcloud beta builds triggers export Sample \
   --region=us-central1 --project=fluted-citizen-269819 --destination=trigger.yaml
-# append:  disabled: true
+cp trigger.yaml ~/backups/wwwar-trigger-original.yaml   # relight reads this. Do not skip.
+
+printf 'disabled: true\n' >> trigger.yaml
+diff ~/backups/wwwar-trigger-original.yaml trigger.yaml   # expect: exactly one added line
+
 gcloud beta builds triggers import \
   --source=trigger.yaml --region=us-central1 --project=fluted-citizen-269819
 
@@ -510,6 +522,26 @@ pnpm exec firebase deploy --only hosting \
 curl -sS https://play.topherhooper.com | grep -q 'Paused' && echo 'card is up'
 ```
 
+**On a host with no node**, which is the usual case for the machine that happens to be in
+front of you, run that block in a container instead. Note that `firebase-tools` cannot
+borrow the `gcloud auth login` user credentials — inside a container it authenticates by
+Application Default Credentials, which is a separate login:
+
+```bash
+gcloud auth application-default login          # once; writes application_default_credentials.json
+
+podman run --rm -v "$PWD:/work:z" \
+  -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro,z" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json \
+  -e GOOGLE_CLOUD_PROJECT=fluted-citizen-269819 \
+  -w /work docker.io/library/node:22 \
+  bash -lc 'corepack enable && pnpm install --frozen-lockfile && \
+    pnpm exec firebase deploy --only hosting --project fluted-citizen-269819 \
+      --config firebase.paused.json --non-interactive'
+```
+
+Relight needs none of this — it deploys through Actions, not from a laptop.
+
 This touches Hosting and nothing else — no image build, no Cloud Run revision. The config
 keeps exactly one rewrite from the live one, `/unsubscribe` → Cloud Run: unsubscribe links
 sit in inboxes long after the pause, their traffic rounds to zero, and a compliance link
@@ -524,16 +556,46 @@ env"), so a deleted service comes back with a tick that cannot authenticate.
 
 ### Relight
 
-Backwards, and the tick goes last.
+Backwards, and the tick goes last. Relight deploys through GitHub Actions rather than
+locally, so unlike the mothball it needs no node, no pnpm and no container — but it does
+need a `gh` token carrying the `workflow` scope, which the default web login does not
+grant:
+
+```bash
+gh api -i user 2>&1 | grep -i '^x-oauth-scopes'   # must list: workflow
+gh auth refresh -h github.com -s workflow          # if it does not
+```
 
 ```bash
 # 1. Ship the real site again. This rebuilds and overwrites the card, using the
 #    default firebase.json — the paused config is only ever passed explicitly.
+#    The trigger is still disabled at this point, which is fine: workflow_dispatch
+#    bypasses the trigger entirely and deploys the ref you name.
 gh workflow run deploy.yml -f ref=main
+gh run watch --repo topherhooper/WorldWideWar   # ~5 min. Wait for it.
+
+# Only meaningful once that run is green — dispatch returns immediately, so checking
+# straight after the dispatch always still sees the card and means nothing.
 curl -sS https://play.topherhooper.com | grep -q 'Paused' && echo 'STILL PAUSED -- stop here'
+```
 
-# 2. Re-enable the trigger: the same export/import dance, with disabled: false.
+```bash
+# 2. Re-enable the trigger, from the copy saved during mothball step 2 rather than by
+#    editing the live definition. If that file is lost, export the current definition,
+#    delete the `disabled: true` line, and check serviceAccount and push.branch by eye
+#    against "Pipeline" above before importing.
+export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+gcloud beta builds triggers import \
+  --source=~/backups/wwwar-trigger-original.yaml \
+  --region=us-central1 --project=fluted-citizen-269819
 
+gcloud builds triggers describe Sample --region=us-central1 \
+  --project=fluted-citizen-269819 --format=yaml \
+  | grep -E 'disabled|serviceAccount|branch|ignoredFiles'
+# expect: NO disabled line, serviceAccount cloudbuilder@, branch ^main$, 4 ignoredFiles
+```
+
+```bash
 # 3. Resume the tick, last, once the site actually serves.
 gcloud scheduler jobs resume www-tick \
   --location=us-central1 --project=fluted-citizen-269819
@@ -548,6 +610,11 @@ all at once, on whatever orders were submitted before the pause, and mails the r
 engine is pure and the state is in Firestore, so nothing is lost or corrupted by this; it is
 just abrupt for anyone who was mid-game. If that matters, push `deadlineAt` forward on the
 active games before resuming rather than after.
+
+**What relight does not restore, because mothball did not remove it:** the Artifact
+Registry cleanup policy stays enforcing (it is an improvement, not part of the pause), the
+Firestore export in `~/backups/` stays where it is, and the Cloud Run service was never
+touched. Nothing needs re-provisioning.
 
 ## Gotchas learned the hard way
 
