@@ -1,0 +1,103 @@
+<!doctype html>
+<!--
+  The paused face of the site. Deployed on its own, without the app, by
+  `firebase deploy --only hosting --config firebase.paused.json` — see the
+  "Mothball and relight" section of docs/deployment.md.
+
+  Deliberately one file with no build step, no script tag, no font or image
+  fetch and no API call: while the site is mothballed the tick is paused and
+  Cloud Run should never receive a request, so anything this page loaded would
+  be the one thing keeping the service warm. Inline styles rather than a link
+  to the app's stylesheet for the same reason — the app bundle is not deployed
+  alongside it, so a link would 404 into the catch-all rewrite.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>World Wide War — paused</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #14141c;
+        --panel: #1e1e2a;
+        --line: #34344a;
+        --text: #e8e6df;
+        --muted: #9a97a8;
+        --accent: #e6c84d;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        line-height: 1.5;
+      }
+
+      .card {
+        max-width: 34rem;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        padding: 1.75rem;
+      }
+
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.3rem;
+      }
+
+      .status {
+        margin: 0 0 1.25rem;
+        color: var(--accent);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+      }
+
+      p {
+        margin: 0 0 0.85rem;
+      }
+
+      p:last-child {
+        margin-bottom: 0;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>World Wide War</h1>
+      <p class="status">Paused</p>
+      <p>
+        The game is asleep. Turn deadlines have stopped firing, so nothing you submit here would
+        resolve — which is why there is nothing to submit.
+      </p>
+      <p>
+        Every finished game and every game caught mid-turn is kept exactly as it was. The pause
+        freezes the clock; it does not end anything. When the site comes back, the games come back
+        with it.
+      </p>
+      <p class="muted">
+        If you were told a game was running, it is waiting rather than lost. Ask whoever sent you
+        the link.
+      </p>
+    </main>
+  </body>
+</html>
