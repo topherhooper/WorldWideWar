@@ -1,0 +1,16 @@
+createTime: '2026-08-12T03:13:48.813547714Z'
+filename: cloudbuild.yaml
+github:
+  name: WorldWideWar
+  owner: topherhooper
+  push:
+    branch: ^main$
+id: 2bd6b192-67f9-4109-81c1-52f02d6e3b16
+ignoredFiles:
+- docs/**
+- '*.md'
+- '**/*.md'
+- .claude/**
+name: Sample
+resourceName: projects/fluted-citizen-269819/locations/us-central1/triggers/2bd6b192-67f9-4109-81c1-52f02d6e3b16
+serviceAccount: projects/fluted-citizen-269819/serviceAccounts/cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com

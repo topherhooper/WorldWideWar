@@ -5,3 +5,4 @@ pnpm-lock.yaml
 *.tsbuildinfo
 tools/mapviz/out/
 packages/engine/fixtures/
+cloudbuild.trigger.yaml

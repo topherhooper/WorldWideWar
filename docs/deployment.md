@@ -455,9 +455,11 @@ gcloud scheduler jobs describe www-tick --location=us-central1 \
 
 **2. Disable the deploy trigger.** Same export/import dance as the `ignoredFiles` filter
 above, and for the same reason — `triggers update github` rejects a partial update.
-**Keep the untouched export somewhere outside the repo before you edit it:** import
-replaces the whole definition, so relight needs the original file back, and re-deriving it
-by hand from a disabled trigger is how `serviceAccount` or the branch pattern gets lost.
+The enabled definition is committed as **`cloudbuild.trigger.yaml`**, because import
+replaces the whole definition and relight needs the original back — re-deriving it by hand
+from a disabled trigger is how `serviceAccount` or the branch pattern gets lost. It is in
+`.prettierignore` so it stays byte-identical to what `export` emits, which is what makes
+the drift check below an exact `diff` rather than a judgement call.
 
 ```bash
 # These are `gcloud beta`. On a machine that has never used the beta surface, gcloud
@@ -465,15 +467,18 @@ by hand from a disabled trigger is how `serviceAccount` or the branch pattern ge
 # a non-interactive shell hangs or fails there rather than on anything to do with builds.
 export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 
+# Confirm the committed copy still matches the live trigger before relying on it.
 gcloud beta builds triggers export Sample \
-  --region=us-central1 --project=fluted-citizen-269819 --destination=trigger.yaml
-cp trigger.yaml ~/backups/wwwar-trigger-original.yaml   # relight reads this. Do not skip.
+  --region=us-central1 --project=fluted-citizen-269819 --destination=/tmp/trigger.yaml
+diff cloudbuild.trigger.yaml /tmp/trigger.yaml   # expect: no output. Any output means the
+                                                 # trigger drifted from the repo — reconcile
+                                                 # first, or relight restores a stale one.
 
-printf 'disabled: true\n' >> trigger.yaml
-diff ~/backups/wwwar-trigger-original.yaml trigger.yaml   # expect: exactly one added line
+cp cloudbuild.trigger.yaml /tmp/trigger-disabled.yaml
+printf 'disabled: true\n' >> /tmp/trigger-disabled.yaml
 
 gcloud beta builds triggers import \
-  --source=trigger.yaml --region=us-central1 --project=fluted-citizen-269819
+  --source=/tmp/trigger-disabled.yaml --region=us-central1 --project=fluted-citizen-269819
 
 gcloud builds triggers describe Sample --region=us-central1 \
   --project=fluted-citizen-269819 --format=yaml   # expect: disabled: true
@@ -580,13 +585,12 @@ curl -sS https://play.topherhooper.com | grep -q 'Paused' && echo 'STILL PAUSED 
 ```
 
 ```bash
-# 2. Re-enable the trigger, from the copy saved during mothball step 2 rather than by
-#    editing the live definition. If that file is lost, export the current definition,
-#    delete the `disabled: true` line, and check serviceAccount and push.branch by eye
-#    against "Pipeline" above before importing.
+# 2. Re-enable the trigger by importing the committed definition, which has no
+#    `disabled` line in it. Nothing needs editing and nothing depends on a file left
+#    in somebody's home directory.
 export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 gcloud beta builds triggers import \
-  --source=~/backups/wwwar-trigger-original.yaml \
+  --source=cloudbuild.trigger.yaml \
   --region=us-central1 --project=fluted-citizen-269819
 
 gcloud builds triggers describe Sample --region=us-central1 \
