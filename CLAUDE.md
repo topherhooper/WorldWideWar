@@ -208,8 +208,11 @@ the mistake surfaces as unrelated CI failures on a PR that does not mention them
 **Do not hard-wrap the PR body.** Write each paragraph as one long line. GitHub
 re-wraps the description at ~72 characters when it becomes the commit message, so text
 already wrapped at 95 comes out ragged, with orphan fragments mid sentence. Bullet
-lists are fine; it is prose paragraphs that break. (This is the opposite of the rule
-for `docs/**`, which _is_ hard-wrapped near 95 columns.)
+lists are fine; prose paragraphs break, and so do tables — the separator row splits
+across lines and the table stops rendering as a table at all, which is what happened
+to #40. Keep a table out of the body, or accept that `main` records it as rubble.
+(This is the opposite of the rule for `docs/**`, which _is_ hard-wrapped near 95
+columns.)
 
 Squashing is not losing the notebook — it promotes the conclusion out of it. The messy
 commits stay readable on the PR page forever, just not in `main`.
