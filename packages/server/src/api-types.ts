@@ -38,6 +38,15 @@ export type NotifyPrefs = Record<NotifyKind, boolean>;
 
 export type UpdatePrefsRequest = Partial<NotifyPrefs>;
 
+export interface PushTokenRequest {
+  token: string;
+}
+
+export interface PushTestResponse {
+  /** Devices the test reached; tokens FCM reported dead are not counted. */
+  sent: number;
+}
+
 export interface SeatView {
   slot: number;
   name: string;

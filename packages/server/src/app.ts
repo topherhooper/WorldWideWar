@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 import type {
   CreateGameRequest,
@@ -12,6 +12,7 @@ import type {
   UpdatePartyConfigRequest,
   UpdateSacreConfigRequest,
   UpdatePrefsRequest,
+  PushTestResponse,
 } from './api-types.js';
 import type { Verifiers } from './auth.js';
 import {
@@ -30,7 +31,8 @@ import {
   type AuthedUser,
 } from './games.js';
 import type { Mailer } from './mailer.js';
-import { NOTIFY_KINDS, readPrefs, writePrefs, type NotifyDeps } from './notify.js';
+import { LogPusher, type Pusher } from './pusher.js';
+import { NOTIFY_KINDS, pruneTokens, readPrefs, writePrefs, type NotifyDeps } from './notify.js';
 import { runTick } from './tick.js';
 import {
   actOnParty,
@@ -47,7 +49,7 @@ import {
   takeSacreSeat,
   updateSacreConfig,
 } from './sacre.js';
-import { games, isPartyDoc, isSacreDoc, type GameDoc } from './store.js';
+import { games, isPartyDoc, isSacreDoc, usersCol, type GameDoc, type UserDoc } from './store.js';
 import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
@@ -62,6 +64,7 @@ export interface AppDeps {
   verifiers: Verifiers;
   baseUrl: string;
   signer: UnsubSigner;
+  pusher?: Pusher;
 }
 
 /**
@@ -85,6 +88,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     mailer: deps.mailer,
     signer: deps.signer,
     baseUrl: deps.baseUrl,
+    ...(deps.pusher !== undefined ? { pusher: deps.pusher } : {}),
   };
   const app = Fastify();
 
@@ -199,6 +203,48 @@ export function buildApp(deps: AppDeps): FastifyInstance {
           patch[key as keyof UpdatePrefsRequest] = value;
         }
         return writePrefs(db, req.user.uid, patch);
+      });
+
+      const pushToken = (body: unknown): string => {
+        const token = (body as { token?: unknown } | null)?.token;
+        if (typeof token !== 'string' || token === '' || token.length > 4096) {
+          throw new HttpError(400, 'bad push token');
+        }
+        return token;
+      };
+      // A fallback so the test route works when the server was built without a pusher.
+      const testPusher: Pusher = deps.pusher ?? new LogPusher();
+
+      api.post('/push/register', async (req) => {
+        const token = pushToken(req.body);
+        await usersCol(db)
+          .doc(req.user.uid)
+          .set({ pushTokens: FieldValue.arrayUnion(token) }, { merge: true });
+        return { ok: true };
+      });
+
+      // POST rather than DELETE-with-body: some proxies drop DELETE bodies.
+      api.post('/push/unregister', async (req) => {
+        const token = pushToken(req.body);
+        await usersCol(db)
+          .doc(req.user.uid)
+          .set({ pushTokens: FieldValue.arrayRemove(token) }, { merge: true });
+        return { ok: true };
+      });
+
+      // Deliberately not through notify(): the person just asked for it, and a
+      // preference must not swallow a test.
+      api.post('/push/test', async (req): Promise<PushTestResponse> => {
+        const snap = await usersCol(db).doc(req.user.uid).get();
+        const tokens = (snap.data() as UserDoc | undefined)?.pushTokens ?? [];
+        if (tokens.length === 0) throw new HttpError(409, 'no devices registered');
+        const { deadTokens } = await testPusher.send(tokens, {
+          title: 'Notifications are on',
+          body: 'This is what a nudge will look like.',
+          link: `${deps.baseUrl}/settings`,
+        });
+        await pruneTokens(db, req.user.uid, deadTokens);
+        return { sent: tokens.length - deadTokens.length };
       });
 
       // The one read both games share. It dispatches rather than branching
