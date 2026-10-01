@@ -26,8 +26,8 @@ Build the push channel and nothing else from the scheduler:
   one, so the per-kind preferences and unsubscribe gate it with no second door.
 - An Add to Home Screen walkthrough for iPhone, because without it iOS never offers the
   permission prompt.
-- Test over HTTPS through a Firebase Hosting preview channel against the existing Cloud Run
-  service, rather than relighting the mothballed site.
+- Test over HTTPS at `test.topherhooper.com`, a second Hosting site pointed at a tagged
+  zero-traffic Cloud Run revision, rather than relighting the mothballed site.
 
 Done when a push sent through `notify()` visibly arrives on a home-screen-installed iPhone
 and on an Android phone.

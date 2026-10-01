@@ -13,11 +13,25 @@ that has added the site to its home screen, and on a real Android phone. Nothing
 built here. The push channel is general: once it exists, the game's turn reminders and "turn
 resolved" messages arrive as pushes as well as email, gated by the same per-kind preferences.
 
+## Settled before building
+
+Questions asked and answered on PR #44 before this plan was executed; the rest of the file
+already reflects them.
+
+- **Game pushes are wanted now.** `turnResolved`, `gameOver` and `reminder` all leave through
+  the two `notify()` call sites in step 2, so no further code is needed. They go out as pushes
+  under the same per-kind switches as email, live at the next relight.
+- **Both phones, both must work.** An iPhone on iOS 16.4 or later and an Android phone are
+  available, and "done when" stays as the task states it: the push arrives on both.
+- **If Android works and the iPhone does not**, hold the phase 1 PR unmerged until Q2 in
+  [group-scheduler.md](group-scheduler.md) is decided. A channel that only reaches Android
+  is a result, not a deliverable.
+- **Icons** are the generated solid-colour squares of step 5. A real icon is a later job.
+
 ## Rules for the executor
 
 - Read `CLAUDE.md` first. Its invariants and its "Before you push" gate apply in full.
-- Branch from `origin/main` as `web/push-channel` (or the session's designated branch if the
-  sandbox only allows one). Commit after each numbered step below with a conventional commit
+- Branch from `origin/main` as `web/push-channel`. Commit after each numbered step below with a conventional commit
   scoped by package: `feat(server): …`, `feat(web): …`, `test(server): …`, `chore(deploy): …`.
   Push after every commit, and open a draft PR after the first push.
 - **Stop at the second surprise.** Work around the first unexpected blocker and write it down
@@ -223,8 +237,11 @@ bundles confusing, and the emulators have no FCM anyway.
   the app (`export const firebaseApp = app;`) so `push.ts` does not re-initialize.
 - `packages/web/.env.production` gains `VITE_FIREBASE_MESSAGING_SENDER_ID`,
   `VITE_FIREBASE_APP_ID` and `VITE_FIREBASE_VAPID_KEY`. All three are public identifiers, like
-  the API key already there. **[human]** supplies the values; until then leave the keys present
-  with a `TODO` comment naming where each value comes from (see the [human] list).
+  the API key already there. The sender ID is the project number, `614936797883` (it is the
+  `projects/614936797883/…` segment of the API key's resource path in `docs/deployment.md`),
+  so commit it for real. **[human]** supplies the app ID and the VAPID key: commit those two
+  as clearly marked placeholders (`REPLACE_ME_…`) with a comment naming where each value comes
+  from, and say in the PR body that the phone test cannot start until they are filled in.
 
 New file `packages/web/src/push.ts`:
 
@@ -305,71 +322,102 @@ Report the real output. If `pnpm test:server` cannot run, say so in the PR body 
 reporting green. Then stop and write the PR body: what was built, the gate output, and the
 [human] list below with every value the executor could not supply.
 
-## Step 10 — preview deploy, without waking the mothballed site
+## Step 10 — a stable test host, without waking the mothballed site
 
 The live site serves a paused card and must stay paused. Two pieces make a private test
-possible at $0: a Cloud Run revision that takes **no** traffic but has a tag URL, and a Hosting
-preview channel whose `/api/**` rewrite points at that tag. Firebase Hosting rewrites accept a
-`tag` field for exactly this.
+possible at $0, and neither is a throwaway: a Cloud Run revision that takes **no** traffic
+but has a tag URL, and a second Firebase Hosting site in the same project, served at
+`test.topherhooper.com`, whose `/api/**` rewrite points at that tag. Firebase Hosting rewrites
+accept a `tag` field for exactly this. A custom subdomain rather than a preview channel,
+because a channel expires and takes its three sign-in allow-list entries with it, and every
+later scheduler phase tests on the same host.
 
 Commit two files the executor writes, for reuse by every later phase:
 
 - `cloudbuild.preview.yaml`: the `build-image` and `push-image` steps of `cloudbuild.yaml`
   verbatim, then a `deploy-run` step with `gcloud run deploy www-api --image=… --region=
 us-central1 --no-traffic --tag=$_TAG --update-env-vars=PUSH_TRANSPORT=fcm,BASE_URL=$_BASE_URL`.
-  No hosting step. Substitutions `_TAG: preview` and `_BASE_URL` (no default; it must be the
-  channel URL). Same `timeout` and `options` block as `cloudbuild.yaml`, including its comment
-  about the free tier — copy it, do not reword it.
-- `firebase.preview.json`: a copy of `firebase.json` whose two Cloud Run rewrites add
-  `"tag": "preview"`.
+  No hosting step. Substitutions `_TAG: preview` and `_BASE_URL: https://test.topherhooper.com`.
+  Same `timeout` and `options` block as `cloudbuild.yaml`, including its comment about the
+  free tier — copy it, do not reword it.
+- `firebase.preview.json`: a copy of `firebase.json` whose `hosting` block adds
+  `"site": "www-test"` and whose two Cloud Run rewrites add `"tag": "preview"`.
 
-Then **[human]**, in order (the executor writes these commands into the PR body with the
-real channel name filled in):
+Then **[human]**, in order (the executor writes these commands into the PR body):
 
 ```bash
-# 1. Create the channel once to learn its URL (the hash in it is stable per channel).
-pnpm --filter @www/web build
-pnpm exec firebase hosting:channel:deploy push-test --config firebase.preview.json \
-  --project fluted-citizen-269819 --expires 30d
-#    → https://fluted-citizen-269819--push-test-<hash>.web.app
+# 1. The second Hosting site, then its custom domain in the console (Hosting → www-test →
+#    Add custom domain → test.topherhooper.com). The console shows the record to create.
+pnpm exec firebase hosting:sites:create www-test --project fluted-citizen-269819
 
-# 2. Authorize sign-in on that host (Console, two places — see the [human] list).
+# 2. DNS, in the existing Cloud DNS zone. Hosting may ask for a TXT ownership record first;
+#    create whatever the console shows. Then wait for the certificate (see the "Not Secure
+#    for a few hours" note in docs/deployment.md).
+gcloud dns record-sets create test.topherhooper.com. --zone topherhooper-com \
+  --type CNAME --ttl 300 --rrdatas www-test.web.app. --project fluted-citizen-269819
 
-# 3. Rebuild with the channel as the auth domain, so the redirect sign-in stays same-origin
-#    inside the iPhone home-screen app (see the comment in packages/web/.env.production).
-VITE_FIREBASE_AUTH_DOMAIN=fluted-citizen-269819--push-test-<hash>.web.app \
-  pnpm --filter @www/web build
-pnpm exec firebase hosting:channel:deploy push-test --config firebase.preview.json \
-  --project fluted-citizen-269819 --expires 30d
+# 3. Allow the host in all three sign-in places (the [human] list, item 4).
 
-# 4. Server: a tagged, zero-traffic revision. The live revision is untouched.
+# 4. Build the test bundle with the test host as auth domain, so the redirect sign-in stays
+#    same-origin inside the iPhone home-screen app (see the comment in
+#    packages/web/.env.production), and deploy it to the test site only.
+VITE_FIREBASE_AUTH_DOMAIN=test.topherhooper.com pnpm --filter @www/web build
+pnpm exec firebase deploy --only hosting --config firebase.preview.json \
+  --project fluted-citizen-269819
+
+# 5. Server: a tagged, zero-traffic revision. The live revision is untouched.
 gcloud builds submit --config cloudbuild.preview.yaml --project fluted-citizen-269819 \
   --service-account projects/fluted-citizen-269819/serviceAccounts/cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com \
   --gcs-source-staging-dir gs://fluted-citizen-269819_cloudbuild/gha-source \
-  --substitutions COMMIT_SHA=$(git rev-parse HEAD),_BASE_URL=https://fluted-citizen-269819--push-test-<hash>.web.app .
+  --substitutions COMMIT_SHA=$(git rev-parse HEAD) .
 ```
 
+The executor does not know the exact `firebase deploy` target syntax for a second site on this
+CLI version; if `--config` plus `"site"` does not select `www-test`, that is a first surprise,
+not something to guess around. The live site's `firebase.json` and `firebase.paused.json` are
+never deployed by these commands.
+
 One trap to state in the PR: `--update-env-vars` merges from the latest revision, so after
-this the preview revision carries the channel `BASE_URL`. That is harmless only because
+this the preview revision carries the test `BASE_URL`. That is harmless only because
 `cloudbuild.yaml` sets `BASE_URL` explicitly on every production deploy — do not remove that.
 
 ## The [human] list
 
+0. **Hosting site and DNS.** Step 10's commands 1 and 2.
 1. **VAPID key.** Firebase Console → Project settings → Cloud Messaging → Web Push
    certificates → Generate key pair. The public key goes in `VITE_FIREBASE_VAPID_KEY`.
-2. **App ID and sender ID.** Firebase Console → Project settings → General → the `www-web`
-   app's config: `appId` and `messagingSenderId`.
+2. **App ID.** Firebase Console → Project settings → General → the `www-web` app's config:
+   `appId`. Replace the placeholder in `packages/web/.env.production`. The sender ID is already
+   committed (it is the project number, `614936797883`).
 3. **FCM API.** `gcloud services enable fcm.googleapis.com --project fluted-citizen-269819`,
    and confirm the service account `www-api` runs as can send messages (it needs
    `cloudmessaging.messages.create`, which the Editor role and `roles/firebasecloudmessaging.admin`
    both grant): `gcloud run services describe www-api --region us-central1 --format
 'value(spec.template.spec.serviceAccountName)'`.
-4. **Sign-in on the preview host.** Firebase Console → Authentication → Settings → Authorized
-   domains → add the channel host. Cloud Console → Credentials → OAuth client
-   `614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7` → add
-   `https://<channel host>/__/auth/handler` as an authorized redirect URI.
+4. **Sign-in on the test host**, in all three places `docs/deployment.md` ("Sign-in origins")
+   lists; the first is the one the original plan missed, and the key must also be widened for
+   FCM, which calls two more APIs with it. Every flag below replaces its list, so restate
+   everything that is there now:
+
+   ```bash
+   gcloud services api-keys update projects/614936797883/locations/global/keys/29962844-cd3c-4761-9395-6e4a6d612afe \
+     --project fluted-citizen-269819 \
+     --allowed-referrers="https://play.topherhooper.com/*,https://fluted-citizen-269819.web.app/*,https://fluted-citizen-269819.firebaseapp.com/*,https://test.topherhooper.com/*" \
+     --api-target=service=identitytoolkit.googleapis.com \
+     --api-target=service=securetoken.googleapis.com \
+     --api-target=service=firebaseinstallations.googleapis.com \
+     --api-target=service=fcmregistrations.googleapis.com
+   ```
+
+   Then Firebase Auth authorized domains (the `curl` PATCH in the same section, with
+   `test.topherhooper.com` added to the existing list), and Cloud Console → Credentials →
+   OAuth client `614936797883-c24n36s0orbm3s0ff6pgu1lt725imip7` → add
+   `https://test.topherhooper.com/__/auth/handler` as an authorized redirect URI. Also confirm
+   the Firebase Installations and FCM Registration APIs are enabled on the project; if the key
+   is rejected after widening, that is the cause.
+
 5. **The phone test**, which is the task's "done when":
-   - **iPhone (iOS 16.4 or later).** Open the channel URL in Safari, sign in, go to Settings:
+   - **iPhone (iOS 16.4 or later).** Open `https://test.topherhooper.com` in Safari, sign in, go to Settings:
      it should show the walkthrough. Add to Home Screen, open from the icon, sign in again
      (the home-screen app has its own storage), Settings → Turn on notifications → Allow →
      Send a test. Lock the phone first if you can; the push should still arrive.
@@ -384,7 +432,7 @@ this the preview revision carries the channel `BASE_URL`. That is harmless only 
 - **Sign-in inside the iPhone home-screen app** is the likeliest failure, and it is not
   incidental: decision Q5 puts sign-in in front of everything. The popup flow does not work in
   standalone mode; the redirect fallback in `auth.tsx` needs the auth domain to be the same
-  origin as the page, which is what step 10's rebuild is for. If sign-in fails there, that is
+  origin as the page, which is what step 10's rebuild with `VITE_FIREBASE_AUTH_DOMAIN=test.topherhooper.com` is for. If sign-in fails there, that is
   the first surprise; write down exactly what the phone showed.
 - **FCM and Safari.** FCM has supported Safari web push since iOS 16.4, but only through a
   service worker whose push handler always shows a notification. That is why `sw.js` shows one

@@ -41,7 +41,7 @@ plan says; the PR that lands phase 6 deletes this file.
   If `pnpm test:server` cannot run, say so rather than reporting green.
 
 - Real-phone checks use the preview setup built in phase 1 (`cloudbuild.preview.yaml`,
-  `firebase.preview.json`, channel `push-test`). Those are **[human]** steps: write the exact
+  `firebase.preview.json`, the stable test site at `test.topherhooper.com`). Those are **[human]** steps: write the exact
   commands into the PR body and stop.
 
 ## Decisions made after the brainstorm
@@ -83,7 +83,7 @@ the service worker, and the preview deploy files.
 
 ## Phase 2 — a poll people can answer
 
-**Done when** two signed-in accounts on the preview channel can: one creates a poll with three
+**Done when** two signed-in accounts on the test host can: one creates a poll with three
 candidate times and shares the link; the other opens it signed out, sees the title and who
 asked, signs in, confirms Yes/No on each time; both see the per-time counts and who said what;
 the organizer locks one time and both see it locked.
@@ -489,7 +489,7 @@ tier needs.
 
 ## Phase 5 — pokes
 
-**Done when**, on the preview channel with two phones: a friend taps Nudge on a holdout and the
+**Done when**, on the test host with two phones: a friend taps Nudge on a holdout and the
 holdout's phone shows "{friend} is waiting on you for {title}" with the strongest line that
 applies; a second Nudge from the same friend the same day is refused with a clear message; the
 tick sends an app poke to a holdout at the right moment and never during their quiet hours; and
