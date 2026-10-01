@@ -10,6 +10,10 @@ blocked-by: ''
 
 ## Next step
 
+The step-by-step handoff plan is
+[docs/design/group-scheduler-push-plan.md](../docs/design/group-scheduler-push-plan.md); it
+is written to be executed by a cheaper model and deleted with this task.
+
 Build the push channel and nothing else from the scheduler:
 
 - A web app manifest and a service worker in `packages/web`.
