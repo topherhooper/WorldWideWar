@@ -13,6 +13,7 @@ import type {
   UpdatePartyConfigRequest,
   UpdateSacreConfigRequest,
   UpdatePrefsRequest,
+  PushTestResponse,
 } from '@www/server/api-types';
 import type { PartyAction } from '@www/engine/party';
 import type { SacreAction } from '@www/engine/sacre';
@@ -86,4 +87,8 @@ export const api = {
     apiFetch<SacreGameView>('POST', `/api/games/${id}/cards/act`, { action }),
   getPrefs: () => apiFetch<NotifyPrefs>('GET', '/api/prefs'),
   updatePrefs: (patch: UpdatePrefsRequest) => apiFetch<NotifyPrefs>('PUT', '/api/prefs', patch),
+  registerPush: (token: string) => apiFetch<{ ok: true }>('POST', '/api/push/register', { token }),
+  unregisterPush: (token: string) =>
+    apiFetch<{ ok: true }>('POST', '/api/push/unregister', { token }),
+  testPush: () => apiFetch<PushTestResponse>('POST', '/api/push/test'),
 };

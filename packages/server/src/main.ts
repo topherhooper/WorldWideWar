@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { realVerifiers } from './auth.js';
 import { LogMailer, resendMailer } from './mailer.js';
+import { LogPusher, fcmPusher } from './pusher.js';
 import { initFirestore } from './store.js';
 import { unsubSignerFromEnv } from './unsub.js';
 
@@ -18,9 +19,13 @@ const mailer =
     ? resendMailer(resendKey, mailFrom)
     : new LogMailer();
 
+// Locally and under the emulator there is no FCM, so the default is the log transport.
+const pusher = process.env.PUSH_TRANSPORT === 'fcm' ? fcmPusher() : new LogPusher();
+
 const app = buildApp({
   db: initFirestore(projectId),
   mailer,
+  pusher,
   verifiers: realVerifiers({
     tickAudience: process.env.TICK_AUDIENCE ?? baseUrl,
     tickServiceAccount: process.env.TICK_SERVICE_ACCOUNT ?? '',

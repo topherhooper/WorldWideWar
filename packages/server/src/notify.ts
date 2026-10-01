@@ -1,7 +1,8 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 import type { NotifyKind, NotifyPrefs } from './api-types.js';
 import type { Mailer } from './mailer.js';
+import type { Pusher } from './pusher.js';
 import { usersCol, type UserDoc } from './store.js';
 import type { UnsubSigner } from './unsub.js';
 
@@ -27,6 +28,8 @@ export interface NotifyDeps {
   mailer: Mailer;
   signer: UnsubSigner;
   baseUrl: string;
+  /** Optional: absent means email only. */
+  pusher?: Pusher;
 }
 
 export async function readPrefs(db: Firestore, uid: string): Promise<NotifyPrefs> {
@@ -61,16 +64,35 @@ const unsubUrl = (deps: NotifyDeps, uid: string): string =>
     deps.signer.sign(uid),
   )}`;
 
+/** Text up to the first blank line, trimmed and capped for a lock screen. */
+function firstParagraph(text: string): string {
+  const para = text.split(/\n\s*\n/)[0].trim();
+  return para.length > 180 ? `${para.slice(0, 179)}…` : para;
+}
+
+/** Remove token strings FCM reported dead. Never throws. */
+export async function pruneTokens(db: Firestore, uid: string, dead: string[]): Promise<void> {
+  if (dead.length === 0) return;
+  try {
+    await usersCol(db)
+      .doc(uid)
+      .update({ pushTokens: FieldValue.arrayRemove(...dead) });
+  } catch (err) {
+    console.error(`[push] could not prune tokens for ${uid}:`, err);
+  }
+}
+
 /**
- * The one door mail leaves by. Every notification is gated on the recipient's
- * preferences here rather than at the call sites, so a new trigger cannot
- * forget to check — and every message carries a working unsubscribe link.
+ * The one door mail and pushes leave by. Every notification is gated on the
+ * recipient's preferences here rather than at the call sites, so a new trigger
+ * cannot forget to check — the same switches cover both channels, and every
+ * email carries a working unsubscribe link.
  */
 export async function notify(
   deps: NotifyDeps,
   kind: NotifyKind,
   recipients: Recipient[],
-  mail: { subject: string; text: string },
+  mail: { subject: string; text: string; link?: string },
 ): Promise<void> {
   const addressable = recipients.filter(
     (r): r is { uid: string; email: string } => r.uid !== null && r.email !== null,
@@ -97,5 +119,16 @@ export async function notify(
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
     });
+
+    const tokens = (snaps[i].data() as UserDoc | undefined)?.pushTokens ?? [];
+    if (deps.pusher !== undefined && tokens.length > 0) {
+      const { deadTokens } = await deps.pusher.send(tokens, {
+        // The leading "[WWW] " tag is for inbox filters; it is noise on a lock screen.
+        title: mail.subject.replace(/^\[[^\]]*\]\s*/, ''),
+        body: firstParagraph(mail.text),
+        link: mail.link ?? deps.baseUrl,
+      });
+      await pruneTokens(deps.db, recipient.uid, deadTokens);
+    }
   }
 }

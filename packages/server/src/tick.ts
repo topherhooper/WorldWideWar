@@ -158,6 +158,7 @@ async function remind(deps: NotifyDeps, gameId: string, game: WarGameDoc): Promi
     {
       subject: `[WWW] Orders due soon — turn ${game.turn}`,
       text: `The turn deadline is approaching and your orders are not locked in.\n\nSubmit them here: ${deps.baseUrl}/g/${gameId}`,
+      link: `${deps.baseUrl}/g/${gameId}`,
     },
   );
   await games(db).doc(gameId).update({ remindedTurn: game.turn });

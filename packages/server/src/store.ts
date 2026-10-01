@@ -35,6 +35,8 @@ export interface UserDoc {
   name: string;
   email: string | null;
   gameIds: string[];
+  /** FCM device tokens. Absent means no devices. */
+  pushTokens?: string[];
   /** Absent, or partial, means the missing kinds are on. See notify.ts. */
   notify?: Partial<Record<NotifyKind, boolean>>;
 }

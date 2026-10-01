@@ -12,6 +12,8 @@ import {
   type User,
 } from 'firebase/auth';
 
+import { disablePush } from './push.js';
+
 const useEmulators = import.meta.env.VITE_USE_EMULATORS === '1';
 
 const app = initializeApp(
@@ -21,9 +23,13 @@ const app = initializeApp(
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
         authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
         projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
+        // FCM's getToken fails without both.
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
       },
 );
 
+export const firebaseApp = app;
 export const auth = getAuth(app);
 if (useEmulators) connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
 
@@ -74,7 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithRedirect(auth, provider);
       }
     },
-    signOut: () => fbSignOut(auth),
+    // A shared phone must stop receiving the previous person's nudges.
+    signOut: async () => {
+      await disablePush().catch(() => undefined);
+      await fbSignOut(auth);
+    },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

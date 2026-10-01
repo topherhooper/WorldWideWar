@@ -5,6 +5,8 @@ import { unsubSigner } from './unsub.js';
 import { LogMailer } from './mailer.js';
 import type { AuthedUser } from './games.js';
 import { buildApp } from './app.js';
+import { LogPusher } from './pusher.js';
+import { usersCol } from './store.js';
 
 const alice: AuthedUser = { uid: 'u-alice', name: 'Alice', email: 'alice@test.dev' };
 const bob: AuthedUser = { uid: 'u-bob', name: 'Bob', email: 'bob@test.dev' };
@@ -14,13 +16,16 @@ const H = (t: string) => ({ authorization: `Bearer ${t}` });
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
   const db = emulatorDb();
   let mailer: LogMailer;
+  let pusher: LogPusher;
   let app: ReturnType<typeof buildApp>;
   beforeEach(async () => {
     await clearFirestore();
     mailer = new LogMailer();
+    pusher = new LogPusher();
     app = buildApp({
       db,
       mailer,
+      pusher,
       verifiers: stubVerifiers({ 'tok-a': alice, 'tok-b': bob }),
       baseUrl: 'http://x',
       signer: unsubSigner(TEST_UNSUB_SECRET),
@@ -195,6 +200,69 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
 
     it('requires authentication', async () => {
       expect((await app.inject({ method: 'GET', url: '/api/prefs' })).statusCode).toBe(401);
+    });
+  });
+
+  describe('push', () => {
+    const post = (url: string, token: string, payload?: object) =>
+      app.inject({
+        method: 'POST',
+        url,
+        headers: H(token),
+        ...(payload !== undefined ? { payload } : {}),
+      });
+    const stored = async (uid: string): Promise<string[] | undefined> =>
+      (await usersCol(db).doc(uid).get()).data()?.pushTokens;
+
+    it('stores one token however many times it registers', async () => {
+      await post('/api/push/register', 'tok-a', { token: 'dev1' });
+      const res = await post('/api/push/register', 'tok-a', { token: 'dev1' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+      expect(await stored(alice.uid)).toEqual(['dev1']);
+    });
+
+    it('removes a token on unregister', async () => {
+      await post('/api/push/register', 'tok-a', { token: 'dev1' });
+      await post('/api/push/register', 'tok-a', { token: 'dev2' });
+      const res = await post('/api/push/unregister', 'tok-a', { token: 'dev1' });
+      expect(res.statusCode).toBe(200);
+      expect(await stored(alice.uid)).toEqual(['dev2']);
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['a non-string token', { token: 3 }],
+      ['a 5000-character token', { token: 'x'.repeat(5000) }],
+    ])('rejects %s', async (_name, payload) => {
+      expect((await post('/api/push/register', 'tok-a', payload)).statusCode).toBe(400);
+    });
+
+    it('keeps one player’s devices out of another’s doc', async () => {
+      await post('/api/push/register', 'tok-a', { token: 'dev1' });
+      expect(await stored(bob.uid)).toBeUndefined();
+    });
+
+    it('answers a test with no devices with 409', async () => {
+      expect((await post('/api/push/test', 'tok-a')).statusCode).toBe(409);
+    });
+
+    it('sends a test to the caller’s device and reports one sent', async () => {
+      await post('/api/push/register', 'tok-a', { token: 'dev1' });
+      const res = await post('/api/push/test', 'tok-a');
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ sent: 1 });
+      expect(pusher.sent).toHaveLength(1);
+      expect(pusher.sent[0].msg.link).toBe('http://x/settings');
+    });
+
+    it('requires authentication', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/push/register',
+        payload: { token: 't' },
+      });
+      expect(res.statusCode).toBe(401);
     });
   });
 

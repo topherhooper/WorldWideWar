@@ -20,6 +20,12 @@ const router = createBrowserRouter([
   },
 ]);
 
+// Production only: a worker under the Vite dev server makes stale bundles confusing,
+// and the emulators have no FCM anyway.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/sw.js');
+}
+
 const root = document.getElementById('root');
 if (root === null) throw new Error('missing #root');
 

@@ -146,6 +146,7 @@ export async function resolveGameTurn(
         ? `[WWW] Game over — ${report.result?.detail ?? report.result?.kind}`
         : `[WWW] Turn ${expectedTurn} resolved — ${report.headline}`,
       text: `${report.headline}\n\nSee the full report: ${deps.baseUrl}/g/${gameId}`,
+      link: `${deps.baseUrl}/g/${gameId}`,
     },
   );
   return { resolved: true, report, finished };

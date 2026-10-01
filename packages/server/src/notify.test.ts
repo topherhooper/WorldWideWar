@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { LogMailer } from './mailer.js';
+import { LogPusher } from './pusher.js';
 import { notify, readPrefs, writePrefs, type NotifyDeps } from './notify.js';
 import { usersCol } from './store.js';
 import { clearFirestore, emulatorDb } from './testing.js';
@@ -75,6 +76,94 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('notify', () => {
       /^<https:\/\/www\.test\/unsubscribe\?u=u-alice&s=\S+>$/,
     );
     expect(headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+  });
+
+  describe('push', () => {
+    let pusher: LogPusher;
+    const tokensOf = async (uid: string): Promise<string[] | undefined> =>
+      (await usersCol(db).doc(uid).get()).data()?.pushTokens;
+
+    beforeEach(() => {
+      pusher = new LogPusher();
+      deps = { ...deps, pusher };
+    });
+
+    it('pushes to every token of an opted-in recipient', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1', 't2'] }, { merge: true });
+      await notify(deps, 'turnResolved', [alice, bob], { ...MAIL, link: 'https://www.test/g/1' });
+      expect(pusher.sent).toHaveLength(1);
+      expect(pusher.sent[0].tokens).toEqual(['t1', 't2']);
+      expect(pusher.sent[0].msg).toEqual({
+        title: 'Turn 3 resolved',
+        body: 'Something happened.',
+        link: 'https://www.test/g/1',
+      });
+    });
+
+    it('does not push to a recipient who turned that kind off', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1'] }, { merge: true });
+      await writePrefs(db, 'u-alice', { turnResolved: false });
+      await notify(deps, 'turnResolved', [alice], MAIL);
+      expect(pusher.sent).toEqual([]);
+    });
+
+    it('still emails a recipient whose doc has no pushTokens, and pushes nothing', async () => {
+      await notify(deps, 'turnResolved', [alice], MAIL);
+      expect(recipients()).toEqual(['alice@test.dev']);
+      expect(pusher.sent).toEqual([]);
+    });
+
+    it('removes tokens the pusher reports dead', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['live', 'gone'] }, { merge: true });
+      pusher.dead.add('gone');
+      await notify(deps, 'turnResolved', [alice], MAIL);
+      expect(await tokensOf('u-alice')).toEqual(['live']);
+    });
+
+    it('behaves exactly as before with no pusher in deps', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1'] }, { merge: true });
+      const { pusher: _unused, ...bare } = deps;
+      await notify(bare, 'turnResolved', [alice], MAIL);
+      expect(recipients()).toEqual(['alice@test.dev']);
+      expect(pusher.sent).toEqual([]);
+    });
+
+    it('strips a leading bracketed tag from the title', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1'] }, { merge: true });
+      await notify(deps, 'turnResolved', [alice], { ...MAIL, subject: '[WWW] Turn 3 resolved' });
+      expect(pusher.sent[0].msg.title).toBe('Turn 3 resolved');
+    });
+
+    it('sends only the first paragraph, capped at 180 characters', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1'] }, { merge: true });
+      await notify(deps, 'turnResolved', [alice], {
+        subject: 'S',
+        text: `${'x'.repeat(400)}\n\nSecond paragraph.`,
+      });
+      const { body } = pusher.sent[0].msg;
+      expect(body.length).toBeLessThanOrEqual(180);
+      expect(body).not.toContain('Second');
+    });
+
+    it('falls back to the base URL when the call site gives no link', async () => {
+      await usersCol(db)
+        .doc('u-alice')
+        .set({ pushTokens: ['t1'] }, { merge: true });
+      await notify(deps, 'turnResolved', [alice], MAIL);
+      expect(pusher.sent[0].msg.link).toBe('https://www.test');
+    });
   });
 });
 
