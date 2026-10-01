@@ -1,0 +1,74 @@
+# Manual deploy of any ref to the test host, test.topherhooper.com.
+#
+# The same keyless path as deploy.yml: GitHub's OIDC token is exchanged through the
+# `worldwidewar` Workload Identity provider for `gha-deploy@`, which may only submit a
+# build. The build itself runs as `cloudbuilder@`, which holds run.admin and
+# firebasehosting.admin. Nothing here stores a key, and nothing new needs provisioning.
+#
+# cloudbuild.preview.yaml makes a zero-traffic Cloud Run revision tagged `preview`, so the
+# live (or mothballed) site keeps its traffic, then deploys the web bundle to the test
+# Hosting site and repairs the rewrite tag that firebase-tools drops.
+name: Deploy test host
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or commit SHA to put on test.topherhooper.com'
+        required: true
+        default: main
+
+# One test host, one tag: a second deploy would retag the revision under the first.
+concurrency:
+  group: deploy-test-host
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: fluted-citizen-269819
+  GCP_BUILD_SERVICE_ACCOUNT: cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.ref }} to the test host
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Resolve ref to a full commit SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Keep --gcs-source-staging-dir, and keep comments out of the continued command;
+      # deploy.yml explains both.
+      - name: Submit build
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.preview.yaml \
+            --project "$GCP_PROJECT" \
+            --service-account "projects/$GCP_PROJECT/serviceAccounts/$GCP_BUILD_SERVICE_ACCOUNT" \
+            --gcs-source-staging-dir "gs://${GCP_PROJECT}_cloudbuild/gha-source" \
+            --substitutions COMMIT_SHA=${{ steps.sha.outputs.sha }} \
+            .
+
+      - name: Summarise
+        run: |
+          {
+            echo "### Deployed to the test host"
+            echo
+            echo "- **Ref dispatched:** \`${{ inputs.ref }}\`"
+            echo "- **Commit:** \`${{ steps.sha.outputs.sha }}\`"
+            echo "- **Site:** https://test.topherhooper.com"
+          } >> "$GITHUB_STEP_SUMMARY"
