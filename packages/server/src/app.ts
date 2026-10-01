@@ -238,9 +238,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         const snap = await usersCol(db).doc(req.user.uid).get();
         const tokens = (snap.data() as UserDoc | undefined)?.pushTokens ?? [];
         if (tokens.length === 0) throw new HttpError(409, 'no devices registered');
+        // Android Chrome flagged the generic "Notifications are on" as possible spam: it
+        // reads like permission bait. Name the game and the person, and say why it came.
+        const first = req.user.name.split(/[\s@]/)[0] || 'there';
         const { deadTokens } = await testPusher.send(tokens, {
-          title: 'Notifications are on',
-          body: 'This is what a nudge will look like.',
+          title: 'World Wide War: your test notification',
+          body: `Hi ${first}, you tapped Send a test in Settings. Turn results and order reminders will arrive like this.`,
           link: `${deps.baseUrl}/settings`,
         });
         await pruneTokens(db, req.user.uid, deadTokens);
