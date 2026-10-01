@@ -79,6 +79,24 @@ Named so the brainstorm has something to push against. None is researched yet.
   into the group chat, so it comes from a friend's name in the channel people read.
 - **Escalating cadence** — gentle → specific → last call, rather than one reminder at 25%.
 
+## Feature to consider: plans that change with headcount
+
+> A feature to consider is multiple options based on participation. Like different game
+> suggestions based on confirmed count
+
+Not yet a decision. A poll's outcome would be conditional on how many commit: each candidate time
+shows its confirmed count and what that count unlocks ("3 → Catan, 5+ → Werewolf"). Two reasons it
+matters beyond convenience:
+
+- **It is a poke.** "One more and Saturday becomes Werewolf night" makes the holdout _pivotal_,
+  which is a sharper lever than "4 of 5 have answered." It names what the group gains from them
+  rather than what they are failing to do.
+- **It ties back to this repo.** The repo's own games run at different headcounts (the balance
+  gate sweeps 2/4/6/8/12 players, per `CLAUDE.md`); a scheduler that knows the confirmed count could
+  suggest one of them. That is a link, not a dependency.
+
+Open: are the tiers free text the organizer types, or a catalog of games with player ranges?
+
 ## Assumed, not asked
 
 - "whensgood" means WhenIsGood (whenisgood.net), not when2meet or another tool.
