@@ -1,0 +1,1316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Push channel renders</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #14141c;
+        --panel: #1e1e2a;
+        --panel-2: #262636;
+        --line: #34344a;
+        --text: #e8e6df;
+        --muted: #9a97a8;
+        --accent: #e6c84d;
+        --danger: #e6553a;
+        --ok: #66cc66;
+        --neutral: #8a8578;
+        --collapsed: #2b2b33;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        line-height: 1.45;
+      }
+
+      button {
+        font: inherit;
+        color: inherit;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.4rem 0.9rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.35rem 0.6rem;
+      }
+
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 1rem;
+      }
+
+      .brand {
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .topbar-user {
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+      }
+
+      .form-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .game-setup {
+        margin: 1rem 0;
+      }
+
+      .preset-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+        gap: 0.75rem;
+      }
+      .preset-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        align-items: flex-start;
+        text-align: left;
+        padding: 0.85rem 1rem;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .error {
+        color: var(--danger);
+      }
+
+      .game-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .pref-list {
+        list-style: none;
+        margin: 0 0 1rem;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+      }
+
+      .pref-list p {
+        margin: 0.15rem 0 0 1.6rem;
+        font-size: 0.9rem;
+      }
+
+      .game-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.6rem 0.9rem;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .game-card:hover {
+        border-color: var(--accent);
+      }
+
+      .game-card-status {
+        font-weight: 600;
+      }
+
+      .badge-due {
+        margin-left: auto;
+        background: var(--accent);
+        color: #14141c;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 0.1rem 0.5rem;
+        border-radius: 99px;
+      }
+
+      .seat-list {
+        list-style: none;
+        margin: 0 0 1rem;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      .seat {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .seat-dot {
+        width: 0.85rem;
+        height: 0.85rem;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .game-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 1rem;
+        align-items: start;
+      }
+
+      @media (max-width: 900px) {
+        .game-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .map-wrap {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.5rem;
+      }
+
+      .map {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      /* Sized via the SVG font-size attribute (map units), so counts stay readable
+   at any zoom — a px size here would override it. */
+      .map-label {
+        fill: #ffffff;
+        paint-order: stroke;
+        stroke: rgba(0, 0, 0, 0.75);
+        stroke-width: 6px;
+        font-weight: 700;
+      }
+
+      .map-name {
+        fill: #ffffff;
+        opacity: 0.85;
+        paint-order: stroke;
+        stroke: rgba(0, 0, 0, 0.7);
+        stroke-width: 4px;
+        font-weight: 600;
+      }
+
+      .map-region-label {
+        fill: #ffe9a3;
+        opacity: 0.9;
+        paint-order: stroke;
+        stroke: rgba(0, 0, 0, 0.8);
+        stroke-width: 6px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .map-key {
+        margin: 0.5rem 0 0;
+      }
+
+      .regions-head {
+        margin: 0.75rem 0 0.25rem;
+        font-size: 0.9rem;
+      }
+
+      .hud {
+        margin-bottom: 0.5rem;
+      }
+
+      .legend {
+        list-style: none;
+        margin: 0 0 0.5rem;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 1rem;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.1rem 0.5rem;
+        border-radius: 6px;
+        border: 1px solid transparent;
+      }
+
+      .legend-me {
+        border-color: var(--accent);
+        background: #2a2718;
+        font-weight: 700;
+      }
+
+      .legend-dead {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
+
+      .legend-stats {
+        font-size: 0.8rem;
+      }
+
+      /* Marching-ants outline on territories a selected stack can move to. */
+      @keyframes map-target-march {
+        to {
+          stroke-dashoffset: -14;
+        }
+      }
+      .map-target {
+        animation: map-target-march 0.9s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .map-target {
+          animation: none;
+        }
+      }
+
+      .lock-badge {
+        font-size: 0.72rem;
+        padding: 0.05rem 0.4rem;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .lock-badge-in {
+        border-color: var(--ok);
+        color: var(--ok);
+      }
+
+      /* One place for what the world is about to do, above the map so it is read
+   before the board on a phone as well as on a desktop. */
+      .forecast {
+        margin: 0 0 0.5rem;
+        padding: 0.4rem 0.7rem 0.5rem;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        background: var(--panel-2);
+      }
+
+      .forecast-head {
+        margin: 0 0 0.2rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .forecast-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 0.2rem;
+        font-size: 0.9rem;
+      }
+
+      .forecast-storm {
+        color: var(--text);
+      }
+
+      .forecast-coming {
+        color: var(--muted);
+      }
+
+      .how-to-win {
+        margin: 0.75rem 0 0;
+        padding: 0.5rem 0.9rem;
+      }
+
+      .how-to-win summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .how-to-win ul {
+        margin-top: 0.5rem;
+      }
+
+      .side {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .orders {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .orders-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      .orders-modes {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .mode-on {
+        border-color: var(--accent);
+        background: #3a3420;
+      }
+
+      .hint {
+        margin: 0;
+        font-size: 0.85rem;
+      }
+
+      .chips {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .chip {
+        font-size: 0.82rem;
+        padding: 0.15rem 0.5rem;
+      }
+
+      .pledge h3 {
+        margin: 0 0 0.4rem;
+        font-size: 0.95rem;
+      }
+
+      .pledge-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .pledge-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: left;
+      }
+
+      .pledge-on {
+        border-color: var(--ok);
+        background: #1f3220;
+      }
+
+      .rep {
+        font-size: 0.78rem;
+        margin-left: auto;
+      }
+
+      .warnings {
+        list-style: none;
+        margin: 0;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--danger);
+        border-radius: 8px;
+        color: var(--danger);
+        font-size: 0.85rem;
+      }
+
+      .lock-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      .lock-btn {
+        background: var(--accent);
+        color: #14141c;
+        font-weight: 700;
+        border: none;
+        padding: 0.6rem;
+      }
+
+      .lock-btn:disabled {
+        opacity: 0.7;
+      }
+
+      .unlock-btn {
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        font-weight: 700;
+        padding: 0.6rem;
+      }
+
+      .report {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1rem;
+      }
+
+      .report-list {
+        list-style: none;
+        margin: 0.5rem 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .betrayal {
+        color: var(--danger);
+        font-weight: 700;
+      }
+
+      .concord {
+        color: var(--ok);
+      }
+
+      .storm {
+        color: #b980ff;
+      }
+
+      .event {
+        color: var(--accent);
+      }
+
+      .result-banner {
+        margin-top: 0.75rem;
+        border: 2px solid var(--accent);
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        text-align: center;
+      }
+
+      .center-card {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        text-align: center;
+        padding: 2rem;
+      }
+
+      .tiers-editor {
+        margin: 1rem 0;
+      }
+      .tier-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.25rem 0;
+      }
+      .tier-label {
+        width: 1.5rem;
+        font-weight: 700;
+        text-align: center;
+      }
+      .tier-row input {
+        flex: 1;
+      }
+      .guess-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0.15rem 0;
+      }
+      .guess-item .spacer {
+        flex: 1;
+      }
+
+      .danger-btn {
+        border-color: #a33;
+        color: #c55;
+      }
+      .host-tools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .delete-confirm {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      /* ── The dinner party ──────────────────────────────────────────────────────
+   The invitation is the one screen in this app that is not a control panel.
+   It is read once, in a hallway, by somebody who has just clicked a link in a
+   group chat, so it is given the width and the quiet that a card wants. */
+
+      .invitation {
+        max-width: 34rem;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+      .invitation-head {
+        text-align: center;
+        padding: 1.5rem 1rem;
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        background: linear-gradient(180deg, var(--panel-2), var(--panel));
+      }
+      .invitation-head h1 {
+        margin: 0.25rem 0;
+        font-size: 1.9rem;
+        letter-spacing: 0.02em;
+      }
+      .invitation-eyebrow {
+        margin: 0;
+        color: var(--accent);
+        font-size: 0.78rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .invitation-prompt {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+        font-style: italic;
+      }
+      .invitation-card {
+        margin-top: 1rem;
+        padding: 1rem 1.1rem;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        background: var(--panel);
+      }
+      .invitation-card.is-child {
+        border-left-color: var(--ok);
+      }
+      .invitation-card h2 {
+        margin: 0.1rem 0 0.6rem;
+      }
+      .invitation-part {
+        font-size: 1.1rem;
+        margin: 0.3rem 0;
+      }
+      .invitation-costume,
+      .invitation-duo,
+      .invitation-favour {
+        margin: 0.5rem 0;
+      }
+      .invitation-duo {
+        color: var(--accent);
+      }
+      /* The one secret on any invitation, and only ever on one of them. */
+      .invitation-secret {
+        margin: 0.75rem 0 0;
+        padding: 0.7rem 0.85rem;
+        border: 1px solid var(--danger);
+        border-radius: 6px;
+        background: rgba(230, 85, 58, 0.08);
+      }
+      .invitation-cast {
+        margin-top: 1.25rem;
+      }
+      .invitation-cast ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .invitation-cast li {
+        padding: 0.3rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .invitation-foot {
+        margin-top: 1.25rem;
+        text-align: center;
+      }
+
+      .candles {
+        margin: 0.4rem 0;
+        letter-spacing: 0.15rem;
+      }
+      .candle.is-out {
+        opacity: 0.28;
+        filter: grayscale(1);
+      }
+
+      /* A child's screen: no load-bearing text, and nothing to press. */
+      .kid-view {
+        max-width: 26rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem;
+        text-align: center;
+      }
+      .kid-view h1 {
+        font-size: 2.1rem;
+        margin: 0.2rem 0;
+      }
+      .kid-blurb {
+        font-size: 1.1rem;
+        color: var(--accent);
+      }
+      .kid-price {
+        margin: 1.25rem 0;
+        padding: 0.9rem;
+        border: 1px dashed var(--accent);
+        border-radius: 8px;
+      }
+      .kid-price-text {
+        margin: 0.2rem 0 0;
+        font-size: 1.3rem;
+      }
+      .kid-crowns p:first-child {
+        font-size: 1.8rem;
+        margin: 0.4rem 0 0;
+        line-height: 1.2;
+      }
+      .kid-outcome {
+        font-size: 1.2rem;
+        color: var(--accent);
+      }
+
+      .party-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .party-whose {
+        margin: 0.5rem 0;
+      }
+      .party-whose .is-current {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .party-claim {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .meet-list,
+      .piece-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .meet-list li {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .piece-list li {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      /* Only the Godmother ever sees this class applied. */
+      .piece.is-fake {
+        color: var(--danger);
+      }
+      .party-seat-form,
+      .party-dials {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin: 1rem 0;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--line);
+      }
+      .party-dials input {
+        width: 4.5rem;
+      }
+      .party-ending h2 {
+        color: var(--accent);
+      }
+      button.link {
+        background: none;
+        border: none;
+        color: var(--muted);
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0 0.25rem;
+      }
+
+      /* --- S.A.C.R.E. Bleu! ---------------------------------------------------- */
+
+      /* The prompt is the whole onboarding story: one line saying what you do now,
+   above everything else on the screen. */
+      .sacre-prompt {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 1rem;
+      }
+
+      .sacre-seats {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .sacre-seat {
+        border: 1px solid var(--line, #ccc);
+        border-radius: 6px;
+        padding: 0.4rem 0.7rem;
+        display: flex;
+        flex-direction: column;
+        min-width: 8rem;
+      }
+
+      .sacre-seat.is-active {
+        border-color: currentColor;
+        border-width: 2px;
+        padding: calc(0.4rem - 1px) calc(0.7rem - 1px);
+      }
+
+      .sacre-seat.is-out {
+        opacity: 0.55;
+      }
+
+      .sacre-faceup {
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+      }
+
+      .sacre-hand {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+
+      .sacre-card {
+        font-family: ui-monospace, monospace;
+        min-width: 3.2rem;
+        padding: 0.6rem 0.4rem;
+        border: 1px solid var(--line, #ccc);
+        border-radius: 6px;
+        background: var(--bg, #fff);
+        position: relative;
+      }
+
+      .sacre-card.is-red {
+        color: #b3261e;
+      }
+
+      /* Picked cards are numbered, because a run is laid in an order and 5,6,7 is
+   not the same submission as 7,6,5 -- and a Joker's position is what decides
+   which rank it stands in for. */
+      .sacre-card.is-picked {
+        border-width: 2px;
+        border-color: currentColor;
+        padding: calc(0.6rem - 1px) calc(0.4rem - 1px);
+      }
+
+      .sacre-order {
+        position: absolute;
+        top: -0.5rem;
+        right: -0.5rem;
+        font-size: 0.7rem;
+        border-radius: 50%;
+        width: 1.2rem;
+        height: 1.2rem;
+        line-height: 1.2rem;
+        background: currentColor;
+        color: var(--bg, #fff);
+      }
+
+      .sacre-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+
+      .sacre-options button.is-picked {
+        border-width: 2px;
+      }
+
+      .sacre-do,
+      .sacre-answer {
+        flex-basis: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.75rem;
+        border: 1px dashed var(--line, #ccc);
+        border-radius: 6px;
+      }
+
+      .sacre-do p,
+      .sacre-answer p {
+        flex-basis: 100%;
+        margin: 0;
+      }
+
+      .sacre-log {
+        margin-top: 1.5rem;
+      }
+
+      .sacre-log ol {
+        padding-left: 1.2rem;
+        font-size: 0.9rem;
+      }
+
+      /* review harness only */
+      body {
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 4px;
+      }
+      .lede {
+        color: var(--muted);
+        max-width: 70ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 28px;
+        margin-top: 24px;
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        margin-bottom: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      figcaption span {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      .phone {
+        width: 100%;
+        max-width: 390px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 14px;
+        background: var(--bg);
+      }
+      .phone main {
+        max-width: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+      }
+      h2.sec {
+        margin-top: 40px;
+        border-top: 1px solid var(--line);
+        padding-top: 20px;
+      }
+      .nlist {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 20px;
+        max-width: 1100px;
+      }
+      .n {
+        background: #2e2e3c;
+        border-radius: 16px;
+        padding: 12px 14px;
+        max-width: 390px;
+      }
+      .n p {
+        margin: 2px 0 6px;
+      }
+      .n small {
+        color: var(--muted);
+      }
+      .app {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .app i {
+        margin-left: auto;
+        font-style: normal;
+      }
+      .ic {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: #14141c;
+        border: 1px solid var(--line);
+      }
+      .icons {
+        display: flex;
+        gap: 20px;
+        align-items: end;
+      }
+      .icons div {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+      .icons img {
+        display: block;
+        border-radius: 12px;
+        margin-bottom: 4px;
+        border: 1px solid var(--line);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Push channel — what a reviewer would see</h1>
+    <p class="lede">
+      Static renders for PR #45. Markup and copy mirror
+      <code>packages/web/src/pages/Settings.tsx</code> and <code>InstallHelp.tsx</code>, styled with
+      the app&rsquo;s own <code>styles.css</code>; the notifications are mock-ups of what
+      <code>sw.js</code> shows. Nothing here has run against real FCM or a real phone — that is the
+      phone test.
+    </p>
+    <h2 class="sec">Settings → Phone notifications, one render per state</h2>
+    <div class="grid">
+      <figure>
+        <figcaption>
+          <b>unsupported</b
+          ><span
+            >Desktop browser, or a phone browser that cannot receive web push (also shown while no
+            VAPID key is configured).</span
+          >
+        </figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <p>
+                This browser can&rsquo;t receive notifications. On a phone, use Safari (iPhone) or
+                Chrome (Android).
+              </p>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+      <figure>
+        <figcaption>
+          <b>needs-install</b
+          ><span
+            >iPhone or iPad in a Safari tab. This is the state the whole iPhone test starts
+            from.</span
+          >
+        </figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <ol>
+                <li>Tap the Share button (the square with an arrow) at the bottom of Safari.</li>
+                <li>
+                  Scroll down and tap <strong>Add to Home Screen</strong>, then
+                  <strong>Add</strong>.
+                </li>
+                <li>
+                  Open World Wide War from your home screen, come back to Settings, and tap
+                  <strong>Turn on notifications</strong>.
+                </li>
+              </ol>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+      <figure>
+        <figcaption>
+          <b>off</b
+          ><span
+            >Supported, installed where needed, permission not yet asked. The button is the user
+            gesture iOS requires.</span
+          >
+        </figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <button>Turn on notifications on this device</button>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+      <figure>
+        <figcaption><b>on</b><span>A token is registered from this device.</span></figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <p>Notifications are on for this device</p>
+              <button>Send a test</button> <button>Turn off on this device</button>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+      <figure>
+        <figcaption>
+          <b>on, after Send a test</b><span>The result line under the buttons.</span>
+        </figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <p>Notifications are on for this device</p>
+              <button>Send a test</button> <button>Turn off on this device</button>
+              <p class="muted">Sent — it should arrive in a few seconds.</p>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+      <figure>
+        <figcaption>
+          <b>blocked</b><span>Permission denied in the browser or the phone settings.</span>
+        </figcaption>
+        <div class="phone">
+          <main>
+            <section class="panel">
+              <h2>Phone notifications</h2>
+              <p>
+                Notifications are blocked for this site. Turn them on in your phone&rsquo;s
+                settings, then reload.
+              </p>
+            </section>
+            <section class="panel">
+              <h2>What to notify me about</h2>
+              <p class="muted">Each switch covers email and phone notifications.</p>
+              <ul class="pref-list">
+                <li>
+                  <label><input type="checkbox" checked /> A turn resolves</label>
+                  <p class="muted">What happened, and who moved against you.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A game ends</label>
+                  <p class="muted">The final result, however it was won.</p>
+                </li>
+                <li>
+                  <label><input type="checkbox" checked /> A deadline is close</label>
+                  <p class="muted">Only when your orders are not locked in.</p>
+                </li>
+              </ul>
+              <p class="muted">
+                Turning everything off here is the same as using the unsubscribe link in any email.
+              </p>
+            </section>
+          </main>
+        </div>
+      </figure>
+    </div>
+    <h2 class="sec">What lands on the lock screen</h2>
+    <p class="lede">
+      Title and body come from the same subject and text as the email; the leading
+      <code>[WWW] </code> tag is stripped and the body is the first paragraph, capped at 180
+      characters.
+    </p>
+    <div class="nlist">
+      <div class="n">
+        <div class="app"><span class="ic"></span>WORLD WIDE WAR <i>now</i></div>
+        <b>Turn 3 resolved — Iron Pact holds the line</b>
+        <p>Iron Pact holds the line</p>
+        <small
+          >Opens /g/&lt;gameId&gt;. Subject minus the "[WWW] " tag, first paragraph of the email
+          body.</small
+        >
+      </div>
+      <div class="n">
+        <div class="app"><span class="ic"></span>WORLD WIDE WAR <i>now</i></div>
+        <b>Orders due soon — turn 4</b>
+        <p>The turn deadline is approaching and your orders are not locked in.</p>
+        <small>Reminder kind, same link.</small>
+      </div>
+      <div class="n">
+        <div class="app"><span class="ic"></span>WORLD WIDE WAR <i>now</i></div>
+        <b>Notifications are on</b>
+        <p>This is what a nudge will look like.</p>
+        <small>What Send a test pushes. Opens /settings.</small>
+      </div>
+    </div>
+    <h2 class="sec">Home-screen icon (generated placeholder)</h2>
+    <div class="icons">
+      <div>
+        <img src="../../packages/web/public/icon-192.png" width="96" height="96" alt="" />192×192
+      </div>
+      <div>
+        <img src="../../packages/web/public/icon-512.png" width="96" height="96" alt="" />512×512
+      </div>
+    </div>
+  </body>
+</html>
