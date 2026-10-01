@@ -1,113 +1,58 @@
-# Group scheduler — a better WhenIsGood
+# Group scheduler, a better WhenIsGood
 
-## As said
+The scheduler is a way for friends to pick a time for a social event: an organizer posts a
+few candidate times, each friend confirms theirs from a phone, and the tool does the chasing
+of whoever has not answered. It is built in this repo beside the game and reuses the
+server's accounts, deadline sweeper and notification door. Two problems, and they are
+different ones: sharing availability is too much work (the grid is the friction), and the
+organizer ends up chasing the last one or two people (the poke is the friction).
 
-> I want to solve scheduling social events. I like whensgood site. But let's make a better one
-> that makes it easier to share availability. Have better poking when waiting for responses
-> that are effective psychology strategies. We'll reuse components of this project. Let's
-> brainstorm how we achieve the goal.
+What would make it real: five friends get one link in the group chat, each marks their
+availability on a phone in under thirty seconds, and the last holdout answers after the tool
+pokes them, without the organizer sending a single follow-up text. That is the same shape as
+the repo's own spec sentence, which is part of why it fits here. One part of that shape did
+not survive: Q4 and Q5 put an account and a sign-in in front of the first answer, so the
+"without an account" half is given up on purpose.
 
-Two halves, and they are different problems:
+## What WhenIsGood does, and does not
 
-1. **Sharing availability is too much work** — the grid is the friction.
-2. **The organizer is stuck chasing the last one or two people** — the poke is the friction.
+The reference product is WhenIsGood (`whenisgood.net`). Direct fetch of the site was blocked
+by the sandbox egress proxy, so everything here comes from search-result summaries, not the
+site itself. The organizer creates a date and time grid and shares a link, and respondents
+paint the slots they are free. It is free and has no accounts; a $20 a year tier removes ads
+and adds Excel export. It stops at collecting availability: no calendar invite, no payment,
+no reminders at all, and thin timezone handling. It has run the same way for well over a
+decade. So the gap is real and specific: WhenIsGood has no poke.
 
-## What would make it real
+## Plans that change with headcount
 
-Five friends get one link in the group chat. Each marks their availability on a phone in under
-thirty seconds without making an account, and the last holdout answers after the tool pokes
-them — **without the organizer sending a single follow-up text**.
+A poll's outcome can be conditional on how many commit: each candidate time shows its
+confirmed count and what that count unlocks ("3 -> Catan, 5+ -> Werewolf"). Decided for v1
+as organizer-typed tiers (Q10). It matters beyond convenience for two reasons:
 
-That is the same shape as this repo's own spec sentence ("five friends in a group chat ... take
-two minutes ... without asking anyone how"), which is part of why it fits here.
-
-## Links opened
-
-- **"whensgood"** — read as **WhenIsGood** (`whenisgood.net`); no site by the literal name
-  turned up. Direct fetch of `whensgood.com` was blocked by the sandbox egress proxy, so what
-  follows is from search-result summaries, not the site itself:
-  - Create a date/time grid, share a link, respondents paint the slots they are free.
-  - Free, **no accounts**; a $20/year tier removes ads and adds Excel export.
-  - "It stops at collecting availability with no calendar invite, no payment, **no
-    reminders**, and thin timezone handling."
-  - Has been "quietly running the same way for well over a decade."
-
-  So the gap the idea names is real and specific: WhenIsGood has no poke at all.
-
-## What this repo already has that it would reuse
-
-- **Deadline sweeper** — `packages/server/src/tick.ts:39` `runTick`, driven every minute by
-  Cloud Scheduler → `POST /internal/tick` (`docs/deployment.md`). Already does "remind the
-  people who haven't acted when time is short": `tick.ts:82-89` fires at
-  `REMINDER_FRACTION = 0.25` of the window left (`tick.ts:32`), once per turn via
-  `remindedTurn` (`tick.ts:163`), body at `tick.ts:134`. A response poll is a turn with one
-  order per person and no resolution step.
-- **The one mail door** — `packages/server/src/notify.ts:69` `notify()`, preference-gated,
-  every message carries a one-click unsubscribe (`List-Unsubscribe` headers at
-  `notify.ts:95-98`). Backed by Resend (`packages/server/src/mailer.ts:25`).
-- **Signed links without sign-in** — `packages/server/src/unsub.ts:13` HMAC signer. The same
-  trick could sign a per-respondent "answer from here" link so a poke is one tap, not a login.
-- **Invite-by-link** — `packages/server/src/games.ts:322` `joinGame`, `app.ts:221` route; the
-  invite link shape is deliberately kind-agnostic (`app.ts:70`).
-- **Multiple "kinds" on one doc store** — `packages/server/src/store.ts:90`
-  `GameDoc = War | Party | Sacre`. A poll could be a fourth kind, or a separate collection.
-- **Firebase Hosting + Cloud Run + Firestore** pipeline — `docs/deployment.md`.
-
-## What fights it
-
-- **The web app is entirely behind Google sign-in** — `packages/web/src/main.tsx:29`
-  `<RequireAuth>`. WhenIsGood's whole appeal is no account. `notify()` also keys everything on
-  `uid` (`notify.ts:20-23`). A respondent-without-account path is new ground, not reuse.
-- **The site is mothballed** (#40, `docs/deployment.md:437` onward; `paused/index.html` is
-  what Hosting serves). Shipping this means relighting the stack or standing up a second one.
-- **Email is not where five friends are.** The spec sentence says _group chat_. The repo
-  sends email only; there is no SMS or chat integration.
-
-## Candidate poke strategies (to be argued about, not adopted)
-
-Named so the brainstorm has something to push against. None is researched yet.
-
-- **Social proof / progress** — "4 of 5 have answered; it's down to you."
-- **Visible holdouts** — the results page names who hasn't answered; mild public
-  accountability.
-- **Default with an out** — "We'll assume you can do any of these unless you say otherwise by
-  Thursday." Turns silence into an answer, which flips who has to act.
-- **Deadline / loss framing** — "Saturday is about to be locked in without you."
-- **Friction removal** — a one-tap answer straight from the poke ("Can you do Sat 7pm? Yes /
-  No"), rather than reopening a grid.
-- **Organizer-sent, tool-written** — the poke is a pre-written message the organizer pastes
-  into the group chat, so it comes from a friend's name in the channel people read.
-- **Escalating cadence** — gentle → specific → last call, rather than one reminder at 25%.
-
-## Feature to consider: plans that change with headcount
-
-> A feature to consider is multiple options based on participation. Like different game
-> suggestions based on confirmed count
-
-Decided for v1 as organizer-typed tiers (Q10, below). A poll's outcome would be conditional on how many commit: each candidate time
-shows its confirmed count and what that count unlocks ("3 → Catan, 5+ → Werewolf"). Two reasons it
-matters beyond convenience:
-
-- **It is a poke.** "One more and Saturday becomes Werewolf night" makes the holdout _pivotal_,
-  which is a sharper lever than "4 of 5 have answered." It names what the group gains from them
-  rather than what they are failing to do.
-- **It ties back to this repo.** The repo's own games run at different headcounts (the balance
-  gate sweeps 2/4/6/8/12 players, per `CLAUDE.md`); a scheduler that knows the confirmed count could
+- It is a poke. "One more and Saturday becomes Werewolf night" makes the holdout pivotal,
+  which is a sharper lever than "4 of 5 have answered." It names what the group gains from
+  them rather than what they are failing to do.
+- It ties back to this repo. The repo's own games run at different headcounts (the balance
+  gate sweeps 2/4/6/8/12 players), so a scheduler that knows the confirmed count could
   suggest one of them. That is a link, not a dependency.
 
-## Assumed, not asked
+## Poke levers
 
-- "whensgood" means WhenIsGood (whenisgood.net), not when2meet or another tool.
-- Social events among friends, not work meetings — no calendar-sync integration needed for v1.
-  (The standing availability profile from Q6 stands in for calendar sync until the phone app.)
-- It lives in this monorepo and reuses the server, not a fork into a new repo. Confirmed by Q11.
-- The group is small (2–12) and everyone is reachable through the organizer's group chat.
-- ~~Respondents must not need an account; the organizer may.~~ Overturned by Q4: accounts
-  from the start. Q5: sign-in comes before the first answer.
-- "Effective psychology" means the poke should get a reply, not maximize engagement — it must
+Five levers survived the decisions: progress or social proof ("4 of 5 are in"), naming the
+holdouts to the whole group (Q9), peer nudges that arrive from a named friend (Q9), the
+pivotal-person line when a headcount tier is one person away (Q10), and deadline escalation
+as an optional deadline nears. Default-with-an-out, where silence is read as a yes, was
+dropped by Q8: only an explicit answer counts.
+
+## Assumptions still standing
+
+- The group is small, 2 to 12, and everyone is reachable through the organizer's group chat.
+- These are social events among friends, not work meetings, so no calendar-sync integration
+  is needed for v1. The standing availability profile from Q6 stands in for it until the
+  phone app.
+- "Effective psychology" means the poke should get a reply, not maximize engagement. It must
   not feel like a dark pattern to a friend.
-- Work happens on the session's designated branch `ccr-c6180847-yl4zb4` rather than
-  `idea/group-scheduler`, because this sandbox may only push there.
 
 ## Decisions
 
