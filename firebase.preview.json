@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "www-test",
+    "site": "fluted-citizen-269819-test",
     "public": "packages/web/dist",
     "ignore": ["**/.*"],
     "headers": [

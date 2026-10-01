@@ -341,20 +341,26 @@ us-central1 --no-traffic --tag=$_TAG --update-env-vars=PUSH_TRANSPORT=fcm,BASE_U
   Same `timeout` and `options` block as `cloudbuild.yaml`, including its comment about the
   free tier — copy it, do not reword it.
 - `firebase.preview.json`: a copy of `firebase.json` whose `hosting` block adds
-  `"site": "www-test"` and whose two Cloud Run rewrites add `"tag": "preview"`.
+  `"site": "fluted-citizen-269819-test"` and whose two Cloud Run rewrites add
+  `"tag": "preview"`. The site ID is not `www-test`: Firebase rejects that name as invalid
+  (site IDs are global, and the console's Add site dialog fails silently on it), so the ID
+  borrows the project ID to be unique.
 
 Then **[human]**, in order (the executor writes these commands into the PR body):
 
 ```bash
-# 1. The second Hosting site, then its custom domain in the console (Hosting → www-test →
-#    Add custom domain → test.topherhooper.com). The console shows the record to create.
-pnpm exec firebase hosting:sites:create www-test --project fluted-citizen-269819
+# 1. The second Hosting site, then its custom domain in the console (Hosting →
+#    fluted-citizen-269819-test → Add custom domain → test.topherhooper.com). The console
+#    shows the record to create. Where the console dialog will not enable Continue, the
+#    Hosting REST API does the same (POST .../sites/<id>/customDomains?customDomainId=...).
+pnpm exec firebase hosting:sites:create fluted-citizen-269819-test --project fluted-citizen-269819
 
-# 2. DNS, in the existing Cloud DNS zone. Hosting may ask for a TXT ownership record first;
-#    create whatever the console shows. Then wait for the certificate (see the "Not Secure
-#    for a few hours" note in docs/deployment.md).
+# 2. DNS, in the existing Cloud DNS zone. Hosting also wants a TXT record,
+#    _acme-challenge.test.topherhooper.com, whose value its customDomains resource reports;
+#    create whatever it shows. Then wait for the certificate (see the "Not Secure for a few
+#    hours" note in docs/deployment.md).
 gcloud dns record-sets create test.topherhooper.com. --zone topherhooper-com \
-  --type CNAME --ttl 300 --rrdatas www-test.web.app. --project fluted-citizen-269819
+  --type CNAME --ttl 300 --rrdatas fluted-citizen-269819-test.web.app. --project fluted-citizen-269819
 
 # 3. Allow the host in all three sign-in places (the [human] list, item 4).
 
@@ -373,7 +379,7 @@ gcloud builds submit --config cloudbuild.preview.yaml --project fluted-citizen-2
 ```
 
 The executor does not know the exact `firebase deploy` target syntax for a second site on this
-CLI version; if `--config` plus `"site"` does not select `www-test`, that is a first surprise,
+CLI version; if `--config` plus `"site"` does not select `fluted-citizen-269819-test`, that is a first surprise,
 not something to guess around. The live site's `firebase.json` and `firebase.paused.json` are
 never deployed by these commands.
 
