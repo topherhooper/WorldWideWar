@@ -266,6 +266,83 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
     });
   });
 
+  describe('polls', () => {
+    const future = (days: number) => ({
+      startsAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+      endsAt: new Date(Date.now() + days * 86_400_000 + 3_600_000).toISOString(),
+    });
+    const create = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/polls',
+        headers: H('tok-a'),
+        payload: { title: 'Games', candidates: [future(2), future(3)] },
+      });
+
+    it('serves the preview with no token, and nothing else', async () => {
+      const { id } = (await create()).json<{ id: string }>();
+      const preview = await app.inject({ method: 'GET', url: `/api/polls/${id}/preview` });
+      expect(preview.statusCode).toBe(200);
+      expect(preview.json()).toMatchObject({ title: 'Games', organizerName: 'Alice' });
+      for (const [method, url] of [
+        ['GET', '/api/polls'],
+        ['POST', '/api/polls'],
+        ['GET', '/api/polls/past-members'],
+        ['GET', `/api/polls/${id}`],
+        ['POST', `/api/polls/${id}/join`],
+        ['PUT', `/api/polls/${id}/answer`],
+        ['POST', `/api/polls/${id}/lock`],
+        ['DELETE', `/api/polls/${id}`],
+      ] as const) {
+        const res = await app.inject({ method, url });
+        expect([method, url, res.statusCode]).toEqual([method, url, 401]);
+      }
+    });
+
+    it('does not read "past-members" as a poll id', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/polls/past-members',
+        headers: H('tok-a'),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
+    });
+
+    it('runs create, join, answer and lock over HTTP', async () => {
+      const { id } = (await create()).json<{ id: string }>();
+      const joined = await app.inject({
+        method: 'POST',
+        url: `/api/polls/${id}/join`,
+        headers: H('tok-b'),
+      });
+      expect(joined.statusCode).toBe(200);
+      const view = joined.json<{ candidates: { id: string }[] }>();
+      const answers = Object.fromEntries(view.candidates.map((c) => [c.id, 'yes']));
+      const answered = await app.inject({
+        method: 'PUT',
+        url: `/api/polls/${id}/answer`,
+        headers: H('tok-b'),
+        payload: { answers },
+      });
+      expect(answered.statusCode).toBe(200);
+      const notOrganizer = await app.inject({
+        method: 'POST',
+        url: `/api/polls/${id}/lock`,
+        headers: H('tok-b'),
+        payload: { candidateId: view.candidates[0].id },
+      });
+      expect(notOrganizer.statusCode).toBe(403);
+      const locked = await app.inject({
+        method: 'POST',
+        url: `/api/polls/${id}/lock`,
+        headers: H('tok-a'),
+        payload: { candidateId: view.candidates[0].id },
+      });
+      expect(locked.json()).toMatchObject({ status: 'locked' });
+    });
+  });
+
   describe('unsubscribe', () => {
     const sig = unsubSigner(TEST_UNSUB_SECRET).sign(alice.uid);
     const link = `/unsubscribe?u=${alice.uid}&s=${encodeURIComponent(sig)}`;
