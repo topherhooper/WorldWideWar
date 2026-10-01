@@ -44,32 +44,34 @@ plan says; the PR that lands phase 6 deletes this file.
   `firebase.preview.json`, channel `push-test`). Those are **[human]** steps: write the exact
   commands into the PR body and stop.
 
-## Decisions this plan makes
+## Decisions made after the brainstorm
 
-The brainstorm settled the product. Writing the build down forced eight smaller choices it
-did not reach. Each is the cheapest version that keeps the brainstorm's decisions intact. They
-belong in the Decisions table of [group-scheduler.md](group-scheduler.md) once Topher confirms
-them.
+Writing the build down forced choices the brainstorm did not reach. Topher settled them on
+2026-10-01; they are recorded with their rejected alternatives as Q12–Q18 in
+[group-scheduler.md](group-scheduler.md). In short:
 
-1. **Who is a holdout.** A poll's members are everyone who has opened its link while signed
-   in, plus anyone the organizer added from a previous poll. A holdout is a member who has not
-   confirmed. Someone who never opens the link and was never in an earlier poll is invisible
-   to the app — the group chat is the only way to reach them, so "add from past polls" exists
-   to make the second poll better than the first.
-2. **A candidate time is a start time only.** No end time or duration in v1.
-3. **2 to 6 candidates per poll, at most 5 tiers, at most 20 members.**
-4. **Answers are visible to every member**, per person, as in Doodle. Q9 already names
-   holdouts publicly; hiding who said No would be an odd half-measure.
-5. **The profile is a 7 × 4 grid**: each weekday split into morning (06–12), afternoon
-   (12–17), evening (17–22) and late (22–02), each cell free, busy or unknown. It learns from
-   confirmed answers (the last answer for a cell wins), and can be edited directly.
-6. **The organizer locks the final time by hand.** Nothing auto-locks, even at the deadline;
-   the deadline only drives how pokes escalate (and Q8 means silence never decides anything).
-7. **App pokes are capped and quiet.** At most three per member per poll, never between 21:00
-   and 09:00 in the recipient's time zone.
-8. **Two new notification kinds**, `pollNudge` (app pokes and friend nudges) and
-   `pollDecided` (the organizer locked a time). Both default on, both go by email and push
-   through `notify()`, both are switchable in Settings.
+1. **Who is a holdout (Q12).** A poll's members are everyone who has opened its link while
+   signed in, plus anyone the organizer added from a previous poll. A holdout is a member who
+   has not confirmed. Someone who never opens the link and was never in an earlier poll is
+   invisible to the app, so "add from past polls" exists to make the second poll better than
+   the first — and its invite is the one push that reaches a friend who missed the group chat.
+2. **Answers are visible to every member (Q13)**, per person, as in Doodle.
+3. **The organizer locks the final time by hand (Q14).** Nothing auto-locks, even at the
+   deadline; the deadline only drives how pokes escalate.
+4. **App pokes are capped and quiet (Q15).** At most three per member per poll, never between
+   21:00 and 09:00 in the recipient's time zone. Friend nudges are separate (Q9).
+5. **The profile is hourly (Q16)**: 7 days × 24 hours, each hour free, busy or unknown,
+   learned from confirmed answers and editable directly.
+6. **A candidate time has a start and an end (Q17)**, e.g. Sat 19:00–23:00, at most 24 hours
+   long.
+7. **The product is called Quorum (Q18).** Poll pages, poll notifications and poll emails say
+   Quorum; the game keeps its own name. Whether Quorum gets its own hostname and home-screen
+   icon is a launch question (phase 6).
+
+Plan defaults that were not put to a question, and can be changed by editing this file: 2–6
+candidates per poll, at most 5 tiers, at most 20 members; two new notification kinds,
+`pollNudge` (app pokes and friend nudges) and `pollDecided` (a time was locked), both default
+on, both sent by email and push through `notify()`, both switchable in Settings.
 
 ## Phase 1 — the push channel
 
@@ -94,7 +96,8 @@ export type PollAnswer = 'yes' | 'no';
 
 export interface CandidateView {
   id: string;
-  startsAt: string; /* ISO */
+  startsAt: string; // ISO
+  endsAt: string; // ISO
 }
 
 export interface PollMemberView {
@@ -139,9 +142,9 @@ export interface PollSummaryView {
 
 export interface CreatePollRequest {
   title: string;
-  candidates: string[]; // ISO instants
+  candidates: { startsAt: string; endsAt: string }[]; // ISO instants
   deadlineAt?: string | null; // ISO instant
-  addUids?: string[]; // from past polls (decision 1)
+  addUids?: string[]; // from past polls (Q12)
 }
 export interface AnswerPollRequest {
   answers: Record<string, PollAnswer>;
@@ -176,7 +179,7 @@ export interface PollDoc {
   organizerName: string;
   createdAt: Timestamp;
   status: 'open' | 'locked' | 'cancelled';
-  candidates: { id: string; startsAt: Timestamp }[];
+  candidates: { id: string; startsAt: Timestamp; endsAt: Timestamp }[];
   deadlineAt: Timestamp | null;
   lockedCandidateId: string | null;
   members: Record<string, PollMember>;
@@ -197,11 +200,13 @@ means one transaction per answer.
 Each function takes `(db, …, user: AuthedUser)` like `games.ts`, throws `HttpError` for
 caller mistakes, and does its read-modify-write in `db.runTransaction`.
 
-- `createPoll(db, user, req)`: validate — `title` trimmed, 1–80 chars; `candidates` 2–6 valid
-  ISO strings, each in the future, no duplicates, sorted ascending before storing; each
-  candidate gets `id: randomUUID().slice(0, 8)`; `deadlineAt` if present must be in the future
-  and before the last candidate; `addUids` at most 19, each must appear in
-  `pastMembers(db, user)` (2.4) — reject others with 400, so nobody can add strangers by uid.
+- `createPoll(db, user, req)`: validate — `title` trimmed, 1–80 chars; `candidates` 2–6, each
+  a pair of valid ISO strings with `startsAt` in the future, `endsAt` after `startsAt` and at
+  most 24 hours later (Q17); no two with the same `startsAt` and `endsAt`; sorted by `startsAt`
+  before storing; each gets `id: randomUUID().slice(0, 8)`; `deadlineAt` if present must be in
+  the future and before the last candidate's `startsAt`; `addUids` at most 19, each must appear
+  in `pastMembers(db, user)` (below) — reject others with 400, so nobody can add strangers by
+  uid.
   The organizer is the first member. Added members get `name`/`email` from their user doc,
   `answeredAt: null`. Return `{ id }`.
 - `joinPoll(db, pollId, user)`: idempotent. 404 if missing, 409 if `cancelled`, 409 if 20
@@ -312,7 +317,9 @@ other route must not change: add a test that `/` signed out still shows the sign
 - signed in → `api.joinPoll(id)` once, then render `<PollPage>` with the returned view;
 - missing or cancelled → "This poll was cancelled or doesn't exist."
 
-Add a `Polls` link to the top bar in `packages/web/src/App.tsx` beside Settings.
+Add a `Polls` link to the top bar in `packages/web/src/App.tsx` beside Settings. On `/p`
+routes the brand in the top bar reads **Quorum** and links to `/p` (Q18); elsewhere it stays
+"World Wide War". Use `useLocation()`; no second layout.
 
 ### 2.7 Web — pages
 
@@ -323,21 +330,27 @@ New folder `packages/web/src/polls/`. Reuse the existing CSS classes (`panel`, `
 - **`Polls.tsx`** (`/p`): "New poll" button → `/p/new`; list of `PollSummaryView` cards
   showing title, "3 of 5 answered", a "Your turn" badge (reuse `badge-due`) when `!iAnswered`
   and open, and the locked time when locked. Each links to `/p/:id`.
-- **`NewPoll.tsx`** (`/p/new`): title input; 2–6 rows of `<input type="datetime-local">`
-  (start with two empty rows, "Add a time" up to six, a remove button per row); optional
-  deadline (`datetime-local`); "Add people from past polls" — a checkbox list from
-  `api.pastMembers()`, hidden when empty. Convert `datetime-local` values to ISO with
-  `new Date(value).toISOString()` (the browser's zone is the organizer's zone, which is what
-  they meant). Client-side validation mirrors the server's, server errors show in `.error`. On
-  success navigate to `/p/:id`.
+- **`NewPoll.tsx`** (`/p/new`): title input; 2–6 candidate rows, each a `<input
+type="date">`, a start `<input type="time">` and an end `<input type="time">` (start with
+  two empty rows, "Add a time" up to six, a remove button per row; a new row copies the
+  previous row's times, since "same time, different day" is the common case). An end time at
+  or before the start time means the next day ("21:00–01:00"). Optional deadline
+  (`datetime-local`). "Add people from past polls" — a checkbox list from `api.pastMembers()`,
+  hidden when empty. Build each instant with ``new Date(`${date}T${time}`).toISOString()``: the
+  browser's zone is the organizer's zone, which is what they meant. Put the date/time
+  arithmetic in a small pure `packages/web/src/polls/times.ts` with its own unit tests,
+  including the past-midnight case. Client-side validation mirrors the server's; server
+  errors show in `.error`. On success navigate to `/p/:id`.
 - **`PollPage.tsx`**:
   - **Header**: title, "asked by {organizerName}", status, deadline via `formatRemaining`.
   - **Share** button, shown to every member: `navigator.share({ title, url })` when
     available, else copy the URL to the clipboard and say "Link copied". This is how a poll
     reaches the group chat; keep it at the top.
   - **Your answer** card (when open): one row per candidate, formatted in the viewer's zone
-    (`toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour:
-'numeric', minute: '2-digit' })`), each with a Yes / No segmented toggle. Rows start
+    as a range — `new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short',
+day: 'numeric', hour: 'numeric', minute: '2-digit' }).formatRange(start, end)` gives
+    "Sat, Oct 14, 7:00 – 11:00 PM" — each with a Yes / No segmented toggle. Put the
+    formatter in `times.ts` too. Rows start
     unset in this phase; **Confirm** is disabled until every row is set (Q8: an explicit
     answer, no partial commits). After confirming, show "You're in" with an "Change answer"
     link while open.
@@ -362,63 +375,70 @@ open. A router test that `/p/new` renders `NewPoll`, not `PollGate`.
 
 ## Phase 3 — the availability profile
 
-**Done when** a person who confirmed one poll opens a second poll whose times fall in the same
-weekday-and-part-of-day cells, and finds those rows already ticked — and nothing is recorded
-for them until they press Confirm.
+**Done when** a person who confirmed one poll opens a second poll whose times fall in hours
+they already answered for, and finds those rows already ticked — and nothing is recorded for
+them until they press Confirm.
 
 ### 3.1 The model — new pure module `packages/server/src/profile.ts`
 
 No Firestore, no clock, no I/O in this file: everything a test needs is in the arguments.
+The profile is hourly (Q16): 168 cells, one per weekday-hour, in the person's own zone.
 
 ```ts
-export const PARTS = ['morning', 'afternoon', 'evening', 'late'] as const;
-export type Part = (typeof PARTS)[number];
 export type Cell = 'free' | 'busy';
-/** weekday 0 = Sunday … 6 = Saturday, as Date.getDay(). Absent cell = unknown. */
-export type Profile = Partial<Record<`${0 | 1 | 2 | 3 | 4 | 5 | 6}-${Part}`, Cell>>;
+/** Key `${weekday}-${hour}`: weekday 0 = Sunday … 6 = Saturday (as Date.getDay()), hour
+ *  0–23, both in the person's zone. Absent key = unknown. */
+export type Profile = Partial<Record<string, Cell>>;
 
-/** Which cell an instant falls in, in a given IANA zone. Late (22–02) belongs to the
- *  evening's weekday: 01:00 Saturday is Friday-late, which is how people think of it. */
-export function cellOf(instant: Date, timeZone: string): `${number}-${Part}` | null;
-/** 02:00–06:00 is no cell → null; the row stays unticked. */
+/** The weekday-hour keys a span touches, in a zone: 19:00–23:00 Sat → 6-19 … 6-22. A span
+ *  that crosses midnight continues into the next weekday. The end hour is exclusive unless
+ *  the span ends mid-hour (19:00–22:30 includes 6-22). */
+export function hoursOf(startsAt: Date, endsAt: Date, timeZone: string): string[];
 
 export function preTick(
   profile: Profile | undefined,
-  startsAt: Date,
+  span: { startsAt: Date; endsAt: Date },
   timeZone: string,
-): 'yes' | 'no' | null; // free → yes, busy → no, unknown/no cell → null
+): 'yes' | 'no' | null;
+// any hour in the span busy → 'no'; every hour free → 'yes'; otherwise null (unset row).
 
 export function learn(
   profile: Profile | undefined,
   answers: Record<string, 'yes' | 'no'>,
-  candidates: { id: string; startsAt: Date }[],
+  candidates: { id: string; startsAt: Date; endsAt: Date }[],
   timeZone: string,
 ): Profile;
-// for each answered candidate: its cell := yes ? 'free' : 'busy'. Last write wins.
+// 'yes' → every hour of the span becomes free: they said they could do the whole thing.
+// 'no'  → only the span's FIRST hour becomes busy: a No to 19:00–23:00 says they cannot
+//         start at 7, not that every hour until 11 is taken. Last write wins per hour.
+
+export function isValidKey(key: string): boolean; // 0-6 '-' 0-23, nothing else
 ```
 
-Compute the weekday and hour with `Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short',
-hour: 'numeric', hourCycle: 'h23' }).formatToParts(instant)` — no date library. Unit tests
-(plain vitest, no emulator) must cover: the boundary hours 06:00, 12:00, 17:00, 22:00, 02:00;
-late-night rolling back to the previous weekday; a DST-change weekend in
-`America/Los_Angeles`; an instant that is Saturday in Los Angeles and Sunday in London;
-`learn` overwriting a cell; an invalid zone string falling back to `'UTC'` instead of
-throwing.
+Compute weekday and hour with `Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short',
+hour: 'numeric', hourCycle: 'h23' }).formatToParts(instant)` — no date library. Step through
+a span hour by hour in absolute time, so DST is handled by `Intl` rather than by arithmetic.
+Unit tests (plain vitest, no emulator) must cover: a span inside one hour; a span ending
+exactly on the hour versus mid-hour; a span crossing midnight into the next weekday; a
+DST-change night in `America/Los_Angeles` (the repeated and the skipped hour); an instant that
+is Saturday in Los Angeles and Sunday in London; `preTick` with all-free, one-busy and
+partly-unknown spans; `learn` for yes and for no; an invalid zone string falling back to
+`'UTC'` instead of throwing.
 
 ### 3.2 Storage and routes
 
 - `UserDoc` gains `profile?: Profile` and `timeZone?: string`.
 - `answerPoll` (phase 2) additionally, in the same transaction, reads the user doc and writes
   `profile: learn(…)` and `timeZone` from the request (below). It must not fail the answer if
-  the profile is malformed — `learn` treats anything unexpected as unknown.
+  the stored profile is malformed — `learn` drops any key `isValidKey` rejects.
 - `AnswerPollRequest` gains `timeZone?: string` (the client sends
   `Intl.DateTimeFormat().resolvedOptions().timeZone`).
 - `PollView` gains `suggested: Record<string, 'yes' | 'no' | null>` — the viewer's pre-ticks,
   computed server-side in `getPollView` from the viewer's profile and stored `timeZone`
   (fallback `'UTC'`). Server-side so the phone app later gets the same answer for free.
 - `GET /profile` → `{ profile: Profile, timeZone: string | null }`;
-  `PUT /profile` `{ profile, timeZone }` → validates every key against the 28 legal cells and
-  every value against `'free' | 'busy'`, drops anything else (degrade, not 400), saves.
+  `PUT /profile` `{ profile, timeZone }` → keeps only keys `isValidKey` accepts with values
+  `'free' | 'busy'`, drops anything else (degrade, not 400), saves.
 
 ### 3.3 Web
 
@@ -426,11 +446,16 @@ throwing.
   with a small "from your usual week" label, and still requires Confirm (Q8). A row with no
   suggestion stays unset.
 - New page `packages/web/src/polls/Availability.tsx` at `/availability`, linked from Settings
-  and from the answer card ("Edit your usual week"): a 7-row × 4-column grid of buttons, each
-  cycling unknown → free → busy → unknown, saved on change with the snap-back-on-error pattern
-  `Settings.tsx` uses. Copy above it: "We use this to pre-fill polls. Nothing is sent until you
-  confirm."
-- Tests: the grid cycles and saves; the answer card shows pre-ticks and the label; Confirm is
+  and from the answer card ("Edit your usual week"). 168 cells do not fit a phone as one grid,
+  so: a row of seven day tabs; under the selected day, 24 hour rows from 00:00 to 23:00,
+  scrolled to 08:00 on open; each row a button cycling unknown → free → busy → unknown. Two
+  shortcuts make it usable: **paint** — after tapping one hour, tapping another hour on the
+  same day sets every hour between them to the first one's new state; and **copy this day
+  to…** — a menu offering "weekdays", "weekend" and "every day". Save on change with the
+  snap-back-on-error pattern `Settings.tsx` uses, debounced to one `PUT` per second. Copy above
+  it: "We use this to pre-fill polls. Nothing is sent until you confirm."
+- Tests: a row cycles and saves; paint fills the range between two taps; copy-to-weekdays
+  copies exactly Monday–Friday; the answer card shows pre-ticks and the label; Confirm is
   still required.
 
 ## Phase 4 — headcount tiers
@@ -478,8 +503,10 @@ everyone gets a push when the organizer locks the time.
   Change it to build the patch from `NOTIFY_KINDS`, so an unsubscribe turns off every kind
   that exists, now and later. Add a test that unsubscribing turns off `pollNudge`.
 - `Settings.tsx` `ROWS` gains `['pollNudge', 'Someone is waiting on you', 'Reminders and
-nudges from friends when a poll needs your answer.']` and `['pollDecided', 'A time is
+nudges from friends when a Quorum poll needs your answer.']` and `['pollDecided', 'A time is
 picked', 'When the organizer locks the final time.']`.
+- Every poll email subject starts with `[Quorum] `, the way game mail starts with `[WWW] `,
+  so inbox filters can tell the two apart; phase 1 already strips that tag from push titles.
 - Recipients: `notify()` takes `Recipient { uid, email }`. Poll members store both, so pass
   `{ uid, email: member.email }`. Today `notify()` drops any recipient whose `email` is null
   before doing anything (`notify.ts:74-76`), which after phase 1 would also skip their push.
@@ -525,8 +552,9 @@ Format `deadlineIn` with a small pure helper (hours, or days if over 48h); do no
 web's `formatRemaining`.
 
 `leading.label` must be formatted in the **recipient's** zone (stored `timeZone`, fallback
-`'UTC'`) with `toLocaleString('en-US', { timeZone, weekday: 'short', hour: 'numeric' })`; the
-caller does that, so `composePoke` stays zone-free.
+`'UTC'`) as the span's start, e.g. "Sat 7pm", with `toLocaleString('en-US', { timeZone,
+weekday: 'short', hour: 'numeric' })`; the caller does that, so `composePoke` stays
+zone-free.
 
 ### 5.3 Friend nudges
 
@@ -565,7 +593,7 @@ ${baseUrl}/p/${id}`. The rate limit is decision Q9's guard against a shaming too
   }): boolean;
   ```
 
-  Rules, in order: `count >= 3` → no. `localHour >= 21 || localHour < 9` → no (decision 7).
+  Rules, in order: `count >= 3` → no. `localHour >= 21 || localHour < 9` → no (Q15).
   `lastAt !== null && now - lastAt < 12h` → no. Then, with a deadline: poke 1 once half the
   time from `createdAt` to the deadline has passed, poke 2 inside the last 24h, poke 3 inside
   the last 3h — each only if `count` is below that stage's number. Without a deadline: poke 1
@@ -589,7 +617,7 @@ any}", link })`. The time must read in each member's own zone, so make one `noti
 - `createPoll` with `addUids`: after the transaction, `notify(deps, 'pollNudge', added,
 { subject: "{organizerName} added you to {title}", text: "Pick the times that work for
 you.", link })`. This is the push that reaches a friend who never saw the group chat — the
-  reason decision 1 exists.
+  reason Q12 exists.
 
 ### 5.6 Getting people to turn notifications on
 
@@ -611,8 +639,11 @@ time without Topher sending a follow-up text. That is the outcome in
   because the organizer did." Keep the game's sentence as it is.
 - `README.md`: a short section describing the scheduler as it stands (current state only, per
   `CLAUDE.md` — no history).
-- The top bar's brand still reads "World Wide War"; leave it. Naming the scheduler is a
-  [human] decision; flag it in the PR.
+- The scheduler is **Quorum** (Q18), but it shares the game's hostname, manifest and
+  home-screen icon, so a friend who adds it to their home screen gets an icon labelled
+  "World Wide War". Whether Quorum gets its own hostname — a second Firebase Hosting site in
+  the same project is free — is a **[human]** decision to take before relight. Flag it in the
+  PR with that cost and stop; do not build it under this plan.
 - **[human]** relight, following the Relight section of `docs/deployment.md` exactly. Relight
   wakes the game's tick too; that is intended, since Q11 keeps both alive together.
 - **[human]** run one real poll with the group and record in the PR body: how long each person

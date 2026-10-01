@@ -97,8 +97,9 @@ Put `link` in `data` as well as `fcmOptions`: our own worker reads it from `data
     and the recipient's snapshot has a non-empty `pushTokens`, send
     `{ title: mail.subject, body: firstParagraph(mail.text), link: mail.link ?? deps.baseUrl }`
     where `firstParagraph` takes text up to the first blank line, trimmed, capped at 180
-    characters. Strip a leading `[WWW] ` from the title — it exists for inbox filters and is
-    noise on a lock screen.
+    characters. Strip any leading bracketed tag such as `[WWW] ` from the title (regex
+    `^\[[^\]]*\]\s*`) — it exists for inbox filters and is noise on a lock screen; the
+    scheduler's emails will use `[Quorum] ` the same way.
   - Prune: if `deadTokens` is non-empty, `usersCol(db).doc(uid).update({ pushTokens:
 FieldValue.arrayRemove(...deadTokens) })`, inside a try/catch that only logs.
   - Update the doc comment above `notify()` ("The one door mail leaves by") to say pushes leave
@@ -143,7 +144,7 @@ Both need the emulator (`pnpm test:server`); Java is present in the cloud sandbo
   every token of an opted-in recipient; nothing is pushed to a recipient who turned that kind
   off; a recipient with no `pushTokens` field still gets email and no push; tokens the pusher
   reports dead are removed from the user doc; with no `pusher` in deps, behaviour is exactly as
-  before; the `[WWW] ` prefix is stripped from the push title.
+  before; a leading `[WWW] ` tag is stripped from the push title.
 - Route tests in the existing route-test style (`packages/server/src/app.test.ts` with
   `stubVerifiers` from `testing.ts`): register twice stores one token; unregister removes it;
   register with `{}`, `{ token: 3 }` and a 5000-character token each return 400; test with no
