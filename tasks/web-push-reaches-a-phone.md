@@ -12,7 +12,9 @@ blocked-by: ''
 
 The step-by-step handoff plan is
 [docs/design/group-scheduler-push-plan.md](../docs/design/group-scheduler-push-plan.md); it
-is written to be executed by a cheaper model and deleted with this task.
+is written to be executed by a cheaper model and deleted with this task. The phases after
+this one are planned in
+[docs/design/group-scheduler-v1-plan.md](../docs/design/group-scheduler-v1-plan.md).
 
 Build the push channel and nothing else from the scheduler:
 
