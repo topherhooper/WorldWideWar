@@ -141,6 +141,33 @@ export const ordersCol = (db: Firestore, gameId: string): CollectionReference =>
   games(db).doc(gameId).collection('orders');
 export const reportsCol = (db: Firestore, gameId: string): CollectionReference =>
   games(db).doc(gameId).collection('reports');
+export interface PollMember {
+  name: string;
+  email: string | null;
+  joinedAt: Timestamp;
+  answeredAt: Timestamp | null;
+  answers: Record<string, 'yes' | 'no'>;
+}
+
+export interface PollDoc {
+  title: string;
+  createdBy: string;
+  organizerName: string;
+  createdAt: Timestamp;
+  status: 'open' | 'locked' | 'cancelled';
+  candidates: { id: string; startsAt: Timestamp; endsAt: Timestamp }[];
+  deadlineAt: Timestamp | null;
+  lockedCandidateId: string | null;
+  members: Record<string, PollMember>;
+  /** Mirror of Object.keys(members), so "my polls" is one array-contains query. */
+  memberUids: string[];
+}
+
+// A separate collection, not a fourth GameDoc kind. Members live in a map on the
+// document: at most 20, a few hundred bytes each, and one document means one
+// transaction per answer.
+export const polls = (db: Firestore): CollectionReference => db.collection('polls');
+
 export const usersCol = (db: Firestore): CollectionReference => db.collection('users');
 
 export const orderDocId = (turn: number, slot: number): string => `${turn}-${slot}`;

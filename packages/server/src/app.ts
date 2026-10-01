@@ -13,6 +13,9 @@ import type {
   UpdateSacreConfigRequest,
   UpdatePrefsRequest,
   PushTestResponse,
+  CreatePollRequest,
+  AnswerPollRequest,
+  LockPollRequest,
 } from './api-types.js';
 import type { Verifiers } from './auth.js';
 import {
@@ -50,6 +53,17 @@ import {
   updateSacreConfig,
 } from './sacre.js';
 import { games, isPartyDoc, isSacreDoc, usersCol, type GameDoc, type UserDoc } from './store.js';
+import {
+  answerPoll,
+  cancelPoll,
+  createPoll,
+  getPollPreview,
+  getPollView,
+  joinPoll,
+  listPolls,
+  lockPoll,
+  pastMembers,
+} from './polls.js';
 import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
@@ -144,6 +158,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!deps.signer.verify(uid, sig)) throw new HttpError(400, 'invalid unsubscribe link');
     return { uid, sig };
   };
+
+  // Public on purpose: a friend opening the link from a group chat is not signed in yet,
+  // and Q5 wants them to see what they are signing in for. Title and organizer only —
+  // never member names or answers. Registered on `app` at the full path because the
+  // authenticated block below is mounted under /api.
+  app.get('/api/polls/:id/preview', async (req) => {
+    const { id } = req.params as { id: string };
+    return getPollPreview(db, id);
+  });
 
   app.get('/unsubscribe', async (req, reply) => {
     const { uid, sig } = unsubQuery(req);
@@ -245,6 +268,33 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         });
         await pruneTokens(db, req.user.uid, deadTokens);
         return { sent: tokens.length - deadTokens.length };
+      });
+
+      api.post('/polls', async (req) =>
+        createPoll(db, req.user, (req.body ?? {}) as CreatePollRequest),
+      );
+      api.get('/polls', async (req) => listPolls(db, req.user));
+      // Registered before /polls/:id so "past-members" is not read as an id.
+      api.get('/polls/past-members', async (req) => pastMembers(db, req.user));
+      api.post('/polls/:id/join', async (req) => {
+        const { id } = req.params as { id: string };
+        return joinPoll(db, id, req.user);
+      });
+      api.get('/polls/:id', async (req) => {
+        const { id } = req.params as { id: string };
+        return getPollView(db, id, req.user);
+      });
+      api.put('/polls/:id/answer', async (req) => {
+        const { id } = req.params as { id: string };
+        return answerPoll(db, id, req.user, (req.body ?? {}) as AnswerPollRequest);
+      });
+      api.post('/polls/:id/lock', async (req) => {
+        const { id } = req.params as { id: string };
+        return lockPoll(db, id, req.user, (req.body ?? {}) as LockPollRequest);
+      });
+      api.delete('/polls/:id', async (req) => {
+        const { id } = req.params as { id: string };
+        return cancelPoll(db, id, req.user);
       });
 
       // The one read both games share. It dispatches rather than branching
