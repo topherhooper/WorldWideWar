@@ -14,6 +14,12 @@ import type {
   UpdateSacreConfigRequest,
   UpdatePrefsRequest,
   PushTestResponse,
+  AnswerPollRequest,
+  CreatePollRequest,
+  LockPollRequest,
+  PastMemberView,
+  PollSummaryView,
+  PollView,
 } from '@www/server/api-types';
 import type { PartyAction } from '@www/engine/party';
 import type { SacreAction } from '@www/engine/sacre';
@@ -91,4 +97,14 @@ export const api = {
   unregisterPush: (token: string) =>
     apiFetch<{ ok: true }>('POST', '/api/push/unregister', { token }),
   testPush: () => apiFetch<PushTestResponse>('POST', '/api/push/test'),
+  createPoll: (req: CreatePollRequest) => apiFetch<{ id: string }>('POST', '/api/polls', req),
+  listPolls: () => apiFetch<PollSummaryView[]>('GET', '/api/polls'),
+  pastMembers: () => apiFetch<PastMemberView[]>('GET', '/api/polls/past-members'),
+  joinPoll: (id: string) => apiFetch<PollView>('POST', `/api/polls/${id}/join`),
+  getPoll: (id: string) => apiFetch<PollView>('GET', `/api/polls/${id}`),
+  answerPoll: (id: string, req: AnswerPollRequest) =>
+    apiFetch<PollView>('PUT', `/api/polls/${id}/answer`, req),
+  lockPoll: (id: string, req: LockPollRequest) =>
+    apiFetch<PollView>('POST', `/api/polls/${id}/lock`, req),
+  cancelPoll: (id: string) => apiFetch<{ ok: true }>('DELETE', `/api/polls/${id}`),
 };
