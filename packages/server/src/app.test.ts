@@ -204,7 +204,7 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
   });
 
   describe('push', () => {
-    const post = (url: string, token: string, payload?: unknown) =>
+    const post = (url: string, token: string, payload?: object) =>
       app.inject({
         method: 'POST',
         url,
