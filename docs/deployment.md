@@ -283,7 +283,7 @@ sign-in then fails only on phones, which desktop testing never reveals. Hosting 
 the real `/__/auth/handler` on every domain attached to the project, and `firebase.json`'s
 catch-all rewrite does not shadow the reserved `/__/` namespace, so no rewrite is needed.
 
-All three currently hold `play.topherhooper.com` alongside the
+All three currently hold `play.topherhooper.com` and `test.topherhooper.com` alongside the
 `web.app`/`firebaseapp.com` defaults. To add another origin:
 
 ```bash
@@ -385,6 +385,43 @@ IndexedDB per origin, so failed attempts accumulate and a fixed backend can stil
 the window you were debugging in. `Cross-Origin-Opener-Policy policy would block the
 window.closed call` in the console is unrelated noise from the popup poller — it is not
 the failure, and chasing it wastes time.
+
+### The test host
+
+`test.topherhooper.com` serves a web build against a tagged, zero-traffic Cloud Run revision,
+so a change can be tried on real phones without relighting the mothballed site. It is not a
+throwaway: every scheduler phase tests on it. Push was first proven here on 2026-10-01, on an
+iPhone and an Android phone.
+
+- **The Hosting site is `fluted-citizen-269819-test`, not `www-test`.** Firebase rejects
+  `www-test` as `Invalid name` because site IDs are global, and the console's Add site dialog
+  fails silently on it, leaving a dashboard URL that renders an empty shell for a site that
+  does not exist — its spinner never clears and Add custom domain never enables Continue.
+  `GET .../v1beta1/projects/<project>/sites` says what really exists.
+- **The custom domain** is added with the Hosting REST API when the console will not do it:
+  `POST .../sites/<id>/customDomains?customDomainId=test.topherhooper.com` with a `{}` body,
+  and a `X-Goog-User-Project` header, since the call needs a quota project. A `GET` on the
+  same resource lists the DNS records it wants.
+- **DNS**, in the `topherhooper-com` zone: a CNAME `test` → `fluted-citizen-269819-test.web.app.`
+  and a TXT `_acme-challenge.test` holding the value the domain resource reports. A temporary
+  certificate serves for a few hours first, the same "Not Secure" window as `play`.
+- **Sign-in** needs the host in all three places above, built with
+  `VITE_FIREBASE_AUTH_DOMAIN=test.topherhooper.com`. Push also needs the API key's targets to
+  include `firebaseinstallations.googleapis.com` and `fcmregistrations.googleapis.com`.
+  Saving a key can stop on a "Potential breakage due to active usage" dialog that lists other
+  APIs seen in use and asks for the word `UPDATE`; adding targets cannot narrow anything, and
+  a console save that appears to succeed but reloads to the old values means that dialog was
+  dismissed unseen.
+- **Server:** `gcloud builds submit --config cloudbuild.preview.yaml …` makes a revision
+  tagged `preview` that takes no traffic. Production keeps its 100%.
+- **Web:** `firebase deploy --only hosting --config firebase.preview.json` selects the right
+  site but **drops `"tag": "preview"` from the Cloud Run rewrites** (firebase-tools 15.26.0).
+  `/api/**` then silently reaches the _live_ revision, which has no newer routes, so they
+  answer 404 from Fastify rather than 401. Check with an unauthenticated
+  `POST https://test.topherhooper.com/api/push/test`: 401 means the tag held. To repair it,
+  publish a version through the REST API that keeps the tag: `POST .../versions` with the
+  config, `:populateFiles` with the path-to-hash map of the version already deployed,
+  `PATCH` it to `FINALIZED`, then `POST .../channels/live/releases?versionName=…`.
 
 ## DNS
 

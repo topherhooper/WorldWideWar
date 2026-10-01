@@ -3,13 +3,13 @@
 The full handoff plan for the web version of the scheduler, written so a cheaper model can
 execute it one phase at a time without the brainstorm in its context. The why lives in
 [group-scheduler.md](group-scheduler.md) (cited below as Q2, Q8 and so on); this file is the
-how. Phase 1 has its own, more detailed plan in
-[group-scheduler-push-plan.md](group-scheduler-push-plan.md).
+how. Phase 1 had its own, more detailed plan; it was deleted with the PR that landed phase 1,
+and what it learned about the test host lives in [../deployment.md](../deployment.md).
 
 **Each phase is one PR, and each depends on the one before.** Phase 1 is a gate, not a step:
 if a push does not reliably reach a home-screen iPhone, stop after phase 1 and reopen Q2.
 Phases 2–6 are written on the assumption that it does. When a phase lands, the PR that lands it
-replaces `tasks/web-push-reaches-a-phone.md` with **one** task file for the next phase (per
+replaces the current phase's task file in `tasks/` with **one** file for the next phase (per
 `CLAUDE.md`, never more than one). The PR that lands phase 1 deletes the push plan, as that
 plan says; the PR that lands phase 6 deletes this file.
 
@@ -75,9 +75,8 @@ on, both sent by email and push through `notify()`, both switchable in Settings.
 
 ## Phase 1 — the push channel
 
-See [group-scheduler-push-plan.md](group-scheduler-push-plan.md). Done when a push sent
-through `notify()` arrives on a home-screen iPhone and an Android phone. Phases below assume
-its pieces exist: `Pusher` and `NotifyDeps.pusher`, `pushTokens` on the user doc,
+Landed in PR #45. A push sent through `notify()` arrived on a home-screen iPhone and an
+Android phone on 2026-10-01, so Q2 stays settled. Phases below assume its pieces exist: `Pusher` and `NotifyDeps.pusher`, `pushTokens` on the user doc,
 `packages/web/src/push.ts` (`pushStatus`, `enablePush`), `packages/web/src/InstallHelp.tsx`,
 the service worker, and the preview deploy files.
 

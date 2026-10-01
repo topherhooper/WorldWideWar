@@ -1,5 +1,5 @@
 # Test deploy: the server image as a tagged, zero-traffic Cloud Run revision.
-# No hosting step; see docs/design/group-scheduler-push-plan.md, step 10.
+# No hosting step; see docs/deployment.md, "The test host".
 steps:
   - id: build-image
     name: gcr.io/cloud-builders/docker
