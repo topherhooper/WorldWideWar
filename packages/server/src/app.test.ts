@@ -254,6 +254,8 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('http app', () => {
       expect(res.json()).toEqual({ sent: 1 });
       expect(pusher.sent).toHaveLength(1);
       expect(pusher.sent[0].msg.link).toBe('http://x/settings');
+      expect(pusher.sent[0].msg.title).toContain('World Wide War');
+      expect(pusher.sent[0].msg.body).toMatch(/^Hi Alice, /);
     });
 
     it('requires authentication', async () => {
