@@ -412,16 +412,27 @@ iPhone and an Android phone.
   APIs seen in use and asks for the word `UPDATE`; adding targets cannot narrow anything, and
   a console save that appears to succeed but reloads to the old values means that dialog was
   dismissed unseen.
-- **Server:** `gcloud builds submit --config cloudbuild.preview.yaml …` makes a revision
-  tagged `preview` that takes no traffic. Production keeps its 100%.
-- **Web:** `firebase deploy --only hosting --config firebase.preview.json` selects the right
-  site but **drops `"tag": "preview"` from the Cloud Run rewrites** (firebase-tools 15.26.0).
-  `/api/**` then silently reaches the _live_ revision, which has no newer routes, so they
-  answer 404 from Fastify rather than 401. Check with an unauthenticated
-  `POST https://test.topherhooper.com/api/push/test`: 401 means the tag held. To repair it,
-  publish a version through the REST API that keeps the tag: `POST .../versions` with the
-  config, `:populateFiles` with the path-to-hash map of the version already deployed,
-  `PATCH` it to `FINALIZED`, then `POST .../channels/live/releases?versionName=…`.
+- **Deploying** is one dispatch, keyless, from GitHub Actions:
+  `gh workflow run deploy-test-host.yml --repo topherhooper/WorldWideWar -f ref=<branch>`,
+  or Actions → Deploy test host → Run workflow. It uses the same federation identity as
+  `deploy.yml` (`gha-deploy@` submits, `cloudbuilder@` builds), so it needed no new IAM and
+  no stored key. A cloud sandbox has no Google credentials at all, by design; a session
+  that wants something on the test host dispatches this workflow rather than holding a key.
+- **Server:** `cloudbuild.preview.yaml` makes a revision tagged `preview` that takes no
+  traffic. Production keeps its 100%.
+- **Web:** the same build then runs `firebase deploy --config firebase.preview.json`,
+  which selects the right site but **drops `"tag": "preview"` from the Cloud Run
+  rewrites** (firebase-tools 15.26.0 builds a run rewrite from `serviceId` and `region`
+  only; its `pinTag` is an experiment that mints its own tag). `/api/**` would then
+  silently reach the _live_ revision. So the build's last command,
+  `tools/ci/src/hosting-retag.ts`, republishes the live version with the tag through the
+  REST API — `POST .../versions` with the config, `:populateFiles` with the path-to-hash
+  map of the version just deployed, `PATCH` it to `FINALIZED`, then
+  `POST .../channels/live/releases?versionName=…` — and reads the live release back,
+  failing the build if a run rewrite is untagged. It was a manual repair until 2026-10-01.
+  An unauthenticated `POST https://test.topherhooper.com/api/push/test` answering 401
+  rather than 404 is still a useful spot check, but only while the live revision predates
+  the routes under test.
 
 ## DNS
 

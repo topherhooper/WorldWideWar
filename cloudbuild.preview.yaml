@@ -1,5 +1,6 @@
-# Test deploy: the server image as a tagged, zero-traffic Cloud Run revision.
-# No hosting step; see docs/deployment.md, "The test host".
+# Test deploy: the server image as a tagged, zero-traffic Cloud Run revision, and the web
+# bundle on the test Hosting site with its /api rewrites pointed at that tag. Dispatched by
+# .github/workflows/deploy-test-host.yml; see docs/deployment.md, "The test host".
 steps:
   - id: build-image
     name: gcr.io/cloud-builders/docker
@@ -32,9 +33,29 @@ steps:
       # test BASE_URL. cloudbuild.yaml sets BASE_URL on every production deploy; keep it.
       - --update-env-vars=PUSH_TRANSPORT=fcm,BASE_URL=$_BASE_URL
 
+  - id: deploy-hosting
+    name: node:22
+    entrypoint: bash
+    env:
+      # Sign-in redirects only work when the auth domain is the page's own origin.
+      - VITE_FIREBASE_AUTH_DOMAIN=$_AUTH_DOMAIN
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        corepack enable pnpm
+        pnpm install --frozen-lockfile
+        pnpm exec tsc --build
+        pnpm --filter @www/web build
+        pnpm exec firebase deploy --only hosting --config firebase.preview.json --project $PROJECT_ID --non-interactive
+        # firebase-tools drops the rewrite tag; republish the live version with it.
+        pnpm exec tsx tools/ci/src/hosting-retag.ts $_SITE $_TAG
+
 substitutions:
   _TAG: preview
   _BASE_URL: https://test.topherhooper.com
+  _AUTH_DOMAIN: test.topherhooper.com
+  _SITE: fluted-citizen-269819-test
 
 # The default 10 minutes is not enough on the default machine type, and a build that
 # times out costs the same minutes as one that finishes.
