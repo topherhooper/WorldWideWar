@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { NotifyKind, NotifyPrefs } from '@www/server/api-types';
 
 import { api } from '../api.js';
+import { InstallHelp } from '../InstallHelp.js';
+import { disablePush, enablePush, pushStatus, type PushStatus } from '../push.js';
 
 // Named for what the player sees, not for the field: "reminder" alone says nothing.
 const ROWS: [kind: NotifyKind, label: string, hint: string][] = [
@@ -9,6 +11,66 @@ const ROWS: [kind: NotifyKind, label: string, hint: string][] = [
   ['gameOver', 'A game ends', 'The final result, however it was won.'],
   ['reminder', 'A deadline is close', 'Only when your orders are not locked in.'],
 ];
+
+function PhoneNotifications() {
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    pushStatus()
+      .then(setStatus)
+      .catch(() => setStatus('unsupported'));
+  }, []);
+
+  const run = async (action: () => Promise<PushStatus>) => {
+    setMessage(null);
+    try {
+      setStatus(await action());
+    } catch {
+      setMessage('Something went wrong. Try again.');
+    }
+  };
+
+  const test = async () => {
+    setMessage(null);
+    try {
+      await api.testPush();
+      setMessage('Sent — it should arrive in a few seconds.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not send a test.');
+    }
+  };
+
+  return (
+    <section className="panel">
+      <h2>Phone notifications</h2>
+      {status === null ? (
+        <p className="muted">Loading…</p>
+      ) : status === 'unsupported' ? (
+        <p>
+          This browser can&rsquo;t receive notifications. On a phone, use Safari (iPhone) or Chrome
+          (Android).
+        </p>
+      ) : status === 'needs-install' ? (
+        <InstallHelp />
+      ) : status === 'blocked' ? (
+        <p>
+          Notifications are blocked for this site. Turn them on in your phone&rsquo;s settings, then
+          reload.
+        </p>
+      ) : status === 'off' ? (
+        <button onClick={() => void run(enablePush)}>Turn on notifications on this device</button>
+      ) : (
+        <>
+          <p>Notifications are on for this device</p>
+          <button onClick={() => void test()}>Send a test</button>{' '}
+          <button onClick={() => void run(disablePush)}>Turn off on this device</button>
+        </>
+      )}
+      {message !== null && <p className="muted">{message}</p>}
+    </section>
+  );
+}
 
 export function Settings() {
   const [prefs, setPrefs] = useState<NotifyPrefs | null>(null);
@@ -37,8 +99,10 @@ export function Settings() {
 
   return (
     <main>
+      <PhoneNotifications />
       <section className="panel">
-        <h2>Email notifications</h2>
+        <h2>What to notify me about</h2>
+        <p className="muted">Each switch covers email and phone notifications.</p>
         {loadError ? (
           <p className="error">Could not load your notification settings. Try reloading.</p>
         ) : prefs === null ? (
