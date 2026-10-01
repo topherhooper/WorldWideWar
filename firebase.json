@@ -2,7 +2,9 @@
   "hosting": {
     "public": "packages/web/dist",
     "ignore": ["**/.*"],
-    "headers": [{ "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }],
+    "headers": [
+      { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+    ],
     "rewrites": [
       { "source": "/api/**", "run": { "serviceId": "www-api", "region": "us-central1" } },
       { "source": "/unsubscribe", "run": { "serviceId": "www-api", "region": "us-central1" } },

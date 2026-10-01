@@ -1,0 +1,40 @@
+{
+  "hosting": {
+    "site": "www-test",
+    "public": "packages/web/dist",
+    "ignore": ["**/.*"],
+    "headers": [
+      {
+        "source": "/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "www-api",
+          "region": "us-central1",
+          "tag": "preview"
+        }
+      },
+      {
+        "source": "/unsubscribe",
+        "run": {
+          "serviceId": "www-api",
+          "region": "us-central1",
+          "tag": "preview"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
