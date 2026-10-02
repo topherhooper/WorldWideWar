@@ -64,9 +64,8 @@ first thing a prototype should confirm:
 
 ## Assumed, not asked
 
-- **"My google calendar" means the organizer's own calendar.** Friends answer the poll as they
-  do now; their calendars are not read. Reading every member's calendar to pre-fill their
-  answers is the larger version and is not assumed.
+- ~~**"My google calendar" means the organizer's own calendar.**~~ Overturned by D1: every
+  member's availability comes from their own calendar.
 - **Read free/busy only.** No event titles are read or stored, and nothing is written: locking a
   time does not create a calendar event or send an invite. (`.ics` invites are already listed as
   out of v1 in the plan, `:664`.)
@@ -87,3 +86,9 @@ first thing a prototype should confirm:
 - "Much easier" may also mean the form itself is too fiddly (three inputs per row came from
   Q17). The calendar is assumed to be the main lever; quick presets without a calendar are a
   fallback, not the idea.
+
+## Decisions
+
+| #   | Chosen                                                                                                                                                                    | Rejected                                                                                                                                                                                                                                                                                                                | Why                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Build around Google Calendar for everyone: each member's availability is read from their own calendar. A member without one paints it by hand on a WhenIsGood-style grid. | Reading only the organizer's calendar to suggest times, with friends answering Yes/No as in #46 (the assumption this doc was captured with). The hourly profile learned from answers (Q6, Q16, phase 3 of the v1 plan) as the main source of availability. Holding calendar reading back for the native phone app (Q4). | Owner, after using #46 on the test host: scheduling has to be much easier, and a calendar most people already keep is the cheapest source of truth. The grid is the floor for anyone without Google Calendar, not a second-class path to design around. Reverses the standing assumption in `group-scheduler.md:51` that no calendar sync is needed for v1. |
