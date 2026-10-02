@@ -240,6 +240,15 @@ export interface PollMemberView {
   answers: Record<string, PollAnswer>; // candidateId → answer; empty until confirmed
 }
 
+/** The grid a poll was made on: whole local days and hours in the organizer's zone. */
+export interface PollWindow {
+  firstDay: string; // YYYY-MM-DD, organizer's calendar date
+  days: number; // 1-31
+  fromHour: number; // 0-23, first hour row
+  toHour: number; // 1-24, exclusive
+  timeZone: string; // IANA, the organizer's
+}
+
 export interface PollView {
   id: string;
   title: string;
@@ -249,6 +258,10 @@ export interface PollView {
   candidates: CandidateView[];
   deadlineAt: string | null;
   lockedCandidateId: string | null;
+  /** Grid polls only; null on candidate-time polls made before the grid. */
+  window: PollWindow | null;
+  /** Hour starts the organizer left free on the grid, ISO, sorted. Empty on older polls. */
+  offered: string[];
   members: PollMemberView[]; // organizer first, then by joinedAt
   me: string; // caller's uid
 }
@@ -274,7 +287,10 @@ export interface PollSummaryView {
 
 export interface CreatePollRequest {
   title: string;
-  candidates: { startsAt: string; endsAt: string }[]; // ISO instants
+  /** Either candidates (the pre-grid shape) or window + offered, not both. */
+  candidates?: { startsAt: string; endsAt: string }[]; // ISO instants
+  window?: PollWindow;
+  offered?: string[]; // ISO hour starts
   deadlineAt?: string | null; // ISO instant
   addUids?: string[]; // from past polls (Q12)
 }

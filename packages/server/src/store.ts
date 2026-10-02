@@ -6,7 +6,7 @@ import type { GameState, GeneratedMap, RuleConfig, TiersList } from '@www/engine
 import type { PartyState } from '@www/engine/party';
 import type { SacreState } from '@www/engine/sacre';
 
-import type { GameStatus, NotifyKind } from './api-types.js';
+import type { GameStatus, NotifyKind, PollWindow } from './api-types.js';
 
 export interface Seat {
   uid: string | null;
@@ -158,6 +158,9 @@ export interface PollDoc {
   candidates: { id: string; startsAt: Timestamp; endsAt: Timestamp }[];
   deadlineAt: Timestamp | null;
   lockedCandidateId: string | null;
+  /** Grid polls only. Polls made before the grid have neither field. */
+  window?: PollWindow;
+  offered?: Timestamp[];
   members: Record<string, PollMember>;
   /** Mirror of Object.keys(members), so "my polls" is one array-contains query. */
   memberUids: string[];
