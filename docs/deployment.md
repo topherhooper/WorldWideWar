@@ -433,6 +433,27 @@ iPhone and an Android phone.
   An unauthenticated `POST https://test.topherhooper.com/api/push/test` answering 401
   rather than 404 is still a useful spot check, but only while the live revision predates
   the routes under test.
+- **Smoke test:** the build's last step, `pnpm test:smoke`, runs
+  `packages/server/src/smoke/two-accounts.smoke.ts` against the test host: two users create,
+  preview, join, answer and lock one poll through Hosting and the tagged revision, against
+  real Firestore. It is phase 2's done-when, which needs two Google accounts by hand. Google
+  sign-in cannot be scripted, so the users are `smoke-organizer` and `smoke-friend`, signed in
+  with Firebase custom tokens that the build mints and trades at Identity Toolkit with the web
+  app's API key, sending the test host as `Referer` because the key is referrer-restricted.
+  Each run leaves one cancelled `[smoke]` poll, visible only to those two users. Minting needs
+  `iam.serviceAccounts.signBlob` on the build's own account, granted once:
+
+  ```bash
+  gcloud iam service-accounts add-iam-policy-binding \
+    cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com \
+    --member=serviceAccount:cloudbuilder@fluted-citizen-269819.iam.gserviceaccount.com \
+    --role=roles/iam.serviceAccountTokenCreator --project fluted-citizen-269819
+  ```
+
+  Without it the step fails in `createCustomToken` with a signBlob permission error, after the
+  deploy itself has finished. To run the suite locally against the emulators, start the built
+  server inside `firebase emulators:exec --only firestore,auth --project demo-www` and run
+  `SMOKE_ORIGIN=http://localhost:3001 SMOKE_PROJECT=demo-www pnpm test:smoke` beside it.
 
 ## DNS
 
