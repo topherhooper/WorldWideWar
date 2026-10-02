@@ -206,3 +206,49 @@ describe(`two accounts, one poll, on ${origin}`, () => {
     expect(res.status).toBe(409);
   });
 });
+
+// The shape New poll sends since the grid: a window and the hours left free on it. Members
+// answering on the grid is not built yet, so this stops at what exists: create, preview,
+// join, and both people seeing the same offered hours.
+describe(`a grid poll, on ${origin}`, () => {
+  const title = `[smoke grid] ${new Date().toISOString()}`;
+  let organizer = '';
+  let friend = '';
+  let pollId = '';
+  const offered = [52, 50, 51].map((h) => hoursFromNow(h));
+
+  beforeAll(async () => {
+    organizer = await signIn('smoke-organizer', 'Smoke Organizer');
+    friend = await signIn('smoke-friend', 'Smoke Friend');
+  });
+
+  afterAll(async () => {
+    if (pollId) await call('DELETE', `/api/polls/${pollId}`, organizer);
+  });
+
+  it('lets the organizer create a poll from a grid', async () => {
+    const res = await call<{ id: string }>('POST', '/api/polls', organizer, {
+      title,
+      window: { firstDay: '2026-10-03', days: 14, fromHour: 18, toHour: 23, timeZone: 'UTC' },
+      offered,
+    });
+    expect(res.status).toBe(200);
+    pollId = res.body.id;
+  });
+
+  it('previews it to a signed-out friend like any other poll', async () => {
+    const res = await call<PollPreview>('GET', `/api/polls/${pollId}/preview`);
+    expect(res.body).toMatchObject({ title, organizerName: 'Smoke Organizer', status: 'open' });
+  });
+
+  it('shows both people the window and the offered hours, sorted', async () => {
+    await call('POST', `/api/polls/${pollId}/join`, friend);
+    for (const token of [organizer, friend]) {
+      const view = await call<PollView>('GET', `/api/polls/${pollId}`, token);
+      expect(view.status).toBe(200);
+      expect(view.body.window).toMatchObject({ days: 14, fromHour: 18, toHour: 23 });
+      expect(view.body.offered).toEqual([...offered].sort());
+      expect(view.body.candidates).toEqual([]);
+    }
+  });
+});
