@@ -17,16 +17,17 @@ tapping suggestions, without typing a single date or time.
 
 ## Prototype goal
 
-On `test.topherhooper.com`, the owner taps "Use my calendar", grants Google's free/busy access,
-and sees the next 14 days from 18:00 to 23:00 as an hourly grid with their real busy hours
-marked busy, both in desktop Chrome and in the iPhone home-screen app.
+On `test.topherhooper.com` in desktop Chrome, the owner taps "Use my calendar", grants
+Google's free/busy access, and sees the next 14 days from 18:00 to 23:00 as an hourly grid with
+their real busy hours marked busy.
 
 That tests the one thing every decision below rests on: that a browser-only free/busy read
-(D3) works through the app's existing Firebase Google sign-in, including inside the iPhone
-home-screen app, where popups do not work and the redirect flow must come back with the
-Calendar token. Expected human steps, not surprises: enabling the Calendar API in
-`fluted-citizen-269819` and adding the `calendar.freebusy` scope to the OAuth consent screen,
-which a sandbox without Google credentials cannot do.
+(D3) works through the app's existing Firebase Google sign-in. The iPhone home-screen app,
+where popups do not work and the redirect flow must bring the Calendar token back, was dropped
+from the goal by the owner to get a first result sooner; it remains the next risk. Expected
+human steps, not surprises: enabling the Calendar API in `fluted-citizen-269819` and adding the
+`calendar.freebusy` scope to the OAuth consent screen, which a sandbox without Google
+credentials cannot do.
 
 ## What it touches
 
