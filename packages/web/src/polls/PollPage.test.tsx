@@ -45,6 +45,8 @@ const poll = (over: Partial<PollView> = {}): PollView => ({
   ],
   deadlineAt: null,
   lockedCandidateId: null,
+  window: null,
+  offered: [],
   me: 'u-bob',
   members: [
     {
