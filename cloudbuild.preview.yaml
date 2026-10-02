@@ -51,6 +51,23 @@ steps:
         # firebase-tools drops the rewrite tag; republish the live version with it.
         pnpm exec tsx tools/ci/src/hosting-retag.ts $_SITE $_TAG
 
+  # Two accounts through one poll against what was just deployed. node_modules carries over
+  # from the step above through /workspace. Minting the custom tokens needs signBlob on the
+  # build's own service account; see docs/deployment.md, "The test host".
+  - id: smoke
+    name: node:22
+    entrypoint: bash
+    env:
+      - SMOKE_ORIGIN=$_BASE_URL
+      - SMOKE_PROJECT=$PROJECT_ID
+      - SMOKE_SERVICE_ACCOUNT=cloudbuilder@$PROJECT_ID.iam.gserviceaccount.com
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        corepack enable pnpm
+        pnpm test:smoke
+
 substitutions:
   _TAG: preview
   _BASE_URL: https://test.topherhooper.com

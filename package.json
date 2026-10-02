@@ -18,6 +18,7 @@
     "typecheck": "tsc --build --force && tsc -p packages/web/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:server": "firebase emulators:exec --only firestore,auth --project demo-www \"vitest run --no-file-parallelism packages/server\"",
+    "test:smoke": "vitest run --config vitest.smoke.config.ts",
     "dev:server": "firebase emulators:exec --only firestore,auth --project demo-www \"tsx watch packages/server/src/main.ts\"",
     "dev:web": "pnpm --filter @www/web dev",
     "test:watch": "vitest",

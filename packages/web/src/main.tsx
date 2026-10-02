@@ -2,23 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 
-import { App } from './App.js';
-import { AuthProvider, RequireAuth } from './auth.js';
-import { Game } from './pages/Game.js';
-import { Home } from './pages/Home.js';
-import { Settings } from './pages/Settings.js';
+import { AuthProvider } from './auth.js';
+import { routes } from './routes.js';
 import './styles.css';
 
-const router = createBrowserRouter([
-  {
-    element: <App />,
-    children: [
-      { path: '/', element: <Home /> },
-      { path: '/g/:id', element: <Game /> },
-      { path: '/settings', element: <Settings /> },
-    ],
-  },
-]);
+const router = createBrowserRouter(routes);
 
 // Production only: a worker under the Vite dev server makes stale bundles confusing,
 // and the emulators have no FCM anyway.
@@ -29,12 +17,12 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 const root = document.getElementById('root');
 if (root === null) throw new Error('missing #root');
 
+// The sign-in wall lives inside the router now (see routes.tsx), so the poll link can show
+// a signed-out friend what they are signing in for.
 createRoot(root).render(
   <StrictMode>
     <AuthProvider>
-      <RequireAuth>
-        <RouterProvider router={router} />
-      </RequireAuth>
+      <RouterProvider router={router} />
     </AuthProvider>
   </StrictMode>,
 );
