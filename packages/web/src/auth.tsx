@@ -95,35 +95,57 @@ export function useAuth(): AuthState {
   return ctx;
 }
 
-export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, signIn } = useAuth();
+/**
+ * The sign-in error line's state, plus the redirect round-trip: a failed redirect lands
+ * back on whichever page started it and has to be surfaced like a popup error.
+ */
+export function useSignInError() {
+  const { signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
-
-  // A failed redirect round-trip lands back here; surface it like popup errors.
   useEffect(() => {
     getRedirectResult(auth).catch((err: unknown) => setError(describeAuthError(err)));
   }, []);
+  const start = () => {
+    setError(null);
+    void signIn().catch((err: unknown) => setError(describeAuthError(err)));
+  };
+  return { error, start };
+}
+
+/** The sign-in button, its error line and the chat-app hint, under whatever heading the page brings. */
+export function SignInCard({
+  error,
+  onSignIn,
+  children,
+}: {
+  error: string | null;
+  onSignIn: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="center-card">
+      {children}
+      <button onClick={onSignIn}>Sign in with Google</button>
+      {error !== null && <p className="error">{error}</p>}
+      <p className="muted">
+        Opened this link from a chat app? If sign-in fails, open the page in your browser (Safari or
+        Chrome) and try again.
+      </p>
+    </div>
+  );
+}
+
+export function RequireAuth({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const { error, start } = useSignInError();
 
   if (user === undefined) return <div className="center-card">Loading…</div>;
   if (user === null) {
     return (
-      <div className="center-card">
+      <SignInCard error={error} onSignIn={start}>
         <h1>World Wide War</h1>
         <p>Simultaneous secret orders. Blind pacts. Public betrayal.</p>
-        <button
-          onClick={() => {
-            setError(null);
-            void signIn().catch((err: unknown) => setError(describeAuthError(err)));
-          }}
-        >
-          Sign in with Google
-        </button>
-        {error !== null && <p className="error">{error}</p>}
-        <p className="muted">
-          Opened this link from a chat app? If sign-in fails, open the page in your browser (Safari
-          or Chrome) and try again.
-        </p>
-      </div>
+      </SignInCard>
     );
   }
   return <>{children}</>;

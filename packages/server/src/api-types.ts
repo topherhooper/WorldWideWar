@@ -222,3 +222,69 @@ export interface SubmitOrdersResponse {
  * party keep compiling unchanged. New code should say which it means.
  */
 export type GameView = WarGameView;
+
+export type PollStatus = 'open' | 'locked' | 'cancelled';
+export type PollAnswer = 'yes' | 'no';
+
+export interface CandidateView {
+  id: string;
+  startsAt: string; // ISO
+  endsAt: string; // ISO
+}
+
+export interface PollMemberView {
+  uid: string;
+  name: string;
+  /** null = has not confirmed yet: a holdout. */
+  answeredAt: string | null;
+  answers: Record<string, PollAnswer>; // candidateId → answer; empty until confirmed
+}
+
+export interface PollView {
+  id: string;
+  title: string;
+  organizerUid: string;
+  organizerName: string;
+  status: PollStatus;
+  candidates: CandidateView[];
+  deadlineAt: string | null;
+  lockedCandidateId: string | null;
+  members: PollMemberView[]; // organizer first, then by joinedAt
+  me: string; // caller's uid
+}
+
+export interface PollPreview {
+  title: string;
+  organizerName: string;
+  memberCount: number;
+  status: PollStatus;
+}
+
+export interface PollSummaryView {
+  id: string;
+  title: string;
+  status: PollStatus;
+  answeredCount: number;
+  memberCount: number;
+  iAnswered: boolean;
+  isOrganizer: boolean;
+  lockedStartsAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatePollRequest {
+  title: string;
+  candidates: { startsAt: string; endsAt: string }[]; // ISO instants
+  deadlineAt?: string | null; // ISO instant
+  addUids?: string[]; // from past polls (Q12)
+}
+export interface AnswerPollRequest {
+  answers: Record<string, PollAnswer>;
+}
+export interface LockPollRequest {
+  candidateId: string;
+}
+export interface PastMemberView {
+  uid: string;
+  name: string;
+}
