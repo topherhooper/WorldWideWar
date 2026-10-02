@@ -5,6 +5,7 @@ import { RequireAuth } from './auth.js';
 import { Game } from './pages/Game.js';
 import { Home } from './pages/Home.js';
 import { Settings } from './pages/Settings.js';
+import { CalendarProbe } from './polls/CalendarProbe.js';
 import { NewPoll } from './polls/NewPoll.js';
 import { PollGate } from './polls/PollGate.js';
 import { Polls } from './polls/Polls.js';
@@ -29,6 +30,7 @@ export const routes: RouteObject[] = [
           { path: '/p', element: <Polls /> },
           // A static segment, so it outranks /p/:id.
           { path: '/p/new', element: <NewPoll /> },
+          { path: '/p/calendar', element: <CalendarProbe /> },
         ],
       },
     ],
