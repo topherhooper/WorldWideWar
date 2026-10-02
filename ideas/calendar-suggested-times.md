@@ -15,10 +15,22 @@ An organizer who has connected Google Calendar opens New poll on the test host, 
 list of times in the next two weeks when their calendar is free, and builds a three-time poll by
 tapping suggestions, without typing a single date or time.
 
+## Prototype goal
+
+On `test.topherhooper.com`, the owner taps "Use my calendar", grants Google's free/busy access,
+and sees the next 14 days from 18:00 to 23:00 as an hourly grid with their real busy hours
+marked busy, both in desktop Chrome and in the iPhone home-screen app.
+
+That tests the one thing every decision below rests on: that a browser-only free/busy read
+(D3) works through the app's existing Firebase Google sign-in, including inside the iPhone
+home-screen app, where popups do not work and the redirect flow must come back with the
+Calendar token. Expected human steps, not surprises: enabling the Calendar API in
+`fluted-citizen-269819` and adding the `calendar.freebusy` scope to the OAuth consent screen,
+which a sandbox without Google credentials cannot do.
+
 ## What it touches
 
-The poll code is on #46's branch (`web/poll-people-can-answer`) and not yet on `main`, so these
-pointers are into that branch.
+The poll code landed on `main` with #46.
 
 - `packages/web/src/polls/NewPoll.tsx:67-99` — the "When could it work?" rows: a `date` input
   and two `time` inputs per candidate, at least two rows. This is the screen the complaint is
