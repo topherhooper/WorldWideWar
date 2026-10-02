@@ -132,3 +132,11 @@ mothball runbook in `docs/deployment.md` in reverse. The phone app is a separate
 that, on the same accounts: Expo, Sign in with Apple alongside Google (App Store review requires
 both if Google is offered), and the two features held back for native, reading the phone's
 calendar to pre-fill the profile and Yes/No buttons on the iPhone notification itself.
+
+## Superseded in part (2026-10-02)
+
+Availability now comes from each member's Google Calendar or a painted grid, a poll is a date
+range with a heatmap rather than organizer-typed candidate times, and the profile learned from
+Yes/No answers is replaced by a remembered weekly pattern. Q4's deferral of calendar reading,
+Q7, Q16 and the "no calendar-sync" assumption above are overturned there, with the reasons:
+[calendar-availability.md](calendar-availability.md).
