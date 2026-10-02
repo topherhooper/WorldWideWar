@@ -99,10 +99,7 @@ export function CalendarProbe() {
                   {HOURS.map((h) => {
                     const b = isBusy(d, h);
                     return (
-                      <td
-                        key={h}
-                        style={{ background: b ? '#7a1f1f' : '#1f6b2e', color: '#fff' }}
-                      >
+                      <td key={h} style={{ background: b ? '#7a1f1f' : '#1f6b2e', color: '#fff' }}>
                         {b ? 'busy' : 'free'}
                       </td>
                     );
