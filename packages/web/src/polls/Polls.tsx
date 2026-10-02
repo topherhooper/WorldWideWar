@@ -26,6 +26,9 @@ export function Polls() {
             <button>New poll</button>
           </Link>
         </div>
+        <p>
+          <Link to="/p/calendar">Calendar probe</Link>
+        </p>
         {error !== null && <p className="error">{error}</p>}
         {rows === null && error === null && <p className="muted">Loading…</p>}
         {rows !== null && rows.length === 0 && (
