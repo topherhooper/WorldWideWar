@@ -10,6 +10,7 @@ import type {
   PollPreview,
   PollSummaryView,
   PollView,
+  PollWindow,
 } from './api-types.js';
 import { HttpError, type AuthedUser } from './games.js';
 import { polls, usersCol, type PollDoc, type PollMember } from './store.js';
@@ -20,6 +21,57 @@ const MIN_CANDIDATES = 2;
 const MAX_CANDIDATES = 6;
 const MAX_SPAN_MS = 24 * 60 * 60 * 1000;
 const MAX_LISTED = 50;
+const MAX_DAYS = 31;
+const HOUR_MS = 60 * 60 * 1000;
+// Hour starts in zones offset by a quarter hour (Nepal, Chatham) still land on this grid.
+const QUARTER_MS = 15 * 60 * 1000;
+
+/** The organizer's grid window, or a 400. */
+function parseWindow(raw: unknown): PollWindow {
+  const w = (raw ?? {}) as Partial<PollWindow>;
+  const int = (v: unknown, lo: number, hi: number) =>
+    typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
+  if (
+    typeof w.firstDay !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(w.firstDay) ||
+    !int(w.days, 1, MAX_DAYS) ||
+    !int(w.fromHour, 0, 23) ||
+    !int(w.toHour, 1, 24) ||
+    (w.toHour as number) <= (w.fromHour as number) ||
+    typeof w.timeZone !== 'string' ||
+    w.timeZone.length < 1 ||
+    w.timeZone.length > 64
+  ) {
+    throw new HttpError(400, 'bad grid window');
+  }
+  return {
+    firstDay: w.firstDay,
+    days: w.days as number,
+    fromHour: w.fromHour as number,
+    toHour: w.toHour as number,
+    timeZone: w.timeZone,
+  };
+}
+
+/** Offered hour starts, sorted and unique, all in the future, or a 400. */
+function parseOffered(raw: unknown, window: PollWindow, now: number): Date[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const max = window.days * (window.toHour - window.fromHour);
+  if (list.length < 1) throw new HttpError(400, 'leave at least one hour free on the grid');
+  if (list.length > max) throw new HttpError(400, 'more hours offered than the grid holds');
+  const starts = list.map((v) => parseInstant(v, 'offered hour'));
+  for (const d of starts) {
+    if (d.getTime() % QUARTER_MS !== 0) throw new HttpError(400, 'an offered hour is off the grid');
+    if (d.getTime() <= now) throw new HttpError(400, 'an offered hour is in the past');
+  }
+  const ms = [...new Set(starts.map((d) => d.getTime()))].sort((a, b) => a - b);
+  if (ms.length !== starts.length) throw new HttpError(400, 'duplicate offered hours');
+  // The window spans at most 31 days; anything past it is not on the organizer's grid.
+  if (ms[ms.length - 1] - ms[0] > (MAX_DAYS + 1) * 24 * HOUR_MS) {
+    throw new HttpError(400, 'offered hours span more than the grid');
+  }
+  return ms.map((t) => new Date(t));
+}
 
 /** A strict ISO instant, or a 400. `what` names the field in the error. */
 function parseInstant(value: unknown, what: string): Date {
@@ -66,11 +118,19 @@ export async function createPoll(
     throw new HttpError(400, `title must be 1-${MAX_TITLE} characters`);
   }
 
-  const raw = Array.isArray(req.candidates) ? req.candidates : [];
-  if (raw.length < MIN_CANDIDATES || raw.length > MAX_CANDIDATES) {
+  const now = Date.now();
+  // A grid poll offers hours; a candidate poll (the shape before the grid) lists spans.
+  const gridPoll = req.window !== undefined || req.offered !== undefined;
+  if (gridPoll && Array.isArray(req.candidates) && req.candidates.length > 0) {
+    throw new HttpError(400, 'send candidate times or a grid, not both');
+  }
+  const window = gridPoll ? parseWindow(req.window) : null;
+  const offered = window ? parseOffered(req.offered, window, now) : [];
+
+  const raw = gridPoll ? [] : Array.isArray(req.candidates) ? req.candidates : [];
+  if (!gridPoll && (raw.length < MIN_CANDIDATES || raw.length > MAX_CANDIDATES)) {
     throw new HttpError(400, `a poll needs ${MIN_CANDIDATES}-${MAX_CANDIDATES} candidate times`);
   }
-  const now = Date.now();
   const spans = raw.map((c) => {
     const startsAt = parseInstant(c?.startsAt, 'start time');
     const endsAt = parseInstant(c?.endsAt, 'end time');
@@ -91,7 +151,8 @@ export async function createPoll(
   if (req.deadlineAt !== undefined && req.deadlineAt !== null) {
     const deadline = parseInstant(req.deadlineAt, 'deadline');
     if (deadline.getTime() <= now) throw new HttpError(400, 'the deadline is in the past');
-    if (deadline.getTime() >= spans[spans.length - 1].startsAt.getTime()) {
+    const last = gridPoll ? offered[offered.length - 1] : spans[spans.length - 1].startsAt;
+    if (deadline.getTime() >= last.getTime()) {
       throw new HttpError(400, 'the deadline must come before the last candidate time');
     }
     deadlineAt = Timestamp.fromDate(deadline);
@@ -139,6 +200,7 @@ export async function createPoll(
     })),
     deadlineAt,
     lockedCandidateId: null,
+    ...(window ? { window, offered: offered.map((d) => Timestamp.fromDate(d)) } : {}),
     members,
     memberUids: Object.keys(members),
   };
@@ -172,6 +234,8 @@ function toView(pollId: string, poll: PollDoc, viewerUid: string): PollView {
     })),
     deadlineAt: poll.deadlineAt?.toDate().toISOString() ?? null,
     lockedCandidateId: poll.lockedCandidateId ?? null,
+    window: poll.window ?? null,
+    offered: (poll.offered ?? []).map((t) => t.toDate().toISOString()),
     members,
     me: viewerUid,
   };

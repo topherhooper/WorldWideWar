@@ -309,4 +309,72 @@ describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('polls', () => {
       expect(await statusOf(createPoll(db, alice, valid({ addUids: [carol.uid] })))).toBe(400);
     });
   });
+
+  describe('grid polls', () => {
+    /** Whole hours from tomorrow on, so every offered hour is in the future. */
+    const hourStart = (day: number, hour: number): string => {
+      const d = new Date(Date.now() + day * 24 * HOUR);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+    const window = {
+      firstDay: '2026-10-03',
+      days: 14,
+      fromHour: 18,
+      toHour: 23,
+      timeZone: 'Europe/London',
+    };
+    const grid = (over: Partial<CreatePollRequest> = {}): CreatePollRequest => ({
+      title: 'Board games',
+      window,
+      offered: [hourStart(2, 20), hourStart(1, 19), hourStart(1, 18)],
+      ...over,
+    });
+
+    it('stores the window and the offered hours, sorted, with no candidates', async () => {
+      const { id } = await createPoll(db, alice, grid());
+      const view = await getPollView(db, id, alice);
+      expect(view.window).toEqual(window);
+      expect(view.offered).toEqual([hourStart(1, 18), hourStart(1, 19), hourStart(2, 20)]);
+      expect(view.candidates).toEqual([]);
+    });
+
+    it('shows older candidate polls with no window and nothing offered', async () => {
+      const view = await getPollView(db, await make(), alice);
+      expect(view.window).toBeNull();
+      expect(view.offered).toEqual([]);
+    });
+
+    it.each([
+      ['no hours offered', { offered: [] }],
+      ['an hour in the past', { offered: [iso(-2 * HOUR)] }],
+      ['an hour off the quarter-hour grid', { offered: [iso(2 * 24 * HOUR + 7 * 60 * 1000)] }],
+      ['the same hour twice', { offered: [hourStart(1, 18), hourStart(1, 18)] }],
+      ['a malformed hour', { offered: ['soon'] }],
+      ['no window', { window: undefined }],
+      ['a window ending before it starts', { window: { ...window, fromHour: 20, toHour: 19 } }],
+      ['a 32-day window', { window: { ...window, days: 32 } }],
+      ['a malformed first day', { window: { ...window, firstDay: '3 Oct' } }],
+      [
+        'more hours than the window holds',
+        { window: { ...window, days: 1, fromHour: 18, toHour: 19 } },
+      ],
+      ['candidates as well', { candidates: [slot(2), slot(3)] }],
+      ['a deadline after the last offered hour', { deadlineAt: hourStart(3, 0) }],
+    ])('rejects %s', async (_name, over) => {
+      expect(await statusOf(createPoll(db, alice, grid(over as Partial<CreatePollRequest>)))).toBe(
+        400,
+      );
+    });
+
+    it('keeps the public preview to title, organizer, count and status', async () => {
+      const { id } = await createPoll(db, alice, grid());
+      expect(await getPollPreview(db, id)).toEqual({
+        title: 'Board games',
+        organizerName: 'Alice',
+        memberCount: 1,
+        status: 'open',
+      });
+    });
+  });
 });

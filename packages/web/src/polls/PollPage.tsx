@@ -5,6 +5,7 @@ import type { PollAnswer, PollView } from '@www/server/api-types';
 import { api, ApiError } from '../api.js';
 import { formatRemaining } from '../format.js';
 import { useNow } from '../useNow.js';
+import { detectedZone, offeredByDay } from './grid.js';
 import { formatRange } from './times.js';
 
 const REFRESH_MS = 30_000;
@@ -97,6 +98,18 @@ export function PollPage({ initial }: { initial: PollView }) {
   const answeredMembers = view.members.filter((m) => m.answeredAt !== null);
   const waiting = view.members.filter((m) => m.answeredAt === null);
 
+  // Grid polls (calendar-availability.md) offer hours instead of candidate spans. Members
+  // marking their own hours on the grid comes next; until then the page shows what is offered.
+  const gridPoll = view.window !== null;
+  // Each viewer reads the hours in their own zone; the organizer's is named when it differs.
+  const viewerZone = detectedZone();
+  const hourFmt: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: viewerZone,
+  };
+  const zoneName = (z: string) => z.replace(/_/g, ' ');
+
   return (
     <main>
       <section className="panel">
@@ -112,7 +125,40 @@ export function PollPage({ initial }: { initial: PollView }) {
         {shareNote !== null && <span className="muted"> {shareNote}</span>}
       </section>
 
-      {open && (
+      {gridPoll && (
+        <section className="panel">
+          <h3>Hours on offer</h3>
+          <p className="muted">
+            Times in {zoneName(viewerZone)}
+            {view.window !== null && view.window.timeZone !== viewerZone && (
+              <>
+                {' '}
+                · {view.organizerName} made this poll in {zoneName(view.window.timeZone)}
+              </>
+            )}
+          </p>
+          {offeredByDay(view.offered, viewerZone).map((day) => (
+            <p key={day.date}>
+              <strong>
+                {new Date(`${day.date}T12:00`).toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </strong>{' '}
+              {day.spans
+                .map(
+                  ([s, e]) =>
+                    `${new Date(s).toLocaleTimeString(undefined, hourFmt)}–${new Date(e).toLocaleTimeString(undefined, hourFmt)}`,
+                )
+                .join(', ')}
+            </p>
+          ))}
+          <p className="muted">Marking your own hours on this grid is coming next.</p>
+        </section>
+      )}
+
+      {open && !gridPoll && (
         <section className="panel">
           <h3>Your answer</h3>
           {editing ? (
@@ -151,36 +197,38 @@ export function PollPage({ initial }: { initial: PollView }) {
         </section>
       )}
 
-      <section className="panel">
-        <h3>Results</h3>
-        {view.candidates.map((c) => {
-          const yes = answeredMembers.filter((m) => m.answers[c.id] === 'yes');
-          const no = answeredMembers.filter((m) => m.answers[c.id] === 'no');
-          const locked = view.lockedCandidateId === c.id;
-          return (
-            <div className={`poll-result${locked ? ' is-locked' : ''}`} key={c.id}>
-              <div className="form-row">
-                <strong>{formatRange(c.startsAt, c.endsAt)}</strong>
-                {locked && <span className="badge-due">Locked</span>}
-                {open && isOrganizer && (
-                  <button type="button" onClick={() => void lock(c.id)}>
-                    Lock this time
-                  </button>
+      {!gridPoll && (
+        <section className="panel">
+          <h3>Results</h3>
+          {view.candidates.map((c) => {
+            const yes = answeredMembers.filter((m) => m.answers[c.id] === 'yes');
+            const no = answeredMembers.filter((m) => m.answers[c.id] === 'no');
+            const locked = view.lockedCandidateId === c.id;
+            return (
+              <div className={`poll-result${locked ? ' is-locked' : ''}`} key={c.id}>
+                <div className="form-row">
+                  <strong>{formatRange(c.startsAt, c.endsAt)}</strong>
+                  {locked && <span className="badge-due">Locked</span>}
+                  {open && isOrganizer && (
+                    <button type="button" onClick={() => void lock(c.id)}>
+                      Lock this time
+                    </button>
+                  )}
+                </div>
+                <p>
+                  <strong>{yes.length} yes</strong>
+                  {yes.length > 0 && <>: {yes.map((m) => nameOf(m.uid)).join(', ')}</>}
+                </p>
+                {no.length > 0 && (
+                  <p className="muted">No: {no.map((m) => nameOf(m.uid)).join(', ')}</p>
                 )}
               </div>
-              <p>
-                <strong>{yes.length} yes</strong>
-                {yes.length > 0 && <>: {yes.map((m) => nameOf(m.uid)).join(', ')}</>}
-              </p>
-              {no.length > 0 && (
-                <p className="muted">No: {no.map((m) => nameOf(m.uid)).join(', ')}</p>
-              )}
-            </div>
-          );
-        })}
-      </section>
+            );
+          })}
+        </section>
+      )}
 
-      {waiting.length > 0 && view.status !== 'cancelled' && (
+      {waiting.length > 0 && !gridPoll && view.status !== 'cancelled' && (
         <section className="panel">
           <h3>Waiting on</h3>
           <p>{waiting.map((m) => m.name).join(', ')}</p>

@@ -45,6 +45,8 @@ const poll = (over: Partial<PollView> = {}): PollView => ({
   ],
   deadlineAt: null,
   lockedCandidateId: null,
+  window: null,
+  offered: [],
   me: 'u-bob',
   members: [
     {
@@ -185,6 +187,55 @@ describe('PollPage', () => {
         screen.getAllByRole('button', { name: 'Lock this time' })[0].click();
       });
       expect(lockPoll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a grid poll', () => {
+    const hour = (days: number, h: number) => {
+      const d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days, h).toISOString();
+    };
+    const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const grid = (timeZone = here) =>
+      poll({
+        candidates: [],
+        window: { firstDay: '2026-10-03', days: 14, fromHour: 18, toHour: 23, timeZone },
+        offered: [hour(2, 18), hour(2, 19), hour(2, 21), hour(3, 20)],
+        members: [{ uid: 'u-alice', name: 'Alice', answeredAt: null, answers: {} }],
+      });
+    const show = (view: PollView) =>
+      render(
+        <MemoryRouter>
+          <PollPage initial={view} />
+        </MemoryRouter>,
+      );
+
+    it('lists the offered hours by day, merging neighbours, with no Yes/No card', () => {
+      show(grid());
+      expect(screen.getByRole('heading', { name: 'Hours on offer' })).toBeTruthy();
+      const section = screen.getByRole('heading', { name: 'Hours on offer' }).closest('section')!;
+      const lines = [...section.querySelectorAll('p')]
+        .map((el) => el.textContent ?? '')
+        .filter((t) => t.includes('–'));
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatch(/,/); // 18–20 and 21–22 on the first day
+      expect(screen.queryByRole('heading', { name: 'Your answer' })).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Results' })).toBeNull();
+      expect(screen.queryByText('Waiting on')).toBeNull();
+    });
+
+    it('says which zone the times are in, and names the organizer’s when it differs', () => {
+      show(grid(here === 'Pacific/Chatham' ? 'Asia/Tokyo' : 'Pacific/Chatham'));
+      expect(screen.getByText(/Times in/)).toBeTruthy();
+      expect(
+        screen.getByText(/Alice made this poll in (Pacific\/Chatham|Asia\/Tokyo)/),
+      ).toBeTruthy();
+    });
+
+    it('does not mention the organizer’s zone when it is the viewer’s', () => {
+      show(grid());
+      expect(screen.getByText(/Times in/)).toBeTruthy();
+      expect(screen.queryByText(/made this poll in/)).toBeNull();
     });
   });
 });

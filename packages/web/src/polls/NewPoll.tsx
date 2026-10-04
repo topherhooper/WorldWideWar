@@ -1,16 +1,51 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { PastMemberView } from '@www/server/api-types';
 
 import { api, ApiError } from '../api.js';
-import { MAX_CANDIDATES, nextRow, validateNewPoll, type CandidateRow } from './times.js';
+import { readBusy } from './calendar.js';
+import {
+  detectedZone,
+  freeCells,
+  gridDays,
+  HOUR_MS,
+  knownZones,
+  localDate,
+  MAX_DAYS,
+  type GridSpec,
+} from './grid.js';
+import { HourGrid } from './HourGrid.js';
 
-const emptyRow = (): CandidateRow => ({ date: '', start: '', end: '' });
+const HOURS = Array.from({ length: 25 }, (_, h) => h);
 
 export function NewPoll() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [rows, setRows] = useState<CandidateRow[]>([emptyRow(), emptyRow()]);
+  // Detected from the browser, shown, and changeable: planning from one zone for friends in
+  // another is the case this exists for.
+  const [detected] = useState(detectedZone);
+  const zones = useMemo(() => {
+    const all = knownZones();
+    return all.includes(detected) ? all : [detected, ...all];
+  }, [detected]);
+  const [timeZone, setTimeZone] = useState(detected);
+  const [spec, setSpec] = useState<GridSpec>(() => ({
+    firstDay: localDate(new Date(), detected),
+    days: 14,
+    fromHour: 18,
+    toHour: 23,
+  }));
+  const [now] = useState(() => Date.now());
+  const days = useMemo(() => gridDays(spec, timeZone), [spec, timeZone]);
+  const future = useMemo(
+    () => days.flatMap((d) => d.cells.map((c) => c.ms)).filter((ms) => ms > now),
+    [days, now],
+  );
+  // Every hour starts offered; the calendar, or a tap, takes hours away.
+  const [offered, setOffered] = useState<Set<number>>(() => new Set(future));
+  useEffect(() => setOffered(new Set(future)), [future]);
+  const [calendarNote, setCalendarNote] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const [deadline, setDeadline] = useState('');
   const [past, setPast] = useState<PastMemberView[]>([]);
   const [added, setAdded] = useState<Set<string>>(new Set());
@@ -24,22 +59,72 @@ export function NewPoll() {
       .catch(() => undefined); // the list is a convenience; the form works without it
   }, []);
 
-  const setRow = (i: number, patch: Partial<CandidateRow>) =>
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const patchSpec = (patch: Partial<GridSpec>) => {
+    setCalendarNote(null);
+    setSpec((s) => {
+      const next = { ...s, ...patch };
+      if (next.toHour <= next.fromHour) next.toHour = Math.min(24, next.fromHour + 1);
+      return next;
+    });
+  };
+
+  const toggle = (ms: number) =>
+    setOffered((s) => {
+      const next = new Set(s);
+      if (next.has(ms)) next.delete(ms);
+      else next.add(ms);
+      return next;
+    });
+
+  const fillFromCalendar = async () => {
+    if (future.length === 0) return;
+    setError(null);
+    setReading(true);
+    try {
+      const busySpans = await readBusy(future[0], future[future.length - 1] + HOUR_MS);
+      const free = freeCells(future, busySpans);
+      setOffered(free);
+      setCalendarNote(
+        `Filled from your calendar: ${future.length - free.size} busy ${
+          future.length - free.size === 1 ? 'hour' : 'hours'
+        } left off. Tap any hour to change it.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read your calendar.');
+    } finally {
+      setReading(false);
+    }
+  };
 
   const submit = async () => {
-    const result = validateNewPoll({ title, rows, deadline });
-    if ('error' in result) {
-      setError(result.error);
+    const name = title.trim();
+    if (name.length < 1 || name.length > 80) {
+      setError('Give the poll a title (up to 80 characters).');
       return;
+    }
+    const hours = future.filter((ms) => offered.has(ms));
+    if (hours.length === 0) {
+      setError('Leave at least one hour free on the grid.');
+      return;
+    }
+    let deadlineAt: string | null = null;
+    if (deadline !== '') {
+      const d = new Date(deadline);
+      if (Number.isNaN(d.getTime())) return setError('That deadline is not a real time.');
+      if (d.getTime() <= Date.now()) return setError('The deadline has to be in the future.');
+      if (d.getTime() >= hours[hours.length - 1]) {
+        return setError('The deadline has to come before the last hour on offer.');
+      }
+      deadlineAt = d.toISOString();
     }
     setError(null);
     setBusy(true);
     try {
       const { id } = await api.createPoll({
-        title: title.trim(),
-        candidates: result.candidates,
-        deadlineAt: result.deadlineAt,
+        title: name,
+        window: { ...spec, timeZone },
+        offered: hours.map((ms) => new Date(ms).toISOString()),
+        deadlineAt,
         ...(added.size > 0 ? { addUids: [...added] } : {}),
       });
       await navigate(`/p/${id}`);
@@ -65,47 +150,78 @@ export function NewPoll() {
         </label>
 
         <h3>When could it work?</h3>
-        {rows.map((row, i) => (
-          <div className="form-row poll-time-row" key={i}>
+        <div className="form-row poll-window">
+          <label>
+            From
             <input
               type="date"
-              aria-label={`Date ${i + 1}`}
-              value={row.date}
-              onChange={(e) => setRow(i, { date: e.target.value })}
+              value={spec.firstDay}
+              onChange={(e) => e.target.value !== '' && patchSpec({ firstDay: e.target.value })}
             />
-            <input
-              type="time"
-              aria-label={`Start ${i + 1}`}
-              value={row.start}
-              onChange={(e) => setRow(i, { start: e.target.value })}
-            />
-            <span className="muted">to</span>
-            <input
-              type="time"
-              aria-label={`End ${i + 1}`}
-              value={row.end}
-              onChange={(e) => setRow(i, { end: e.target.value })}
-            />
-            {rows.length > 2 && (
-              <button
-                type="button"
-                className="link"
-                aria-label={`Remove time ${i + 1}`}
-                onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
-        {rows.length < MAX_CANDIDATES && (
-          <button type="button" onClick={() => setRows((rs) => [...rs, nextRow(rs)])}>
-            Add a time
+          </label>
+          <label>
+            for
+            <select value={spec.days} onChange={(e) => patchSpec({ days: Number(e.target.value) })}>
+              {[7, 14, 21, 28, MAX_DAYS].map((n) => (
+                <option key={n} value={n}>
+                  {n} days
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            between
+            <select
+              value={spec.fromHour}
+              onChange={(e) => patchSpec({ fromHour: Number(e.target.value) })}
+            >
+              {HOURS.slice(0, 24).map((h) => (
+                <option key={h} value={h}>
+                  {h}:00
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            and
+            <select
+              value={spec.toHour}
+              onChange={(e) => patchSpec({ toHour: Number(e.target.value) })}
+            >
+              {HOURS.slice(spec.fromHour + 1).map((h) => (
+                <option key={h} value={h}>
+                  {h}:00
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="poll-field">
+          Time zone
+          <select
+            value={timeZone}
+            onChange={(e) => {
+              setCalendarNote(null);
+              setTimeZone(e.target.value);
+            }}
+          >
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z === detected ? `${z.replace(/_/g, ' ')} (detected)` : z.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p>
+          <button type="button" disabled={reading} onClick={() => void fillFromCalendar()}>
+            {reading ? 'Reading your calendar…' : 'Use my calendar'}
           </button>
-        )}
-        <p className="muted">
-          An end time before the start means the next day, like 21:00 to 01:00.
         </p>
+        <p className="muted">
+          {calendarNote ??
+            'Shaded hours are on offer. Use your calendar to clear the busy ones, or tap hours to change them.'}
+        </p>
+        <HourGrid days={days} on={offered} now={now} onToggle={toggle} />
 
         <label className="poll-field">
           Answer by (optional)
