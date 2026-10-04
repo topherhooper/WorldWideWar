@@ -17,6 +17,7 @@ vi.mock('../api.js', () => ({
 vi.mock('./calendar.js', () => ({ readBusy: (...a: unknown[]) => readBusy(...a) }));
 
 const { NewPoll } = await import('./NewPoll.js');
+const { detectedZone, zonedHour } = await import('./grid.js');
 
 const HOUR = 3_600_000;
 const dateIn = (days: number): string => {
@@ -174,5 +175,20 @@ describe('NewPoll', () => {
     renderForm();
     await waitFor(() => expect(pastMembers).toHaveBeenCalled());
     expect(screen.queryByText(/past polls/i)).toBeNull();
+  });
+
+  it('detects the time zone, shows it, and builds the grid in another one when picked', async () => {
+    renderForm();
+    fromTomorrow();
+    const picker = screen.getByLabelText('Time zone') as HTMLSelectElement;
+    expect(picker.value).toBe(detectedZone());
+    expect(picker.selectedOptions[0].textContent).toMatch(/\(detected\)/);
+    const other = detectedZone() === 'Asia/Tokyo' ? 'America/New_York' : 'Asia/Tokyo';
+    fireEvent.change(picker, { target: { value: other } });
+    name('Games');
+    await act(async () => submit().click());
+    const [y, m, d] = dateIn(1).split('-').map(Number);
+    expect(sent().window.timeZone).toBe(other);
+    expect(sent().offered[0]).toBe(new Date(zonedHour(y, m, d, 18, other)).toISOString());
   });
 });

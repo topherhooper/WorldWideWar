@@ -4,7 +4,16 @@ import type { PastMemberView } from '@www/server/api-types';
 
 import { api, ApiError } from '../api.js';
 import { readBusy } from './calendar.js';
-import { freeCells, gridDays, HOUR_MS, localDate, MAX_DAYS, type GridSpec } from './grid.js';
+import {
+  detectedZone,
+  freeCells,
+  gridDays,
+  HOUR_MS,
+  knownZones,
+  localDate,
+  MAX_DAYS,
+  type GridSpec,
+} from './grid.js';
 import { HourGrid } from './HourGrid.js';
 
 const HOURS = Array.from({ length: 25 }, (_, h) => h);
@@ -12,14 +21,22 @@ const HOURS = Array.from({ length: 25 }, (_, h) => h);
 export function NewPoll() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
+  // Detected from the browser, shown, and changeable: planning from one zone for friends in
+  // another is the case this exists for.
+  const [detected] = useState(detectedZone);
+  const zones = useMemo(() => {
+    const all = knownZones();
+    return all.includes(detected) ? all : [detected, ...all];
+  }, [detected]);
+  const [timeZone, setTimeZone] = useState(detected);
   const [spec, setSpec] = useState<GridSpec>(() => ({
-    firstDay: localDate(new Date()),
+    firstDay: localDate(new Date(), detected),
     days: 14,
     fromHour: 18,
     toHour: 23,
   }));
   const [now] = useState(() => Date.now());
-  const days = useMemo(() => gridDays(spec), [spec]);
+  const days = useMemo(() => gridDays(spec, timeZone), [spec, timeZone]);
   const future = useMemo(
     () => days.flatMap((d) => d.cells.map((c) => c.ms)).filter((ms) => ms > now),
     [days, now],
@@ -105,7 +122,7 @@ export function NewPoll() {
     try {
       const { id } = await api.createPoll({
         title: name,
-        window: { ...spec, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+        window: { ...spec, timeZone },
         offered: hours.map((ms) => new Date(ms).toISOString()),
         deadlineAt,
         ...(added.size > 0 ? { addUids: [...added] } : {}),
@@ -179,6 +196,22 @@ export function NewPoll() {
             </select>
           </label>
         </div>
+        <label className="poll-field">
+          Time zone
+          <select
+            value={timeZone}
+            onChange={(e) => {
+              setCalendarNote(null);
+              setTimeZone(e.target.value);
+            }}
+          >
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z === detected ? `${z.replace(/_/g, ' ')} (detected)` : z.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </label>
         <p>
           <button type="button" disabled={reading} onClick={() => void fillFromCalendar()}>
             {reading ? 'Reading your calendar…' : 'Use my calendar'}

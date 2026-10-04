@@ -5,7 +5,7 @@ import type { PollAnswer, PollView } from '@www/server/api-types';
 import { api, ApiError } from '../api.js';
 import { formatRemaining } from '../format.js';
 import { useNow } from '../useNow.js';
-import { offeredByDay } from './grid.js';
+import { detectedZone, offeredByDay } from './grid.js';
 import { formatRange } from './times.js';
 
 const REFRESH_MS = 30_000;
@@ -101,7 +101,14 @@ export function PollPage({ initial }: { initial: PollView }) {
   // Grid polls (calendar-availability.md) offer hours instead of candidate spans. Members
   // marking their own hours on the grid comes next; until then the page shows what is offered.
   const gridPoll = view.window !== null;
-  const hourFmt: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+  // Each viewer reads the hours in their own zone; the organizer's is named when it differs.
+  const viewerZone = detectedZone();
+  const hourFmt: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: viewerZone,
+  };
+  const zoneName = (z: string) => z.replace(/_/g, ' ');
 
   return (
     <main>
@@ -121,7 +128,16 @@ export function PollPage({ initial }: { initial: PollView }) {
       {gridPoll && (
         <section className="panel">
           <h3>Hours on offer</h3>
-          {offeredByDay(view.offered).map((day) => (
+          <p className="muted">
+            Times in {zoneName(viewerZone)}
+            {view.window !== null && view.window.timeZone !== viewerZone && (
+              <>
+                {' '}
+                · {view.organizerName} made this poll in {zoneName(view.window.timeZone)}
+              </>
+            )}
+          </p>
+          {offeredByDay(view.offered, viewerZone).map((day) => (
             <p key={day.date}>
               <strong>
                 {new Date(`${day.date}T12:00`).toLocaleDateString(undefined, {
