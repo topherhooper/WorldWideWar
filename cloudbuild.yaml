@@ -31,10 +31,18 @@ steps:
       # BASE_URL builds every link inside outgoing mail, so it must be the
       # public hostname, not the .web.app one — a mismatch between sender
       # domain and link domain is what spam filters score against.
-      # MAIL_FROM must stay on a Resend-verified domain (mail.topherhooper.com).
       # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
       # first deploy); --update-env-vars merges and will not clobber it.
-      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>,PUSH_TRANSPORT=fcm
+      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com
+      # Alerts are off: with no MAIL_FROM the server falls back to LogMailer, and
+      # with no PUSH_TRANSPORT to LogPusher (packages/server/src/main.ts), so turn,
+      # game-over and reminder notices are logged instead of sent. Because
+      # --update-env-vars merges, leaving the two out is not enough; the removal has
+      # to be explicit or the previous revision's values carry over. To turn alerts
+      # back on, delete this line and put these back on the line above:
+      #   MAIL_FROM=World Wide War <noreply@mail.topherhooper.com>  (a Resend-verified domain)
+      #   PUSH_TRANSPORT=fcm
+      - --remove-env-vars=MAIL_FROM,PUSH_TRANSPORT
 
   - id: deploy-hosting
     name: node:22
