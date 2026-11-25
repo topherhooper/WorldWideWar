@@ -44,6 +44,22 @@ steps:
       #   PUSH_TRANSPORT=fcm
       - --remove-env-vars=MAIL_FROM,PUSH_TRANSPORT
 
+  # Without this the revision just deployed can sit at 0% forever. The test host
+  # deploys with --no-traffic (cloudbuild.preview.yaml), and the first such deploy
+  # pins production traffic to whichever revision was serving at the time. From then
+  # on `gcloud run deploy` creates revisions and routes nothing to them, and still
+  # exits 0. Tags are left alone, so the test host's `preview` tag stays where it is.
+  - id: route-traffic
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - www-api
+      - --to-latest
+      - --region=us-central1
+
   - id: deploy-hosting
     name: node:22
     entrypoint: bash
