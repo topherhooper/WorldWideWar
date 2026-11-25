@@ -2,7 +2,8 @@ import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 
 import { HttpError } from './games.js';
-import { readCookie, registerSessionRoutes, type Sessions } from './session.js';
+import { readCookie, realSessions, registerSessionRoutes, type Sessions } from './session.js';
+import { emulatorDb, emulatorToken } from './testing.js';
 
 /** 'fresh' is a good ID token; a cookie value is `cookie:<uid>`; tokens are `custom:<uid>`. */
 const stub: Sessions = {
@@ -99,3 +100,24 @@ describe('shared session routes', () => {
     expect(readCookie(undefined, 'b')).toBeUndefined();
   });
 });
+
+describe.skipIf(!process.env.FIREBASE_AUTH_EMULATOR_HOST)(
+  'real sessions against the emulator',
+  () => {
+    emulatorDb(); // ensures the admin app is initialized
+    const sessions = realSessions();
+
+    it('round-trips ID token → cookie → user → custom token', async () => {
+      const idToken = await emulatorToken('dana@test.dev', 'Dana');
+      const cookie = await sessions.create(idToken, 60 * 60 * 1000);
+      const user = await sessions.verify(cookie);
+      expect(user).toMatchObject({ name: 'Dana', email: 'dana@test.dev' });
+      expect(await sessions.mintToken(user.uid)).toBeTruthy();
+    });
+
+    it('rejects a garbage cookie and a garbage ID token', async () => {
+      await expect(sessions.verify('garbage')).rejects.toMatchObject({ statusCode: 401 });
+      await expect(sessions.create('garbage', 60_000)).rejects.toMatchObject({ statusCode: 401 });
+    });
+  },
+);
