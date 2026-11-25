@@ -7,12 +7,14 @@ import {
   getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithCustomToken,
   signInWithRedirect,
   signOut as fbSignOut,
   type User,
 } from 'firebase/auth';
 
 import { disablePush } from './push.js';
+import { endSharedSession, hasSharedSession, sharedSessionToken, shareSession } from './session.js';
 
 const useEmulators = import.meta.env.VITE_USE_EMULATORS === '1';
 
@@ -65,7 +67,32 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  useEffect(() => {
+    // Signed out here but signed in on another topherhooper.com site (the front page, say):
+    // trade the shared cookie for a custom token once, before showing the sign-in card. The
+    // hint check means a visitor with no shared session waits on nothing.
+    let restoreTried = false;
+    return onAuthStateChanged(auth, (next) => {
+      if (next === null && !restoreTried && hasSharedSession()) {
+        restoreTried = true;
+        void sharedSessionToken().then(async (token) => {
+          if (token !== null) {
+            try {
+              await signInWithCustomToken(auth, token);
+              return; // the listener fires again with the user
+            } catch {
+              // fall through to signed out
+            }
+          }
+          setUser(null);
+        });
+        return;
+      }
+      restoreTried = true;
+      if (next !== null) void shareSession(next);
+      setUser(next);
+    });
+  }, []);
 
   const value: AuthState = {
     user,
@@ -80,8 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithRedirect(auth, provider);
       }
     },
-    // A shared phone must stop receiving the previous person's nudges.
+    // A shared phone must stop receiving the previous person's nudges, and signing out
+    // here signs out of every topherhooper.com site.
     signOut: async () => {
+      await endSharedSession();
       await disablePush().catch(() => undefined);
       await fbSignOut(auth);
     },

@@ -32,6 +32,9 @@ steps:
       # --update-env-vars merges from the latest revision, so this revision carries the
       # test BASE_URL. cloudbuild.yaml sets BASE_URL on every production deploy; keep it.
       - --update-env-vars=PUSH_TRANSPORT=fcm,BASE_URL=$_BASE_URL
+      # The live revision scopes its sign-in cookie to all of topherhooper.com; a test
+      # revision must not, or signing in on the test host would sign you in on the live site.
+      - --remove-env-vars=SESSION_COOKIE_DOMAIN
 
   - id: deploy-hosting
     name: node:22

@@ -33,7 +33,9 @@ steps:
       # domain and link domain is what spam filters score against.
       # TICK_AUDIENCE is set once out-of-band (the run URL only exists after the
       # first deploy); --update-env-vars merges and will not clobber it.
-      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com
+      # SESSION_COOKIE_DOMAIN scopes the shared sign-in cookie to every topherhooper.com
+      # site (packages/server/src/session.ts; docs/deployment.md "Shared sign-in").
+      - --update-env-vars=GCP_PROJECT=$PROJECT_ID,BASE_URL=$_BASE_URL,TICK_SERVICE_ACCOUNT=www-tick@$PROJECT_ID.iam.gserviceaccount.com,SESSION_COOKIE_DOMAIN=topherhooper.com
       # Alerts are off: with no MAIL_FROM the server falls back to LogMailer, and
       # with no PUSH_TRANSPORT to LogPusher (packages/server/src/main.ts), so turn,
       # game-over and reminder notices are logged instead of sent. Because

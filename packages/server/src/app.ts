@@ -64,6 +64,7 @@ import {
   lockPoll,
   pastMembers,
 } from './polls.js';
+import { registerSessionRoutes, type Sessions } from './session.js';
 import { unsubscribeErrorPage, unsubscribePage, type UnsubSigner } from './unsub.js';
 
 declare module 'fastify' {
@@ -79,6 +80,10 @@ export interface AppDeps {
   baseUrl: string;
   signer: UnsubSigner;
   pusher?: Pusher;
+  /** Shared sign-in across topherhooper.com sites; absent, the /api/session routes 404. */
+  sessions?: Sessions;
+  /** Parent domain for the shared session cookie; unset keeps it host-only. */
+  sessionCookieDomain?: string | undefined;
 }
 
 /**
@@ -138,6 +143,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   );
 
   app.get('/healthz', async () => ({ ok: true }));
+
+  // Outside the authed /api plugin: these read a cookie, not a bearer token.
+  if (deps.sessions !== undefined) {
+    registerSessionRoutes(app, deps.sessions, deps.sessionCookieDomain);
+  }
 
   app.post('/internal/tick', async (req) => {
     await verifiers.verifyTick(req.headers.authorization);

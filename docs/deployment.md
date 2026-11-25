@@ -386,6 +386,41 @@ the window you were debugging in. `Cross-Origin-Opener-Policy policy would block
 window.closed call` in the console is unrelated noise from the popup poller — it is not
 the failure, and chasing it wastes time.
 
+### Shared sign-in
+
+One Google sign-in covers every topherhooper.com site. Firebase Auth keeps its session per
+origin, so on its own a sign-in at `play.` means nothing to the front page or garden. The
+bridge is a Firebase session cookie, `__session`, scoped to the parent domain
+(`SESSION_COOKIE_DOMAIN=topherhooper.com`, set by `cloudbuild.yaml` and removed on test
+revisions), plus a readable `th_session=1` hint so pages know to look without asking the
+server on every visit. The routes are in `packages/server/src/session.ts`:
+
+| Route                     | Does                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| `POST /api/session`       | fresh ID token → session cookie (14 days)                        |
+| `DELETE /api/session`     | clears both cookies                                              |
+| `GET /api/session/me`     | `{ name, email }` of whoever the cookie names, or 401            |
+| `POST /api/session/token` | a custom token, so a sibling site's Firebase client signs in too |
+
+`play.` sets the cookie whenever a signed-in player lacks it, and `/signin?return=<url>` and
+`/signout?return=<url>` are the hand-offs the other sites link to; `return` must be an https
+topherhooper.com URL. Any sibling site joins by adding a Hosting rewrite of
+`/api/session/**` to `www-api` (the cookie is first-party there, and `__session` is the only
+cookie Hosting forwards to Cloud Run). The front page (`topherhooper_website`) does this.
+
+`createCustomToken` signs through IAM, so the runtime account — the default compute account,
+since the deploy names none — needs `iam.serviceAccounts.signBlob` on itself, granted once:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  614936797883-compute@developer.gserviceaccount.com \
+  --member=serviceAccount:614936797883-compute@developer.gserviceaccount.com \
+  --role=roles/iam.serviceAccountTokenCreator --project fluted-citizen-269819
+```
+
+Without it `/api/session/token` fails with a 500 naming `signBlob`, and the other sites simply
+stay signed out; `play.` itself is unaffected.
+
 ### The test host
 
 `test.topherhooper.com` serves a web build against a tagged, zero-traffic Cloud Run revision,
@@ -477,7 +512,7 @@ must be the only record at its label.
 ## Cloud Run env
 
 `GCP_PROJECT`, `BASE_URL=https://play.topherhooper.com`,
-`TICK_SERVICE_ACCOUNT=www-tick@…`, `TICK_AUDIENCE=<run URL>` (set once out-of-band —
+`TICK_SERVICE_ACCOUNT=www-tick@…`, `SESSION_COOKIE_DOMAIN=topherhooper.com`, `TICK_AUDIENCE=<run URL>` (set once out-of-band —
 the URL only exists after the first deploy; `--update-env-vars` in the pipeline merges
 and will not clobber it), `RESEND_API_KEY` and `UNSUBSCRIBE_SECRET` from Secret Manager.
 Min 0 / max 1 instance — one instance is deliberate; Firestore transactions guard

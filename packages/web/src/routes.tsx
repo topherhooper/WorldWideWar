@@ -3,6 +3,7 @@ import { Outlet, type RouteObject } from 'react-router';
 import { App } from './App.js';
 import { RequireAuth } from './auth.js';
 import { Game } from './pages/Game.js';
+import { SignInHandoff, SignOutHandoff } from './pages/Handoff.js';
 import { Home } from './pages/Home.js';
 import { Settings } from './pages/Settings.js';
 import { CalendarProbe } from './polls/CalendarProbe.js';
@@ -17,6 +18,8 @@ export const routes: RouteObject[] = [
       // The one page a signed-out friend can reach: Q5 shows the poll's title and who
       // asked behind the sign-in button. It handles auth itself.
       { path: '/p/:id', element: <PollGate /> },
+      // Hand-offs for the other topherhooper.com sites; see session.ts.
+      { path: '/signout', element: <SignOutHandoff /> },
       {
         element: (
           <RequireAuth>
@@ -25,6 +28,7 @@ export const routes: RouteObject[] = [
         ),
         children: [
           { path: '/', element: <Home /> },
+          { path: '/signin', element: <SignInHandoff /> },
           { path: '/g/:id', element: <Game /> },
           { path: '/settings', element: <Settings /> },
           { path: '/p', element: <Polls /> },
