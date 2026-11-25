@@ -101,10 +101,25 @@ function cookieHeader(
   ].join('; ');
 }
 
-function sessionCookies(value: string, maxAgeSeconds: number, domain: string | undefined) {
+/** How long a browser remembers that it signed out, so other sites drop their own sign-in. */
+const SIGNED_OUT_SECONDS = 400 * 24 * 60 * 60;
+
+function signedInCookies(value: string, maxAgeSeconds: number, domain: string | undefined) {
   return [
     cookieHeader(SESSION_COOKIE, value, maxAgeSeconds, domain, true),
-    cookieHeader(HINT_COOKIE, value === '' ? '' : '1', maxAgeSeconds, domain, false),
+    cookieHeader(HINT_COOKIE, '1', maxAgeSeconds, domain, false),
+  ];
+}
+
+/**
+ * Signing out leaves the hint behind as `0` rather than removing it. Each site keeps its own
+ * Firebase sign-in in the browser, and a missing hint cannot tell "signed out on another
+ * site" from "has not shared a session yet"; `0` can, so a sign-out anywhere reaches them all.
+ */
+function signedOutCookies(domain: string | undefined) {
+  return [
+    cookieHeader(SESSION_COOKIE, '', 0, domain, true),
+    cookieHeader(HINT_COOKIE, '0', SIGNED_OUT_SECONDS, domain, false),
   ];
 }
 
@@ -138,13 +153,13 @@ export function registerSessionRoutes(
     if (typeof idToken !== 'string' || idToken === '') throw new HttpError(400, 'idToken required');
     const expiresIn = SESSION_DAYS * 24 * 60 * 60 * 1000;
     const cookie = await sessions.create(idToken, expiresIn);
-    void reply.header('set-cookie', sessionCookies(cookie, expiresIn / 1000, cookieDomain));
+    void reply.header('set-cookie', signedInCookies(cookie, expiresIn / 1000, cookieDomain));
     return { ok: true };
   });
 
   app.delete('/api/session', async (_req, reply) => {
     noStore(reply);
-    void reply.header('set-cookie', sessionCookies('', 0, cookieDomain));
+    void reply.header('set-cookie', signedOutCookies(cookieDomain));
     return { ok: true };
   });
 

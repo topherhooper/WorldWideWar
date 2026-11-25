@@ -283,7 +283,8 @@ sign-in then fails only on phones, which desktop testing never reveals. Hosting 
 the real `/__/auth/handler` on every domain attached to the project, and `firebase.json`'s
 catch-all rewrite does not shadow the reserved `/__/` namespace, so no rewrite is needed.
 
-All three currently hold `play.topherhooper.com` and `test.topherhooper.com` alongside the
+The first two also hold `topherhooper.com` (the front page signs in with a pop-up, see
+"Shared sign-in"). All three currently hold `play.topherhooper.com` and `test.topherhooper.com` alongside the
 `web.app`/`firebaseapp.com` defaults. To add another origin:
 
 ```bash
@@ -402,11 +403,25 @@ server on every visit. The routes are in `packages/server/src/session.ts`:
 | `GET /api/session/me`     | `{ name, email }` of whoever the cookie names, or 401            |
 | `POST /api/session/token` | a custom token, so a sibling site's Firebase client signs in too |
 
-`play.` sets the cookie whenever a signed-in player lacks it, and `/signin?return=<url>` and
-`/signout?return=<url>` are the hand-offs the other sites link to; `return` must be an https
-topherhooper.com URL. Any sibling site joins by adding a Hosting rewrite of
-`/api/session/**` to `www-api` (the cookie is first-party there, and `__session` is the only
-cookie Hosting forwards to Cloud Run). The front page (`topherhooper_website`) does this.
+`play.` sets the cookie whenever a signed-in player lacks it. The front page
+(`topherhooper_website`) signs in on its own page: Google's pop-up through the Firebase SDK
+with `authDomain: play.topherhooper.com`, then `POST /api/session` through a Hosting rewrite of
+`/api/session` and `/api/session/**` to `www-api`. It keeps no Firebase session of its own;
+the cookie is the session. That is why `topherhooper.com` is in the first two rows of
+"Sign-in origins" above, and not the third: the OAuth redirect still lands on `play.`.
+Any sibling site joins the same way (the cookie is first-party there, and `__session` is the
+only cookie Hosting forwards to Cloud Run).
+
+Signing out anywhere signs out everywhere. `DELETE /api/session` leaves `th_session=0`
+behind instead of removing the hint, and a site that still holds its own Firebase sign-in
+drops it on the next load when it sees `0`. A missing hint could not say that: it also
+describes a player who simply has not shared a session yet.
+
+`/signin?return=<url>` and `/signout?return=<url>` on `play.` are the fallback for a browser
+that will not open the pop-up; `return` must be an https topherhooper.com URL. They render
+outside the game's layout and name the domain, not the game. The first version sent every
+front-page sign-in through them, and Topher's verdict was that a visitor to the front page
+should not be routed through World Wide War to sign in.
 
 `createCustomToken` signs through IAM, so the runtime account — the default compute account,
 since the deploy names none — needs `iam.serviceAccounts.signBlob` on itself, granted once:
