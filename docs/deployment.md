@@ -476,12 +476,19 @@ must be the only record at its label.
 
 ## Cloud Run env
 
-`GCP_PROJECT`, `BASE_URL=https://play.topherhooper.com`, `MAIL_FROM`,
+`GCP_PROJECT`, `BASE_URL=https://play.topherhooper.com`,
 `TICK_SERVICE_ACCOUNT=www-tick@…`, `TICK_AUDIENCE=<run URL>` (set once out-of-band —
 the URL only exists after the first deploy; `--update-env-vars` in the pipeline merges
 and will not clobber it), `RESEND_API_KEY` and `UNSUBSCRIBE_SECRET` from Secret Manager.
 Min 0 / max 1 instance — one instance is deliberate; Firestore transactions guard
 correctness anyway.
+
+**Alerts are off.** `MAIL_FROM` and `PUSH_TRANSPORT` are deliberately absent, and the
+pipeline removes them on every deploy, so the server logs turn, game-over and reminder
+notices instead of mailing or pushing them. Turned off on 2026-11-25 because the alerts were
+annoying, and so that relighting the site does not mail every deadline missed during the
+pause in one burst. The comment beside `--remove-env-vars` in `cloudbuild.yaml` says how to
+turn them back on. The test host (`cloudbuild.preview.yaml`) still pushes.
 
 ## Cost
 
