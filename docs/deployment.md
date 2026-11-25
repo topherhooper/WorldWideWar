@@ -698,6 +698,16 @@ touched. Nothing needs re-provisioning.
 
 ## Gotchas learned the hard way
 
+- **A green production deploy can serve nothing new.** The test host deploys with
+  `--no-traffic`, and the first such deploy pins production traffic to the revision that was
+  live at the time. After that, `gcloud run deploy www-api` makes a revision, routes 0% to it
+  and exits 0. Found at relight on 2026-11-25: production had been pinned to `www-api-00048`
+  since the test host first deployed on 2026-10-01, through every later deploy, and nobody
+  saw it because the site was mothballed. The pipeline now runs
+  `gcloud run services update-traffic www-api --to-latest` after the deploy (`route-traffic`
+  in `cloudbuild.yaml`). To see what is really serving:
+  `gcloud run services describe www-api --region us-central1 --format='yaml(status.traffic)'`.
+
 - **`/healthz` 404s publicly**: Google's frontend reserves `/healthz` on `run.app`
   domains and answers before the app. The route works locally and for port probes;
   don't chase 404s on it in prod.
