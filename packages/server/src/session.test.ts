@@ -83,15 +83,15 @@ describe('shared session routes', () => {
     expect((await a.inject({ method: 'POST', url: '/api/session/token' })).statusCode).toBe(401);
   });
 
-  it('signing out expires the cookie on the same domain', async () => {
+  it('signing out expires the session and leaves a signed-out marker on the same domain', async () => {
     const res = await app('topherhooper.com').inject({ method: 'DELETE', url: '/api/session' });
     const [session, hint] = res.headers['set-cookie'] as string[];
     expect(session).toContain('__session=;');
-    expect(hint).toContain('th_session=;');
-    for (const c of [session, hint]) {
-      expect(c).toContain('Max-Age=0');
-      expect(c).toContain('Domain=topherhooper.com');
-    }
+    expect(session).toContain('Max-Age=0');
+    // Not removed: `0` is how the other sites learn to drop their own sign-in.
+    expect(hint).toContain('th_session=0;');
+    expect(hint).not.toContain('Max-Age=0');
+    for (const c of [session, hint]) expect(c).toContain('Domain=topherhooper.com');
   });
 
   it('reads one cookie out of a header', () => {

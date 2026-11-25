@@ -10,10 +10,23 @@ import type { User } from 'firebase/auth';
 
 const HINT_COOKIE = 'th_session';
 
+function hint(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const found = document.cookie
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${HINT_COOKIE}=`));
+  return found?.slice(HINT_COOKIE.length + 1);
+}
+
 /** True when the readable hint says a shared session cookie exists for this browser. */
 export function hasSharedSession(): boolean {
-  if (typeof document === 'undefined') return false;
-  return document.cookie.split(';').some((c) => c.trim().startsWith(`${HINT_COOKIE}=1`));
+  return hint() === '1';
+}
+
+/** True when this browser signed out on one of the sites and has not signed in since. */
+export function signedOutElsewhere(): boolean {
+  return hint() === '0';
 }
 
 /** A custom token for the user behind the shared cookie, or null if there is none. */

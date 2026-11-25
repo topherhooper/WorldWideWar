@@ -14,7 +14,13 @@ import {
 } from 'firebase/auth';
 
 import { disablePush } from './push.js';
-import { endSharedSession, hasSharedSession, sharedSessionToken, shareSession } from './session.js';
+import {
+  endSharedSession,
+  hasSharedSession,
+  sharedSessionToken,
+  shareSession,
+  signedOutElsewhere,
+} from './session.js';
 
 const useEmulators = import.meta.env.VITE_USE_EMULATORS === '1';
 
@@ -63,6 +69,27 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
+/**
+ * Set while a sign-in started here is in flight. It lives in sessionStorage because the
+ * redirect flow reloads the page before the new user arrives.
+ */
+const SIGNING_IN = 'www-signing-in';
+function markSigningIn(on: boolean): void {
+  try {
+    if (on) sessionStorage.setItem(SIGNING_IN, '1');
+    else sessionStorage.removeItem(SIGNING_IN);
+  } catch {
+    // Storage blocked: the worst case is one extra sign-in click.
+  }
+}
+function signingIn(): boolean {
+  try {
+    return sessionStorage.getItem(SIGNING_IN) === '1';
+  } catch {
+    return false;
+  }
+}
+
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -88,8 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return;
       }
+      // Still signed in here, but signed out on another topherhooper.com site since: follow
+      // it, unless this is the sign-in the player just started on this page.
+      if (next !== null && !restoreTried && signedOutElsewhere() && !signingIn()) {
+        restoreTried = true;
+        void fbSignOut(auth);
+        return; // the listener fires again with null
+      }
       restoreTried = true;
-      if (next !== null) void shareSession(next);
+      if (next !== null) {
+        markSigningIn(false);
+        void shareSession(next);
+      }
       setUser(next);
     });
   }, []);
@@ -98,12 +135,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     signIn: async () => {
       const provider = new GoogleAuthProvider();
+      markSigningIn(true);
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
         // Popup-hostile environments (mobile browsers, strict blockers) get
         // the full-page redirect flow instead of a button that does nothing.
-        if (!popupUnavailable(err)) throw err;
+        if (!popupUnavailable(err)) {
+          markSigningIn(false);
+          throw err;
+        }
         await signInWithRedirect(auth, provider);
       }
     },

@@ -12,14 +12,16 @@ import { PollGate } from './polls/PollGate.js';
 import { Polls } from './polls/Polls.js';
 
 export const routes: RouteObject[] = [
+  // Hand-offs for the other topherhooper.com sites (see session.ts). Outside <App /> so a
+  // visitor from the front page sees no game header on the way through.
+  { path: '/signin', element: <SignInHandoff /> },
+  { path: '/signout', element: <SignOutHandoff /> },
   {
     element: <App />,
     children: [
       // The one page a signed-out friend can reach: Q5 shows the poll's title and who
       // asked behind the sign-in button. It handles auth itself.
       { path: '/p/:id', element: <PollGate /> },
-      // Hand-offs for the other topherhooper.com sites; see session.ts.
-      { path: '/signout', element: <SignOutHandoff /> },
       {
         element: (
           <RequireAuth>
@@ -28,7 +30,6 @@ export const routes: RouteObject[] = [
         ),
         children: [
           { path: '/', element: <Home /> },
-          { path: '/signin', element: <SignInHandoff /> },
           { path: '/g/:id', element: <Game /> },
           { path: '/settings', element: <Settings /> },
           { path: '/p', element: <Polls /> },

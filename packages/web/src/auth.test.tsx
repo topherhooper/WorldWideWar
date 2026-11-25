@@ -119,6 +119,21 @@ describe('shared sign-in from another topherhooper.com site', () => {
     expect(screen.queryByRole('button', { name: /sign in with google/i })).toBeNull();
   });
 
+  it('signs out here after a sign-out on another site', async () => {
+    document.cookie = 'th_session=0';
+    vi.stubGlobal('fetch', vi.fn());
+    render(
+      <AuthProvider>
+        <RequireAuth>
+          <div>app-content</div>
+        </RequireAuth>
+      </AuthProvider>,
+    );
+    await act(async () => setUser({ uid: 'u1', displayName: 'Al' }));
+    expect(firebaseAuth.signOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('app-content')).toBeNull();
+  });
+
   it('asks the server nothing when there is no shared session', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
