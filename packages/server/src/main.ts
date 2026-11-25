@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { realVerifiers } from './auth.js';
 import { LogMailer, resendMailer } from './mailer.js';
 import { LogPusher, fcmPusher } from './pusher.js';
+import { realSessions } from './session.js';
 import { initFirestore } from './store.js';
 import { unsubSignerFromEnv } from './unsub.js';
 
@@ -32,6 +33,9 @@ const app = buildApp({
   }),
   baseUrl,
   signer: unsubSignerFromEnv(process.env.UNSUBSCRIBE_SECRET?.trim()),
+  sessions: realSessions(),
+  // `topherhooper.com` in production, so one sign-in covers every subdomain. Unset elsewhere.
+  sessionCookieDomain: process.env.SESSION_COOKIE_DOMAIN?.trim() || undefined,
 });
 
 app

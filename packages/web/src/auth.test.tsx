@@ -15,6 +15,7 @@ vi.mock('firebase/auth', () => {
     }),
     signInWithPopup: vi.fn(),
     signInWithRedirect: vi.fn(),
+    signInWithCustomToken: vi.fn(),
     getRedirectResult: vi.fn(() => Promise.resolve(null)),
     signOut: vi.fn(),
     __setUser: (user: unknown) => authCallback?.(user),
@@ -24,6 +25,7 @@ vi.mock('firebase/auth', () => {
 const firebaseAuth = await import('firebase/auth');
 const signInWithPopup = vi.mocked(firebaseAuth.signInWithPopup);
 const signInWithRedirect = vi.mocked(firebaseAuth.signInWithRedirect);
+const signInWithCustomToken = vi.mocked(firebaseAuth.signInWithCustomToken);
 const setUser = (firebaseAuth as unknown as { __setUser: (user: unknown) => void }).__setUser;
 
 const { AuthProvider, RequireAuth } = await import('./auth.js');
@@ -87,5 +89,41 @@ describe('first-time sign-in', () => {
     renderSignedOut();
     act(() => setUser({ uid: 'u1', displayName: 'Al' }));
     expect(screen.getByText('app-content')).toBeTruthy();
+  });
+});
+
+describe('shared sign-in from another topherhooper.com site', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    document.cookie = 'th_session=; max-age=0';
+  });
+
+  it('signs in from the shared cookie instead of showing the sign-in card', async () => {
+    document.cookie = 'th_session=1';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => ({ token: 'custom-1' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <AuthProvider>
+        <RequireAuth>
+          <div>app-content</div>
+        </RequireAuth>
+      </AuthProvider>,
+    );
+    await act(async () => setUser(null));
+    expect(fetchMock).toHaveBeenCalledWith('/api/session/token', expect.anything());
+    expect(signInWithCustomToken).toHaveBeenCalledWith(expect.anything(), 'custom-1');
+    expect(screen.queryByRole('button', { name: /sign in with google/i })).toBeNull();
+  });
+
+  it('asks the server nothing when there is no shared session', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    renderSignedOut();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(signInButton()).toBeTruthy();
   });
 });
